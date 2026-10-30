@@ -1,0 +1,38 @@
+version: 1
+id: s1
+title: "6-DOF robot arm: elbow joint hunting"
+hazardousVoltage: false
+durationS: 5.0
+warmupS: 8.0
+fps: 30
+simHz: 1000
+concepts:
+  - { slug: forearm, prompt: "orange robot arm segment", role: fault, expectedCount: 1 }
+  - { slug: elbow, prompt: "round joint", role: context, expectedCount: 2 }
+  - { slug: marker, prompt: "checkered square", role: refs, expectedCount: 2 }
+markers: { sizeMm: 40 }
+camera:
+  width: 1280
+  height: 720
+  mmPerPx: 0.5
+  shakePx: 0.6          # random-walk camera shake, exercises ego-motion compensation
+  sensorNoiseDn: 2.0
+  subframes: 3          # motion-blur sub-samples per frame
+seeds:
+  baseline: 7
+  calibration: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+  mutation: [101, 102, 103, 104, 105, 106, 107, 108, 109, 110]
+objectives:
+  - "Stop the elbow oscillation while holding the commanded pose"
+  - "Keep the joint response within the step-response tests"
+hardBounds:
+  KP: [0.5, 15.0]
+  KD: [0.0, 0.6]
+  ANGLE_LPF_HZ: [5.0, 200.0]
+  DERIV_LPF_HZ: [5.0, 200.0]
+  ENC_FILT: [0, 7]
+targetFiles: [controller.py, params.py]
+assertions:
+  - type: vibration
+    role: fault
+    params: { r: 0.70, k: 3.0, aSpecMm: 0.3, dropDbMin: 10.0, newPeakDbMax: 6.0, confMin: 0.5, coverageMin: 0.90 }

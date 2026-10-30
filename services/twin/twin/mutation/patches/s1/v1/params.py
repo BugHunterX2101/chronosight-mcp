@@ -1,0 +1,1 @@
+PARAMS = {"KP": 1.5, "KD": 0.11, "ANGLE_LPF_HZ": 200.0, "DERIV_LPF_HZ": 30.0, "ENC_FILT": 3}

@@ -1,0 +1,38 @@
+# Secrets: never commit (C-3, K8 = 0)
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node / Next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Runtime data (renders, masks, audit logs live on the data volume)
+data/
+fixtures/raw/
+*.partial
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local agent tooling
+.claude-flow/
+.swarm/
+.claude/
+
+# graphify knowledge graph (local)
+graphify-out/

@@ -1,0 +1,4 @@
+# Injected faults for S1 (the baseline ships with all three)
+gains: "KP too high and KD too low: the elbow loop is barely damped near 4 Hz"
+encoderNoise: "EncoderX-14 FILT[2:0] left at reset default 0 (filter off): raw I2C reads carry ~12 LSB RMS noise"
+errata: "EncoderX-14 errata E-3 (p. 58): FILT is cleared by every brown-out reset; the twin injects one reset during warm-up"

@@ -1,0 +1,2 @@
+status 200 text/event-stream
+{"bytes": 3848113, "first_byte": 4.34, "completed": 12.95}
