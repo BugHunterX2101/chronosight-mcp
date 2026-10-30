@@ -2275,10 +2275,10 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 96 0 R >>
 endobj
 96 0 obj
-<< /Length 1849 >>
+<< /Length 1835 >>
 stream
 BT /F1 9 Tf 11 TL 54 740 Td
-(# 46 OTP programming in production) '
+(# 46 OTP programming) '
 () '
 (## 46.1 What OTP stores) '
 () '
@@ -2321,10 +2321,10 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 98 0 R >>
 endobj
 98 0 obj
-<< /Length 1654 >>
+<< /Length 1651 >>
 stream
 BT /F1 9 Tf 11 TL 54 740 Td
-(# 47 Application: servo loops) '
+(# 47 Servo loops: overview) '
 () '
 (## 47.1 Typical joint loop) '
 () '
@@ -2417,10 +2417,10 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 102 0 R >>
 endobj
 102 0 obj
-<< /Length 1709 >>
+<< /Length 1704 >>
 stream
 BT /F1 9 Tf 11 TL 54 740 Td
-(# 49 Choosing FILT for a servo loop) '
+(# 49 Choosing the FILT setting) '
 () '
 (## 49.1 The trade-off) '
 () '
@@ -2559,10 +2559,10 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 108 0 R >>
 endobj
 108 0 obj
-<< /Length 1701 >>
+<< /Length 1697 >>
 stream
 BT /F1 9 Tf 11 TL 54 740 Td
-(# 52 Magnet and field faults) '
+(# 52 Magnet field faults) '
 () '
 (## 52.1 Field flags) '
 () '
@@ -2834,10 +2834,10 @@ endobj
 << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 120 0 R >>
 endobj
 120 0 obj
-<< /Length 2096 >>
+<< /Length 2093 >>
 stream
 BT /F1 9 Tf 11 TL 54 740 Td
-(# 58 Errata E-3: CONF2 is cleared by every reset) '
+(# 58 Errata E-3: CONF2 cleared by every reset) '
 () '
 (## 58.1 Description) '
 () '
@@ -3077,36 +3077,36 @@ xref
 0000091120 00000 n 
 0000093090 00000 n 
 0000093218 00000 n 
-0000095119 00000 n 
-0000095247 00000 n 
-0000096953 00000 n 
-0000097082 00000 n 
-0000099081 00000 n 
-0000099211 00000 n 
-0000100973 00000 n 
-0000101103 00000 n 
-0000102817 00000 n 
-0000102947 00000 n 
-0000104805 00000 n 
-0000104935 00000 n 
-0000106689 00000 n 
-0000106819 00000 n 
-0000109101 00000 n 
-0000109231 00000 n 
-0000110747 00000 n 
-0000110877 00000 n 
-0000112125 00000 n 
-0000112255 00000 n 
-0000113820 00000 n 
-0000113950 00000 n 
-0000115566 00000 n 
-0000115696 00000 n 
-0000117845 00000 n 
-0000117975 00000 n 
-0000119600 00000 n 
-0000119730 00000 n 
+0000095105 00000 n 
+0000095233 00000 n 
+0000096936 00000 n 
+0000097065 00000 n 
+0000099064 00000 n 
+0000099194 00000 n 
+0000100951 00000 n 
+0000101081 00000 n 
+0000102795 00000 n 
+0000102925 00000 n 
+0000104783 00000 n 
+0000104913 00000 n 
+0000106663 00000 n 
+0000106793 00000 n 
+0000109075 00000 n 
+0000109205 00000 n 
+0000110721 00000 n 
+0000110851 00000 n 
+0000112099 00000 n 
+0000112229 00000 n 
+0000113794 00000 n 
+0000113924 00000 n 
+0000115540 00000 n 
+0000115670 00000 n 
+0000117816 00000 n 
+0000117946 00000 n 
+0000119571 00000 n 
+0000119701 00000 n 
 trailer
 << /Size 125 /Root 1 0 R /Info 4 0 R >>
 startxref
-121479
+121450
 %%EOF
