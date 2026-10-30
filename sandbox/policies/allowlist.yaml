@@ -1,0 +1,16 @@
+# Muse Code approval allowlist (DESIGN §18.4, TECHNICAL §6.6).
+# Loaded by services/gateway/src/muse/policy.ts at boot. Anything not listed is denied.
+#
+# A command matches when argv[0] equals `argv0`, the next tokens equal `args.fixed`, and
+# every remaining token is one of `args.flags` or a path under `args.pathsUnder`.
+version: 1
+commands:
+  - argv0: pytest
+    args: { fixed: [], flags: ["-q", "-x"], pathsUnder: tests }
+  - argv0: python
+    args: { fixed: ["-m", "pytest"], flags: ["-q", "-x"], pathsUnder: tests }
+  # SP-6 may change this to ["run", "-e", "esp32dev"]
+  - argv0: pio
+    args: { fixed: ["run", "-t", "compile"], flags: [] }
+fileEdits:
+  targetFilesOnly: true

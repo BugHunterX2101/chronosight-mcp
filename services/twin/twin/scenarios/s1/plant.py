@@ -10,7 +10,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .baseline.abi import REG_CONF2, STATUS_RST, State
+try:
+    from .baseline.abi import REG_CONF2, STATUS_RST, State
+except ImportError:  # copied flat into a sandbox's sim_harness/, beside abi.py (DESIGN §18.7)
+    from abi import REG_CONF2, STATUS_RST, State
 
 LSB = 2.0 * math.pi / 16384.0     # 14-bit absolute encoder
 

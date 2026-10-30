@@ -1,0 +1,17 @@
+{
+  "name": "@chronosight/sandbox-launcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=../../.env.local src/server.ts"
+  },
+  "dependencies": {
+    "@chronosight/run-model": "*",
+    "yaml": "~2.9.0",
+    "zod": "~4.6.7"
+  }
+}

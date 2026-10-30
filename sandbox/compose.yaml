@@ -1,0 +1,28 @@
+# Sandbox network plane (DESIGN §5, §19): the internal `sbx` network and the egress
+# proxy, its only peer. Sandboxes themselves are created by services/sandbox-launcher,
+# never by compose.
+#
+#   docker compose -f sandbox/compose.yaml up -d --build
+#
+# Synthesis containers get HTTPS_PROXY=http://egress-proxy:3128 (EGRESS_PROXY_URL).
+name: chronosight-sandbox
+
+networks:
+  sbx:
+    name: sbx
+    internal: true          # no default route: the proxy is the only way out
+  egress:
+    name: sbx-egress
+
+services:
+  egress-proxy:
+    build: ./egress-proxy
+    image: chronosight-egress-proxy:dev
+    networks:
+      sbx:
+        aliases: [egress-proxy]
+      egress: {}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
