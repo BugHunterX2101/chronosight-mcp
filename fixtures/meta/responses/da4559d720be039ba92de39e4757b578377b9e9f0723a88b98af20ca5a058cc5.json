@@ -1,0 +1,42 @@
+{
+ "fingerprint": "da4559d720be039ba92de39e4757b578377b9e9f0723a88b98af20ca5a058cc5",
+ "path": "/responses",
+ "model": "muse-wonder-1.0",
+ "events": [
+  {
+   "type": "response.reasoning_summary_text.delta",
+   "delta": "Evaluating a robot arm patch spec against hard bounds and safety constraints to assign risk level and recommendation."
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "{\"conc"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "erns\": [], \"recommend"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": \"proceed\", \"risk_level\": \"low\"}"
+  },
+  {
+   "type": "response.completed",
+   "response": {
+    "model": "muse-wonder-1.0",
+    "usage": {
+     "input_tokens": 1391,
+     "input_tokens_details": {
+      "cached_tokens": 1268
+     },
+     "output_tokens": 628,
+     "output_tokens_details": {
+      "reasoning_tokens": 580
+     },
+     "total_tokens": 2019
+    },
+    "id": "resp_6ae4859832523a18ef374e22",
+    "status": "completed"
+   }
+  }
+ ]
+}

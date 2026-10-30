@@ -8,8 +8,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import multiprocessing as mp
 import os
 import re
+import sys
 import threading
 from collections import OrderedDict
 from concurrent.futures import ProcessPoolExecutor
@@ -32,8 +34,10 @@ from ..sim.loader import SCENARIOS, load_baseline
 from ..sim.run import load_scenario, render, simulate
 from ..vut.evaluate import evaluate, failed_patch_result, precheck
 
-DATA_DIR = Path(os.environ.get("DATA_DIR", "./data")).resolve()
-CORPUS_DIR = Path(os.environ.get("CORPUS_DIR", Path(__file__).resolve().parents[4] / "corpus")).resolve()
+REPO_ROOT = Path(__file__).resolve().parents[4]
+# A relative DATA_DIR is taken from the repo root, as the gateway does, so both see one directory.
+DATA_DIR = (REPO_ROOT / (os.environ.get("DATA_DIR") or "data")).resolve()
+CORPUS_DIR = Path(os.environ.get("CORPUS_DIR", REPO_ROOT / "corpus")).resolve()
 SAM_MODEL_ID = os.environ.get("SAM_MODEL_ID", "sam-3.1")
 DECODE_WORKERS = int(os.environ.get("TWIN_DECODE_WORKERS", str(max(1, min(4, (os.cpu_count() or 2) - 1)))))
 ID_RE = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
@@ -43,12 +47,25 @@ _render_lock = threading.Lock()              # one render at a time keeps the 8 
 _tele: OrderedDict[str, Telemetry] = OrderedDict()
 
 
+def _pool_context():
+    """Spawn context for the decode pool. On Windows the workers run under pythonw.exe, so a
+    twin started without a console does not open one console window per worker. It must be the
+    base interpreter's pythonw: a venv launcher re-spawns it and the worker loses its pipe handle.
+    Spawn hands the parent's sys.path to each worker, so venv packages still import."""
+    ctx = mp.get_context("spawn")
+    if os.name == "nt":
+        windowless = Path(getattr(sys, "_base_executable", sys.executable)).with_name("pythonw.exe")
+        if windowless.is_file():
+            ctx.set_executable(str(windowless))
+    return ctx
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global _pool
     for d in ("clips", "masks", "patches", "work", "cache"):
         (DATA_DIR / d).mkdir(parents=True, exist_ok=True)
-    _pool = ProcessPoolExecutor(max_workers=DECODE_WORKERS)
+    _pool = ProcessPoolExecutor(max_workers=DECODE_WORKERS, mp_context=_pool_context())
     try:
         yield
     finally:
@@ -100,6 +117,18 @@ class VisualTestBody(_B):
     failure: Failure | None = None
     objectId: int | None = None
     testId: str | None = None
+
+
+class SamSource(_B):
+    ssePath: str
+    conceptIdx: int = Field(ge=0, le=255)
+
+
+class SamIngestBody(_B):
+    clipId: str
+    scenarioId: str = "s1"
+    sources: list[SamSource] = Field(min_length=1, max_length=16)
+    fps: float | None = Field(default=None, gt=0, le=240)
 
 
 class PatchLoadBody(_B):
@@ -252,9 +281,30 @@ def _measure_csmk(scenario_id: str, path: Path, n_frames: int | None) -> Telemet
     header, recs = csmk.read(path)
     fps = float(header.fps or sc["fps"])
     n = n_frames or int(round(fps * sc["durationS"]))
+    dec = _decoded(path, recs)
+    return sam.telemetry(recs, sc["concepts"], fps, sc["camera"]["mmPerPx"], n, lambda _f, _xs: dec)
+
+
+def _decoded(path: Path, recs: list[csmk.CsmkRecord]) -> list[tuple[float, float, float]]:
+    """`sam.decode` of every record, in record order. The official decoder dominates the cost
+    (about 0.1 s per mask), so the result is kept beside the .csmk, bound to its sha256, and
+    written at ingest (PERCEIVING) so that MEASURING stays within its 10 s (DESIGN §8.1)."""
+    sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    side = path.with_name(path.name + ".dec.npz")
+    if side.is_file():
+        try:
+            with np.load(side) as z:
+                if str(z["sha256"]) == sha and z["dec"].shape == (len(recs), 3):
+                    return [(float(a), float(b), float(c)) for a, b, c in z["dec"]]
+        except (OSError, ValueError, KeyError):
+            pass  # unreadable or stale: decode again and overwrite
     pool = _pool
-    mapper = (lambda f, xs: pool.map(f, xs, chunksize=16)) if pool is not None else map
-    return sam.telemetry(recs, sc["concepts"], fps, sc["camera"]["mmPerPx"], n, mapper)
+    it = pool.map(sam.decode, recs, chunksize=16) if pool is not None else map(sam.decode, recs)
+    dec = np.asarray(list(it), dtype=np.float64).reshape(len(recs), 3)
+    tmp = path.with_name(path.name + ".dec.tmp.npz")
+    np.savez(tmp, dec=dec, sha256=np.array(sha))
+    os.replace(tmp, side)
+    return [(float(a), float(b), float(c)) for a, b, c in dec]
 
 
 def _num(v: float | None) -> float | None:
@@ -303,6 +353,50 @@ async def metrics(body: MetricsBody):
         out["groundTruth"] = {"rmsMmTrue": _num(g.a_mm), "fStarHzTrue": _num(g.f_star_hz),
                               "trueAmplitudeMm": gt.get("trueAmplitudeMm"), "trueFStarHz": gt.get("trueFStarHz")}
     return out
+
+
+def _ingest(body: SamIngestBody, sc: dict) -> dict:
+    recs: list[csmk.CsmkRecord] = []
+    objects: dict[str, list[int]] = {}
+    usage: dict[str, dict] = {}
+    warnings: list[str] = []
+    for src in body.sources:
+        if src.conceptIdx >= len(sc["concepts"]):
+            raise HTTPException(400, detail={"code": "CONCEPT_UNKNOWN", "message": str(src.conceptIdx)})
+        path = _inside(src.ssePath)
+        if not path.is_file():
+            raise HTTPException(404, detail={"code": "SSE_NOT_FOUND", "message": src.ssePath})
+        try:
+            got, use = sam.records_from_sse(path, src.conceptIdx)
+        except sam.SamFormatError as exc:
+            raise HTTPException(422, detail={"code": "SAM_FORMAT", "message": f"{src.ssePath}: {exc}"}) from exc
+        recs += got
+        ids = sorted({r.object_id for r in got})
+        concept = sc["concepts"][src.conceptIdx]
+        objects[concept["slug"]] = ids
+        usage[concept["slug"]] = use
+        if len(ids) > int(concept.get("expectedCount", 1)):
+            # §12.6 SAM_AMBIGUOUS: measurement keeps the longest tracks up to the expected count.
+            warnings.append(f"SAM_AMBIGUOUS: {concept['slug']} returned {len(ids)} objects, "
+                            f"expected {concept.get('expectedCount', 1)}")
+    # Frame-major order keeps the .idx a per-frame slice; within a frame, concept then object (§12.3).
+    recs.sort(key=lambda r: (r.frame_idx, r.concept_idx, r.object_id))
+    cam = sc["camera"]
+    header = sam.header_for(recs, int(cam["width"]), int(cam["height"]), float(body.fps or sc["fps"]))
+    out = DATA_DIR / "masks" / f"{body.clipId}.csmk"
+    csmk.write(out, header, recs)
+    _decoded(out, csmk.read(out)[1])
+    return {"clipId": body.clipId, "csmkPath": out.relative_to(DATA_DIR).as_posix(), "records": len(recs),
+            "flags": header.flags, "objects": objects, "usage": usage, "warnings": warnings}
+
+
+@app.post("/sam/ingest")
+async def sam_ingest(body: SamIngestBody):
+    """Teed SAM streams (DESIGN §12.4) for one clip -> masks/<clipId>.csmk + .idx (§10)."""
+    if not ID_RE.match(body.clipId):
+        return _err(400, "BAD_CLIP_ID", body.clipId)
+    sc = _scenario(body.scenarioId)
+    return await asyncio.to_thread(_ingest, body, sc)
 
 
 STREAM_EVERY = 15

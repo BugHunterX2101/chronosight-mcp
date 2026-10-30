@@ -38,6 +38,16 @@ export interface PatchLoaded {
   approvalExempt: string | null;
 }
 
+export interface SamIngestResult {
+  clipId: string;
+  csmkPath: string;
+  records: number;
+  flags: number;
+  objects: Record<string, number[]>;
+  usage: Record<string, unknown>;
+  warnings: string[];
+}
+
 export interface ClipRef {
   clipId: string;
   csmkPath?: string;
@@ -63,7 +73,7 @@ export class TwinError extends Error {
 }
 
 /** Per-call deadlines: render ≤ 8 s warm (§30.1) with headroom for a cold cache; patch load runs a child import. */
-const TIMEOUT_MS = { health: 3_000, render: 60_000, metrics: 60_000, visualTest: 30_000, patchLoad: 30_000 } as const;
+const TIMEOUT_MS = { health: 3_000, render: 60_000, metrics: 60_000, visualTest: 30_000, patchLoad: 30_000, samIngest: 30_000 } as const;
 
 export class TwinClient {
   readonly baseURL: string;
@@ -96,6 +106,13 @@ export class TwinClient {
     failure?: { code: string; detail?: string }; objectId?: number; testId?: string;
   }): Promise<VisualTestResult> {
     return VisualTestResult.parse(await this.req("POST", "/visual-test", body, TIMEOUT_MS.visualTest));
+  }
+
+  /** Parses teed SAM streams (paths relative to DATA_DIR) into masks/<clipId>.csmk (DESIGN §12.4). */
+  async samIngest(body: {
+    clipId: string; scenarioId: string; sources: { ssePath: string; conceptIdx: number }[]; fps?: number;
+  }): Promise<SamIngestResult> {
+    return this.req("POST", "/sam/ingest", body, TIMEOUT_MS.samIngest);
   }
 
   /** Bounds-checks (dryRun) or stages a patch. Bounds violations and import failures come back as 422 bodies. */

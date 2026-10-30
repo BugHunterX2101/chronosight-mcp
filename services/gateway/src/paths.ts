@@ -13,5 +13,6 @@ export const paths = {
   prompts: resolve(root, "services/gateway/prompts"),
   config: resolve(root, "config"),
   fixtures: resolve(root, "fixtures"),
-  data: resolve(process.env.DATA_DIR ?? resolve(root, "data")),
+  // A relative DATA_DIR is taken from the repo root, as the twin does, so both see one directory.
+  data: resolve(root, process.env.DATA_DIR || "data"),
 };

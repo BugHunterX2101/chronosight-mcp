@@ -130,6 +130,14 @@ export class MetaClient {
             ? { type: raw.type, delta: String(raw.delta ?? "") }
             : { type: raw.type, response: raw.response }) as ResponseEvent;
         recorded.push(e);
+        // Only a completed stream becomes a fixture; a partial one would replay the same failure
+        // forever. It is written before the event is handed on, because a consumer may stop
+        // iterating at response.completed, and nothing after this loop would then run.
+        if (this.mode === "record" && e.type === "response.completed") {
+          mkdirSync(this.fixtureDir, { recursive: true });
+          const fx: Fixture = { fingerprint: fp, path: "/responses", model: String(body.model), events: recorded };
+          writeFileSync(file, JSON.stringify(fx, null, 1) + "\n", "utf8");
+        }
         yield e;
       }
     } catch (err) {
@@ -138,12 +146,6 @@ export class MetaClient {
     }
     // The SDK ends an aborted stream quietly; a deadline must surface as a timeout, not a truncation.
     if (signal?.aborted) throw new MetaError("TIMEOUT", "attempt deadline reached mid-stream");
-    // Only a completed stream becomes a fixture; a partial one would replay the same failure forever.
-    if (this.mode === "record" && recorded.some((e) => e.type === "response.completed")) {
-      mkdirSync(this.fixtureDir, { recursive: true });
-      const fx: Fixture = { fingerprint: fp, path: "/responses", model: String(body.model), events: recorded };
-      writeFileSync(file, JSON.stringify(fx, null, 1) + "\n", "utf8");
-    }
   }
 }
 

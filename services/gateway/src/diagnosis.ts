@@ -23,6 +23,8 @@ export interface DiagnoseInput {
   request: string;
   /** D5: failed-verdict reasons or a traceback from a previous loop attempt */
   priorAttempt?: string | null;
+  /** Caller-chosen ID so progress events can name the diagnosis; never sent to the model. */
+  diagnosisId?: string;
 }
 
 export interface DiagnoseDeps {
@@ -248,7 +250,7 @@ export function escalationReason(d: Diagnosis): string | null {
 }
 
 export async function diagnose(deps: DiagnoseDeps, input: DiagnoseInput): Promise<DiagnoseResult> {
-  const diagnosisId = `dia_${ulid()}`;
+  const diagnosisId = input.diagnosisId ?? `dia_${ulid()}`;
   const contribFailures = { n: 0 };
   deps.emit("progress", `Reading ${input.prefix.manifest.title} (${input.prefix.manifest.pages} pp)…`);
 
