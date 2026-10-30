@@ -1,0 +1,834 @@
+{
+ "fingerprint": "475bc54d512694d6d78f69738b7913514547d80b1abae0fa33de1aabc2e1857b",
+ "path": "/responses",
+ "model": "muse-spark-1.3-contributor",
+ "events": [
+  {
+   "type": "response.reasoning_summary_text.delta",
+   "delta": "Analyzing telemetry and controller constraints to rank hypotheses and generate a compliant patch spec."
+  },
+  {
+   "type": "response.reasoning_summary_text.delta",
+   "delta": "Correlating 4Hz oscillation with encoder noise and derivative gain amplification at FILT=0."
+  },
+  {
+   "type": "response.reasoning_summary_text.delta",
+   "delta": "Forming ranked hypotheses and selecting patch parameters within hard bounds."
+  },
+  {
+   "type": "response.reasoning_summary_text.delta",
+   "delta": "Adding telemetry and doc evidence to support the ranked hypotheses within the bounds."
+  },
+  {
+   "type": "response.reasoning_summary_text.delta",
+   "delta": "Refining parameter bounds and patch interface while omitting unchanged gains to meet evidence and objective constraints."
+  },
+  {
+   "type": "response.reasoning_summary_text.delta",
+   "delta": "Defining numeric objectives, safety preconditions, and plain-text approach hints with explicit register writes."
+  },
+  {
+   "type": "response.reasoning_summary_text.delta",
+   "delta": "Extracting verbatim short quotes from specific pages and adding telemetry entries with null doc and page fields."
+  },
+  {
+   "type": "response.reasoning_summary_text.delta",
+   "delta": "Defining minimal patch bounds for ENC_FILT, DERIV_LPF_HZ, and KD, and drafting short approach hints."
+  },
+  {
+   "type": "response.reasoning_summary_text.delta",
+   "delta": "Composing three sub-120-character plain-text hints and safety preconditions for the patch."
+  },
+  {
+   "type": "response.reasoning_summary_text.delta",
+   "delta": "Verifying quoted register values and errata text against page references for the patch rationale."
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "{\"hypotheses"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": [{\"confidence"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": 0.81, \"evidence"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": [{\"detail\": \"Baseline"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " clip s"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "1-baseline-7 shows sustained "
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "4.03 Hz peak 27."
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "3 dB above floor, 31"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " px"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " peak-to-peak and 3.94"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " mm RMS on forearm object 0 while"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " holding pose.\", \"doc"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": null, \"page\": null,"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"quote\": null, \"source\":"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"telemetry\"}, {\"detail\": \""
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "Default"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " volatile"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " register explains"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " why shipped"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " controller with"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " no writes runs un"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "filtered.\", \"doc\": \"encx"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "14\", \"page\": 31,"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"quote\": \"CONF2 has no"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " OTP shadow. Its value after any reset"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " is 0x00, so F"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "ILT = 0 and\", \"source"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": \"doc\"}, {\"detail\": \""
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "With"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " filter bypassed the output"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " noise"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " is full broadband"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " value"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " that"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " derivative"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " will"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " amplify.\", \"doc\": \"encx"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "14\", \"page\": 31,"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"quote\": \"With n = "
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "0 the filter is bypassed.\", \""
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "source\": \"doc\"}, {\"detail\":"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"Aud"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "ible buzz and light-link"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " resonance matches"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " observed "
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "4 Hz forearm hunting from"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " noisy"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " current"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": ".\","
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"doc\": \"encx14\","
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"page\": 48, \"quote"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": \"The motor heats, the joint"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " buzzes audibly, and a light"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " link can resonate.\", \"source\": \""
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "doc\"}, {\"detail\": \"Manual recommendation"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " confirms"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " FILT 3 as"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " starting point for "
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "1 kHz joint loops"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " like"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " this one"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": ".\", \"doc\": \"encx14"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\", \"page\": 49, \""
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "quote\": \"FILT = 3"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " (CONF2 = 0x03"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": ") is the recommended starting point.\", \""
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "source\": \"doc\"}], \"faultObject"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "Ids\": [0], \"mechanism"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": \"Controller never writes CONF2"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " so FILT stays 0 giving"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " 12 LSB RMS angle noise. At"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " 1 kHz differ"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "encing this"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " becomes ~"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "373 deg/s RMS velocity noise that PD"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " derivative drives"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " into"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " motor, exciting ~"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "4 Hz arm mode"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " into hunting.\", \"rank\": 1"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": ", \"title\": \"Encoder filter off"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " causing derivative noise hunting\"}, {\"confidence\":"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " 0.14, \"evidence\":"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " [{\"detail\": \"Same 4."
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "03 Hz peak could be"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " read"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " as marginally"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " stable position"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " loop hitting"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " mechanical resonance independent"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " of sensor setting"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": ".\", \"doc\": null, \"page"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": null, \"quote\": null,"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"source\": \"telemetry\"}, {\""
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "detail\": \"Phase lag from"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " delay plus filtering"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " is"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " small at"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " 4 Hz for low"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " FILT but"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " large"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " lag"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " can destabil"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "ize, so"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " host tuning is"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " alternative explanation.\", \"doc\": \"enc"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "x14\", \"page\": 12"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": ", \"quote\": \"FILT ="
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " 7 costs about 25\\u00"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "b0"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " at 4 Hz\", \"source\":"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"doc\"}, {\"detail\": \"Brown"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "-out style"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " loss would"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " raise"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " noise from filtered"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " to unfiltered level"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": ","
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " showing why"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " restore must"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " be same"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " cycle.\", \"doc\": \"encx"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "14\", \"page\": 58,"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"quote\": \"Angle noise rises from"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " 3.10 LSB RMS (F"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "ILT = 3) to 12"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": ".0 LSB RMS.\", \"source\":"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"doc\"}], \"faultObjectIds\":"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " [0], \"mechanism\": \""
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "Host PD with KP "
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "3.2, wide angle LPF"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " 200 Hz and deriv LPF "
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "30 Hz has"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " crossover"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " near 4"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " Hz resonance. Even moderate"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " noise could"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " be amplified to"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " hunting"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " without"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " sensor fault"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "."
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " Less likely because signature"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " and"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " shipped"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " lack"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " of CONF"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "2 writes point"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " to"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " sensor filter"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": ".\","
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"rank\": 2, \"title"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": \"High"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " bandwidth host tuning"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " hitting"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " mechanical"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " resonance\"}], \"patchSpec\": {\""
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "approachHints\": [\"Enable"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " CONF2 noise filter to FILT "
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "3 and leave direction hysteresis watchdog at defaults"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\", \"Check reset flag each control cycle"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " and restore CONF2 in same cycle when"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " set\", \"Keep burst reads to status"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " plus angle and start every transaction with explicit"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " pointer\", \"Hold proportional gain near present"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " value and avoid increasing derivative gain\"], \""
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "bounds\": [{\"max"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": 3."
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "0, \"min\": 3."
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "0, \"param\": \"ENC_F"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "ILT\"}, {\"max\": 4."
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "0, \"min\": 2."
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "0, \"param\": \"KP\"},"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " {\"max\": 0.01,"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"min\": 0.0,"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " \"param\": \"KD\"}, {\"max"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": 30.0, \"min"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": 15.0, \"param"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": \"DERIV_LPF_HZ"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\"}], \"interface\": \"Controller.step(state"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": ": State, dt: float) ->"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " Command\", \"objectives\": {\"overs"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "hootPctMax\": 10.0"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": ", \"settleSecMax\": "
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "2.0, \"sseMax\":"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " 0.01}, \"targetFiles"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\": [\"controller.py\", \"params.py"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\"]}, \"riskLevel\": \"low"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "\", \"safetyPreconditions\": [\""
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": "Keep personnel clear of elbow sweep during live"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " motion checks\", \"Confirm magnet detected flag"
+  },
+  {
+   "type": "response.output_text.delta",
+   "delta": " healthy before closing torque loop\"]}"
+  },
+  {
+   "type": "response.completed",
+   "response": {
+    "model": "muse-spark-1.3-contributor",
+    "usage": {
+     "input_tokens": 28850,
+     "input_tokens_details": {
+      "cached_tokens": 28785
+     },
+     "output_tokens": 12766,
+     "output_tokens_details": {
+      "reasoning_tokens": 11557
+     },
+     "total_tokens": 41616
+    },
+    "id": "resp_6ae44ed9f27d6f1b2cf54fa8",
+    "status": "completed"
+   }
+  }
+ ]
+}

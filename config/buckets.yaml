@@ -1,0 +1,9 @@
+# Per-model token buckets at 80% of the team limits (DESIGN §21.3, PRD §14.2).
+models:
+  muse-spark-1.3-contributor: { rpm: 120, tpm: 2400000 }
+  muse-spark-1.3: { rpm: 2400, tpm: 3200000 }
+  muse-wonder-1.0: { rpm: 120 }
+  sam-3.1: { rpm: 2400 }
+  muse-image-1.0: { rpm: 120 }
+asr:
+  maxConcurrent: 32

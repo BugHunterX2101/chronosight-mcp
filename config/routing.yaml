@@ -1,0 +1,56 @@
+# Routing policy (PRD §14.1, DESIGN §21.1). Loaded at boot by services/gateway/src/router.ts.
+# Retention is per lane for PUBLIC prefixes; any CONFIDENTIAL request uses in_memory (§16.3).
+# A Contributor model is never returned for CONFIDENTIAL data (§21.2); the router throws instead.
+version: 1
+lanes:
+  contrib: { cacheRetention: 24h, filesExpiresAfterS: 86400 }
+  std: { cacheRetention: 24h, filesExpiresAfterS: 3600 }
+tasks:
+  diagnosis.routine:
+    primary: { model: muse-spark-1.3-contributor, effort: xhigh, summary: auto }
+    dataClasses: [PUBLIC]
+    fallback: { model: muse-spark-1.3, effort: high, summary: auto }
+    retries: 3
+    lane: contrib
+  diagnosis.escalated:
+    primary: { model: muse-spark-1.3, effort: max, summary: auto }
+    dataClasses: [PUBLIC, CONFIDENTIAL]
+    fallback: { model: muse-spark-1.3, effort: high, summary: auto }
+    retries: 3
+    lane: std
+  diagnosis.user:
+    primary: { model: muse-spark-1.3, effort: high, summary: auto }
+    dataClasses: [CONFIDENTIAL]
+    fallback: null
+    retries: 3
+    lane: std
+  errata.search:
+    primary: { model: muse-spark-1.3-contributor, effort: low, summary: auto }
+    dataClasses: [PUBLIC]
+    fallback: null
+    retries: 1
+    lane: contrib
+  risk.review:
+    primary: { model: muse-wonder-1.0, effort: high, summary: auto }
+    dataClasses: [PUBLIC, CONFIDENTIAL]
+    fallback: { model: muse-spark-1.3, effort: high, summary: auto }
+    retries: 3
+    lane: std
+  device.sound:
+    primary: { model: muse-spark-1.2, effort: null, summary: null }
+    dataClasses: [PUBLIC, CONFIDENTIAL]
+    fallback: null
+    retries: 1
+    lane: std
+  overlay.image:
+    primary: { model: muse-image-1.0, effort: null, summary: null }
+    dataClasses: [PUBLIC, CONFIDENTIAL]
+    fallback: null
+    retries: 1
+    lane: std
+  perception:
+    primary: { model: sam-3.1, effort: null, summary: null }
+    dataClasses: [PUBLIC, CONFIDENTIAL]
+    fallback: null
+    retries: 3
+    lane: std
