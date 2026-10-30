@@ -1,0 +1,3112 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 60 /Kids [5 0 R 7 0 R 9 0 R 11 0 R 13 0 R 15 0 R 17 0 R 19 0 R 21 0 R 23 0 R 25 0 R 27 0 R 29 0 R 31 0 R 33 0 R 35 0 R 37 0 R 39 0 R 41 0 R 43 0 R 45 0 R 47 0 R 49 0 R 51 0 R 53 0 R 55 0 R 57 0 R 59 0 R 61 0 R 63 0 R 65 0 R 67 0 R 69 0 R 71 0 R 73 0 R 75 0 R 77 0 R 79 0 R 81 0 R 83 0 R 85 0 R 87 0 R 89 0 R 91 0 R 93 0 R 95 0 R 97 0 R 99 0 R 101 0 R 103 0 R 105 0 R 107 0 R 109 0 R 111 0 R 113 0 R 115 0 R 117 0 R 119 0 R 121 0 R 123 0 R] >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>
+endobj
+4 0 obj
+<< /Title (EncoderX-14 Reference Manual, revision 1.2) /Subject (Licensed CC-BY-4.0) >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 2347 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# EncoderX-14 Reference Manual) '
+() '
+(14-bit contactless magnetic absolute angle encoder with I\262C interface) '
+() '
+(Document ENCX14-RM, revision 1.2) '
+() '
+(NOTICE: THE ENCODERX-14 IS A FICTIONAL COMPONENT.) '
+() '
+(This manual was written for the ChronoSight project as an original) '
+(reference document. It describes an imaginary part. No real product, vendor) '
+(or datasheet is reproduced or paraphrased here. Any resemblance of register) '
+(names, values or behaviour to a real device is coincidental. Do not use this) '
+(document to design real hardware.) '
+() '
+(Licence: Creative Commons Attribution 4.0 International \(CC-BY-4.0\).) '
+(You may share and adapt this document for any purpose, provided you give) '
+(appropriate credit \("EncoderX-14 Reference Manual, ChronoSight project,) '
+(CC-BY-4.0"\), link to the licence, and indicate if changes were made.) '
+(Licence text: https://creativecommons.org/licenses/by/4.0/) '
+() '
+(Contents at a glance) '
+() '
+(  Part 1  Overview ........................................ pages 4-8) '
+(  Part 2  Electrical characteristics ...................... pages 9-14) '
+(  Part 3  Package and mechanical .......................... pages 15-22) '
+(  Part 4  Signal chain and noise .......................... pages 23-27) '
+(  Part 5  Register map .................................... pages 28-36) '
+(  Part 6  I\262C protocol .................................... pages 37-42) '
+(  Part 7  Configuration and start-up ...................... pages 43-46) '
+(  Part 8  Application: servo control loops ................ pages 47-50) '
+(  Part 9  Diagnostics and fault handling .................. pages 51-54) '
+(  Part 10 Reliability ..................................... pages 55-56) '
+(  Part 11 Errata .......................................... pages 57-59) '
+(  Part 12 Glossary and licence ............................ page 60) '
+() '
+(The most frequently referenced items are:) '
+() '
+(  - Register CONF2 and the FILT[2:0] noise filter ......... page 31) '
+(  - Output noise versus FILT setting \(table 31-2\) ......... page 31) '
+(  - Read latency and phase lag \(table 12-1\) ............... page 12) '
+(  - Errata E-3: CONF2 cleared by every reset .............. page 58) '
+ET
+BT /F1 7.5 Tf 202.5 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 1 of 60) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 1912 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# Revision history and conventions) '
+() '
+(## Revision history) '
+() '
+(  Rev   Date         Changes) '
+(  1.0   2026-03-02   First release.) '
+(  1.1   2026-06-18   Added table 12-1 \(phase lag at the host control rate\).) '
+(                     Corrected tAIR maximum in table 20-1.) '
+(  1.2   2026-10-05   Added errata E-3, E-4 and E-5 \(pages 58-59\).) '
+(                     Clarified that STATUS.RST is sticky \(page 33\).) '
+(                     Added the "rewrite CONF2 after reset" guidance \(page 45\).) '
+() '
+(## Conventions used in this manual) '
+() '
+(Numbers. Hexadecimal values carry a 0x prefix \(0x4C\). Binary values carry a) '
+(0b prefix \(0b011\). All other numbers are decimal.) '
+() '
+(Bit fields. A field is written NAME[msb:lsb]. FILT[2:0] is the three-bit) '
+(field FILT that occupies bits 2, 1 and 0 of its register. Bit 0 is the least) '
+(significant bit.) '
+() '
+(Register access types.) '
+() '
+(  R     read only) '
+(  W     write only \(reads return 0\)) '
+(  RW    read and write) '
+(  RC    read, cleared by the read \(sticky flag\)) '
+(  OTP   one-time programmable; the value survives power cycles) '
+() '
+(Angles. One LSB of the angle output is 360\260/16384 = 0.02197\260 = 383.5 \265rad) '
+(\(2 x pi / 16384 rad\). "Code" means the unsigned 14-bit output value in the) '
+(range 0 to 16383.) '
+() '
+(Noise. Noise figures are root-mean-square \(RMS\) values measured over 10,000) '
+(consecutive reads with the magnet at rest, unless stated otherwise.) '
+() '
+(Typical and limit values. "Typ" values are at 25 \260C and VDD = 3.3 V. "Min") '
+(and "Max" values hold over the full recommended operating range \(page 10\).) '
+() '
+(Notes. Paragraphs headed "Important" describe behaviour that has caused) '
+(field problems. Read them before writing firmware.) '
+ET
+BT /F1 7.5 Tf 202.5 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 2 of 60) Tj ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 4355 >>
+stream
+BT /F1 8.5 Tf 10.39 TL 54 739.89 Td
+(# Table of contents) '
+() '
+(  1  Title, licence and notice ............................... 1) '
+(  2  Revision history and conventions ........................ 2) '
+(  3  Table of contents ....................................... 3) '
+(  4  Safety and usage notes .................................. 4) '
+(  5  Features ................................................ 5) '
+(  6  Functional block diagram ................................ 6) '
+(  7  Typical application: robot joint ........................ 7) '
+(  8  Ordering information .................................... 8) '
+(  9  Absolute maximum ratings ................................ 9) '
+( 10  Recommended operating conditions ........................ 10) '
+( 11  Supply, power-on reset and brown-out reset .............. 11) '
+( 12  Timing, read latency and phase lag ...................... 12) '
+( 13  I\262C DC characteristics and address selection ............ 13) '
+( 14  I\262C AC timing ........................................... 14) '
+( 15  Pinout .................................................. 15) '
+( 16  Package dimensions \(SOIC-8\) ............................. 16) '
+( 17  PCB layout guidance ..................................... 17) '
+( 18  Soldering and handling .................................. 18) '
+( 19  Magnet selection ........................................ 19) '
+( 20  Air gap and field strength .............................. 20) '
+( 21  Mechanical alignment .................................... 21) '
+( 22  Alignment error and its effect on accuracy .............. 22) '
+( 23  Signal chain overview ................................... 23) '
+( 24  Hall array and front end ................................ 24) '
+( 25  ADC and CORDIC angle computation ........................ 25) '
+( 26  Noise sources ........................................... 26) '
+( 27  Accuracy and linearity .................................. 27) '
+( 28  Register map summary .................................... 28) '
+( 29  CHIP_ID, REV and CONF1 .................................. 29) '
+( 30  ZPOS and MPOS \(zero and maximum position\) ............... 30) '
+( 31  CONF2 and the FILT[2:0] filter .......................... 31) '
+( 32  CONF2 other fields \(DIR, HYST, WD\) ...................... 32) '
+( 33  STATUS register ......................................... 33) '
+( 34  ANGLE and RAW output registers .......................... 34) '
+( 35  AGC and MAG registers ................................... 35) '
+( 36  CMD register and OTP .................................... 36) '
+( 37  I\262C protocol overview ................................... 37) '
+( 38  Write transaction ....................................... 38) '
+( 39  Read transaction ........................................ 39) '
+( 40  Burst read of STATUS and ANGLE .......................... 40) '
+( 41  Address auto-increment and wrap ......................... 41) '
+( 42  Bus error recovery ...................................... 42) '
+( 43  Power-up sequence ....................................... 43) '
+( 44  Default register values ................................. 44) '
+( 45  Recommended initialisation .............................. 45) '
+( 46  OTP programming ......................................... 46) '
+( 47  Servo loops: overview ................................... 47) '
+( 48  Quantisation and noise in a derivative term ............. 48) '
+( 49  Choosing the FILT setting ............................... 49) '
+( 50  Velocity estimation ..................................... 50) '
+( 51  Diagnostics overview .................................... 51) '
+( 52  Magnet field faults ..................................... 52) '
+( 53  Brown-out events in the field ........................... 53) '
+( 54  Watchdog and bus faults ................................. 54) '
+( 55  Reliability data ........................................ 55) '
+( 56  Qualification and ESD ................................... 56) '
+( 57  Errata summary .......................................... 57) '
+( 58  Errata E-3: CONF2 cleared by every reset ................ 58) '
+( 59  Errata E-4 and E-5 ...................................... 59) '
+( 60  Glossary and licence .................................... 60) '
+ET
+BT /F1 7.5 Tf 202.5 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 3 of 60) Tj ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 12 0 R >>
+endobj
+12 0 obj
+<< /Length 1980 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 4 Safety and usage notes) '
+() '
+(The EncoderX-14 is a fictional component described for software and) '
+(documentation research. The notes below are written as a real manual would) '
+(write them, so that the document reads realistically.) '
+() '
+(## 4.1 Intended use) '
+() '
+(The EncoderX-14 measures the absolute angle of a diametrically magnetised) '
+(magnet that rotates above the package. Typical uses are motor commutation,) '
+(robot joint position feedback, knobs and gimbals.) '
+() '
+(The device is not rated for safety functions. A safety-rated joint must use) '
+(an independent second channel and a diagnostic coverage analysis that does) '
+(not rely on this device alone.) '
+() '
+(## 4.2 Behaviour after a reset) '
+() '
+(Important: the device has several reset sources \(power-on, brown-out,) '
+(watchdog and soft reset, see page 11 and page 51\). After any reset the) '
+(volatile configuration returns to its default values. A host that writes its) '
+(configuration only once at start-up will silently lose that configuration) '
+(after the first brown-out. See errata E-3 on page 58 and the recommended) '
+(initialisation on page 45.) '
+() '
+(## 4.3 Strong magnetic fields) '
+() '
+(Fields above 120 mT do not damage the device but drive the Hall front end) '
+(into saturation. The MAGH flag \(page 33\) is set and the angle output is not) '
+(valid while MAGH is set.) '
+() '
+(## 4.4 Electrostatic discharge) '
+() '
+(The device is ESD sensitive. Handle it at an ESD-protected workstation.) '
+(ESD ratings are on page 56.) '
+() '
+(## 4.5 Motor drives) '
+() '
+(Place the encoder at least 15 mm away from motor windings and high-current) '
+(traces, or shield it. Stray fields from a motor add a slowly varying angle) '
+(error that the FILT filter cannot remove, because the filter only acts on) '
+(broadband noise above its corner frequency \(page 31\).) '
+ET
+BT /F1 7.5 Tf 202.5 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 4 of 60) Tj ET
+endstream
+endobj
+13 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 14 0 R >>
+endobj
+14 0 obj
+<< /Length 2042 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 5 Features) '
+() '
+(  - 14-bit absolute angle output, 16384 codes per revolution) '
+(  - 1 LSB = 0.02197\260 \(383.5 \265rad\)) '
+(  - Contactless: on-axis measurement of a diametric magnet, 30 to 90 mT) '
+(  - Internal sampling at 8 kHz with a CORDIC angle engine) '
+(  - Programmable first-order digital noise filter, FILT[2:0], with eight) '
+(    settings from "off" to a 16 ms time constant \(page 31\)) '
+(  - Output noise 12 LSB RMS with the filter off, down to 0.75 LSB RMS with) '
+(    the strongest setting \(table 31-2\)) '
+(  - I\262C interface, standard mode, fast mode and fast-mode plus \(up to 1 MHz\)) '
+(  - Two selectable I\262C addresses, 0x4C or 0x4D \(ADDR pin\)) '
+(  - Programmable zero position and angular range \(ZPOS, MPOS\)) '
+(  - Selectable direction of rotation \(DIR bit\)) '
+(  - Output hysteresis of 0, 1, 2 or 3 LSB \(HYST field\)) '
+(  - Magnet diagnostics: field too weak \(MAGL\), field too strong \(MAGH\),) '
+(    magnet detected \(MD\), automatic gain control readout \(AGC\)) '
+(  - Sticky reset flag \(STATUS.RST\) that reports any reset since the last) '
+(    STATUS read) '
+(  - Internal watchdog that resets the device if the oscillator stalls) '
+(  - Supply 3.0 V to 3.6 V, typical current 6.5 mA) '
+(  - Power-on reset \(VPOR 2.8 V\) and brown-out reset \(VBOR 2.6 V\)) '
+(  - Operating temperature -40 \260C to +125 \260C) '
+(  - SOIC-8 package, 4.9 mm x 3.9 mm) '
+(  - One-time programmable \(OTP\) memory for ZPOS, MPOS and CONF1) '
+() '
+(## 5.1 What the device does not do) '
+() '
+(  - It does not store CONF2 in OTP. The FILT, DIR, HYST and WD fields are) '
+(    volatile and return to their defaults after every reset \(page 44\).) '
+(  - It does not provide a velocity output. Velocity must be estimated by the) '
+(    host from successive angle reads \(page 50\).) '
+(  - It does not provide an incremental \(ABI\) or PWM output. All data is read) '
+(    over I\262C.) '
+ET
+BT /F1 7.5 Tf 202.5 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 5 of 60) Tj ET
+endstream
+endobj
+15 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 16 0 R >>
+endobj
+16 0 obj
+<< /Length 2926 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 6 Functional block diagram) '
+() '
+(  +--------------------------------------------------------------+) '
+(  |                        EncoderX-14                            |) '
+(  |                                                              |) '
+(  |  +-----------+   +-----------+   +---------+   +----------+  |) '
+(  |  | Hall array|-->| Front end |-->|  ADC    |-->|  CORDIC  |  |) '
+(  |  | 4 x Hall  |   | + AGC     |   | 8 kHz   |   |  angle   |  |) '
+(  |  +-----------+   +-----------+   +---------+   +----+-----+  |) '
+(  |                                                     |        |) '
+(  |                                    +----------------v-----+  |) '
+(  |                                    | FILT IIR \(CONF2[2:0]\)|  |) '
+(  |                                    | runs at 8 kHz        |  |) '
+(  |                                    +----------------+-----+  |) '
+(  |                                                     |        |) '
+(  |  +----------+   +----------------+   +--------------v-----+  |) '
+(  |  |   OTP    |-->| ZPOS / MPOS /  |-->| DIR, HYST, output   |  |) '
+(  |  | ZPOS,MPOS|   | range scaling  |   | registers ANGLE,RAW |  |) '
+(  |  +----------+   +----------------+   +--------------+-----+  |) '
+(  |                                                     |        |) '
+(  |  +-----------+  +------------+  +-------------------v-----+  |) '
+(  |  | POR / BOR |  |  Watchdog  |  |   I\262C slave, 1 MHz      |  |) '
+(  |  | reset ctl |  |            |  |   address 0x4C / 0x4D   |  |) '
+(  |  +-----+-----+  +-----+------+  +-----------+-------------+  |) '
+(  |        |              |                     |                |) '
+(  |        +--> reset --> clears volatile registers \(CONF2,      |) '
+(  |                       STATUS\) and sets STATUS.RST            |) '
+(  +--------------------------------------------------------------+) '
+(         VDD  GND        SDA  SCL  ADDR  TEST  NC  NC) '
+() '
+(Figure 6-1. Functional block diagram.) '
+() '
+(## 6.1 Data path) '
+() '
+(The four Hall elements sense the two orthogonal field components of the) '
+(rotating magnet. The front end amplifies them with a gain set by the) '
+(automatic gain control \(AGC, page 35\). The ADC samples both channels at) '
+(8 kHz. The CORDIC engine converts each sample pair into an angle.) '
+() '
+(The FILT filter \(page 31\) is applied to the angle stream at the full 8 kHz) '
+(rate, before the result is written to the RAW register. ZPOS, MPOS, DIR and) '
+(HYST are applied after the filter, and the result goes to the ANGLE register.) '
+() '
+(## 6.2 Reset controller) '
+() '
+(Every reset source drives the same internal reset line. The reset line) '
+(clears the volatile registers, including CONF2, regardless of the source.) '
+(This is the root of errata E-3 \(page 58\).) '
+ET
+BT /F1 7.5 Tf 202.5 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 6 of 60) Tj ET
+endstream
+endobj
+17 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 18 0 R >>
+endobj
+18 0 obj
+<< /Length 2482 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 7 Typical application: robot joint) '
+() '
+(Figure 7-1 shows the EncoderX-14 measuring the output angle of a robot) '
+(elbow joint. The magnet is glued to the end of the joint shaft. The encoder) '
+(sits on a small board on the joint housing, on the shaft axis.) '
+() '
+(  joint housing) '
+(  +---------------------------------------+) '
+(  |   motor -- gearbox -- output shaft --+ |) '
+(  |                                      | |) '
+(  |                          magnet [N|S] | |) '
+(  |                          air gap 1.5 mm |) '
+(  |                       +--------------+ |) '
+(  |                       | EncoderX-14  | |) '
+(  |                       +------+-------+ |) '
+(  +------------------------------|---------+) '
+(                                 | I\262C, 400 kHz or 1 MHz) '
+(                        +--------v--------+) '
+(                        |  joint MCU      |) '
+(                        |  1 kHz PD loop  |) '
+(                        +--------+--------+) '
+(                                 | PWM) '
+(                        +--------v--------+) '
+(                        |  H-bridge       |) '
+(                        +-----------------+) '
+() '
+(Figure 7-1. Robot joint with output-side angle sensing.) '
+() '
+(## 7.1 Control loop timing) '
+() '
+(The joint controller usually runs at 1 kHz. Each control period it reads) '
+(the angle, computes the motor command and writes the PWM duty. The read) '
+(takes a known time and the value returned is older than the moment of the) '
+(read; see the latency table on page 12.) '
+() '
+(## 7.2 Derivative term) '
+() '
+(A PD or PID loop differentiates the measured angle. Differentiation) '
+(amplifies high-frequency noise. With the FILT filter off, the raw output) '
+(noise of 12 LSB RMS becomes a large velocity noise at a 1 kHz loop rate) '
+(\(page 48\). This noise drives the motor, heats it, and can excite the) '
+(mechanical resonance of a light arm. Page 49 explains how to choose a FILT) '
+(setting for this application.) '
+() '
+(## 7.3 Brown-out in a joint) '
+() '
+(Joint boards often share a supply with the motor driver. A motor current) '
+(spike can pull the 3.3 V rail below VBOR \(2.6 V\) for a few microseconds.) '
+(That causes a brown-out reset, which clears CONF2 \(page 58\). The joint) '
+(keeps running, but with the filter off. Page 53 describes how to detect) '
+(this.) '
+ET
+BT /F1 7.5 Tf 202.5 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 7 of 60) Tj ET
+endstream
+endobj
+19 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 20 0 R >>
+endobj
+20 0 obj
+<< /Length 1565 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 8 Ordering information) '
+() '
+(  Part number          Package   Temperature        Packing) '
+(  ENCX14-S8-T          SOIC-8    -40 to +125 \260C     Tape and reel, 2500) '
+(  ENCX14-S8-B          SOIC-8    -40 to +125 \260C     Tube, 100) '
+(  ENCX14-EVB           Board     0 to +70 \260C        Evaluation board) '
+() '
+(## 8.1 Device marking) '
+() '
+(  Line 1:  X14) '
+(  Line 2:  YWW \(year digit, week number\)) '
+(  Line 3:  Lot code, 4 characters) '
+() '
+(## 8.2 Silicon revisions) '
+() '
+(  REV register \(0x01\)   Marking suffix   Notes) '
+(  0xA1                  none             First production silicon) '
+(  0xA2                  "B"              E-1 and E-2 corrected) '
+() '
+(Errata E-3, E-4 and E-5 apply to both revisions. See page 57.) '
+() '
+(## 8.3 Evaluation board) '
+() '
+(The ENCX14-EVB carries the encoder, a magnet holder with a 6 mm x 2.5 mm) '
+(NdFeB magnet, a 3.3 V regulator, I\262C pull-ups \(2.2 kOhm\) and a 2.54 mm) '
+(header for a host. Jumper J1 selects the I\262C address. Jumper J2 inserts a) '
+(10 Ohm resistor in series with VDD so that brown-out behaviour can be) '
+(reproduced with a bench supply.) '
+() '
+(## 8.4 Related documents) '
+() '
+(  - ENCX14-AN01  Magnet and air gap selection) '
+(  - ENCX14-AN02  Servo loop design with the EncoderX-14) '
+(  - ENCX14-ER    Errata sheet \(the content is included on pages 57-59\)) '
+() '
+(All related documents are fictional and listed for completeness only.) '
+ET
+BT /F1 7.5 Tf 202.5 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 8 of 60) Tj ET
+endstream
+endobj
+21 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 22 0 R >>
+endobj
+22 0 obj
+<< /Length 1649 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 9 Absolute maximum ratings) '
+() '
+(Stresses beyond the values in table 9-1 may cause permanent damage.) '
+(Operation at these values is not implied. Exposure to absolute maximum) '
+(conditions for long periods may affect reliability.) '
+() '
+(Table 9-1. Absolute maximum ratings.) '
+() '
+(  Parameter                          Min      Max      Unit) '
+(  Supply voltage VDD                 -0.3     4.0      V) '
+(  Voltage on SDA, SCL, ADDR          -0.3     VDD+0.3  V) '
+(  Voltage on TEST                    -0.3     VDD+0.3  V) '
+(  Input current, any pin             -10      10       mA) '
+(  Storage temperature                -55      150      \260C) '
+(  Junction temperature                        150      \260C) '
+(  Magnetic flux density                       unlimited) '
+(  ESD, human body model \(HBM\)                 2000     V) '
+(  ESD, charged device model \(CDM\)             500      V) '
+(  Moisture sensitivity level                  MSL 3) '
+() '
+(## 9.1 Notes) '
+() '
+(1. The device survives any static magnetic field. The angle output is only) '
+(   valid between 30 mT and 90 mT \(page 20\).) '
+(2. TEST must be tied to GND in the application. Leaving it open can enter a) '
+(   factory test mode in which the I\262C interface does not respond.) '
+(3. Exceeding 4.0 V on VDD can damage the OTP memory. OTP contents are not) '
+(   guaranteed after an overvoltage event.) '
+(4. A supply ramp faster than 1 V/\265s can trigger more than one power-on) '
+(   reset. This is harmless; the last reset wins.) '
+ET
+BT /F1 7.5 Tf 202.5 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 9 of 60) Tj ET
+endstream
+endobj
+23 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 24 0 R >>
+endobj
+24 0 obj
+<< /Length 1845 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 10 Recommended operating conditions) '
+() '
+(Table 10-1. Recommended operating conditions.) '
+() '
+(  Parameter                          Min     Typ     Max     Unit) '
+(  Supply voltage VDD                 3.0     3.3     3.6     V) '
+(  Supply current, active                     6.5     9.0     mA) '
+(  Supply current, low-power mode             1.2     1.8     mA) '
+(  Operating ambient temperature      -40             125     \260C) '
+(  Magnetic flux density              30      60      90      mT) '
+(  Air gap \(6 mm x 2.5 mm magnet\)     0.5     1.5     3.0     mm) '
+(  Rotational speed                           0       30000   rpm) '
+(  I\262C clock frequency                0               1000    kHz) '
+(  Supply ripple, 1 kHz to 1 MHz                      50      mV pp) '
+() '
+(## 10.1 Supply decoupling) '
+() '
+(Place a 100 nF ceramic capacitor within 2 mm of the VDD pin and a 4.7 \265F) '
+(capacitor within 10 mm. The device draws current pulses at the 8 kHz) '
+(sampling rate. Without the 4.7 \265F capacitor these pulses can modulate the) '
+(supply enough to add 1-2 LSB of noise.) '
+() '
+(## 10.2 Shared supplies) '
+() '
+(When the encoder shares a 3.3 V rail with a motor driver or a radio,) '
+(consider a separate LDO or an RC filter \(10 Ohm, 10 \265F\) on VDD. Supply dips) '
+(below VBOR = 2.6 V cause a brown-out reset \(page 11\). The brown-out reset) '
+(clears CONF2 \(page 58\).) '
+() '
+(## 10.3 Rotational speed) '
+() '
+(The angle output is valid up to 30,000 rpm. At high speed the output lags) '
+(the true angle by the internal processing delay plus the FILT time constant) '
+(\(page 12 and page 31\). The lag is a pure function of speed and can be) '
+(compensated by the host if needed.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 10 of 60) Tj ET
+endstream
+endobj
+25 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 26 0 R >>
+endobj
+26 0 obj
+<< /Length 2107 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 11 Supply, power-on reset and brown-out reset) '
+() '
+(## 11.1 Reset sources) '
+() '
+(The device has four reset sources. All four drive the same internal reset) '
+(line and have the same effect on the registers.) '
+() '
+(  Source        Trigger                                     Page) '
+(  Power-on      VDD rises through VPOR = 2.8 V              11) '
+(  Brown-out     VDD falls below VBOR = 2.6 V for > 2 \265s     11) '
+(  Watchdog      internal oscillator stalls for > 1 ms       54) '
+(  Soft reset    host writes 0xA5 to CMD \(0x30\)              36) '
+() '
+(## 11.2 Effect of a reset) '
+() '
+(On every reset:) '
+() '
+(  - CONF2 returns to 0x00. FILT = 0 \(filter off\), DIR = 0, HYST = 0, WD = 0.) '
+(  - STATUS is cleared and then STATUS.RST \(bit 0\) is set.) '
+(  - ZPOS, MPOS and CONF1 are reloaded from OTP.) '
+(  - The I\262C interface is idle and ready 1.5 ms after the reset ends.) '
+(  - The first valid angle is available 2.0 ms after the reset ends.) '
+() '
+(## 11.3 Thresholds) '
+() '
+(Table 11-1. Power-on and brown-out thresholds.) '
+() '
+(  Parameter                      Symbol   Min    Typ    Max    Unit) '
+(  Power-on reset threshold       VPOR     2.70   2.80   2.90   V) '
+(  Brown-out reset threshold      VBOR     2.50   2.60   2.70   V) '
+(  Brown-out filter time          tBOR     1      2      4      \265s) '
+(  Reset to I\262C ready             tRDY            1.5    2.0    ms) '
+(  Reset to first valid angle     tVAL            2.0    2.5    ms) '
+() '
+(## 11.4 Important: brown-out resets are silent) '
+() '
+(A brown-out reset can be shorter than one host control period. The host) '
+(does not see a bus error and the angle keeps arriving after 2 ms. The only) '
+(evidence is STATUS.RST, which stays set until the host reads STATUS \(page) '
+(33\). The configuration written by the host at start-up is lost: CONF2 is) '
+(back to 0x00 and the noise filter is off. Errata E-3 on page 58 describes) '
+(the consequences and the required workaround.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 11 of 60) Tj ET
+endstream
+endobj
+27 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 28 0 R >>
+endobj
+28 0 obj
+<< /Length 2269 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 12 Timing, read latency and phase lag) '
+() '
+(## 12.1 Internal timing) '
+() '
+(  Parameter                                 Typ     Max     Unit) '
+(  Internal sampling period \(8 kHz\)          125     125     \265s) '
+(  CORDIC processing delay                   60      80      \265s) '
+(  Register update period \(ANGLE, RAW\)       125     125     \265s) '
+() '
+(## 12.2 Read latency seen by a host) '
+() '
+(The angle that a host receives is older than the moment the read) '
+(completes. The age is the sum of the internal processing delay, the time) '
+(since the last register update, the I\262C transfer time and the time the host) '
+(firmware takes to service the transfer.) '
+() '
+(For the typical case of a host running a 1 kHz control loop that starts one) '
+(3-byte burst read \(page 40\) per control period at 400 kHz, and that uses the) '
+(value in the next control step, the effective latency is two control) '
+(periods.) '
+() '
+(**The I\262C read latency is 2 ms for a host that polls once per 1 ms control) '
+(period and uses the result in the following period.**) '
+() '
+(Model the encoder in simulation as a pure delay of 2 ms on the true angle,) '
+(followed by the FILT filter and the output noise.) '
+() '
+(## 12.3 Phase lag) '
+() '
+(A pure delay T adds a phase lag of 360\260 x f x T at frequency f. The FILT) '
+(filter adds atan\(2 x pi x f x tau\). Table 12-1 lists the total phase lag) '
+(for the 2 ms latency case.) '
+() '
+(Table 12-1. Phase lag from a 2 ms delay plus the FILT time constant.) '
+() '
+(  Frequency   FILT=0     FILT=3 \(1 ms\)   FILT=5 \(4 ms\)   FILT=7 \(16 ms\)) '
+(  1 Hz        0.7\260       1.1\260            2.2\260            6.5\260) '
+(  4 Hz        2.9\260       4.3\260            8.6\260            24.8\260) '
+(  10 Hz       7.2\260       10.8\260           21.3\260           52.4\260) '
+(  30 Hz       21.6\260      32.3\260           58.6\260           93.2\260) '
+() '
+(A joint loop with a crossover between 3 and 10 Hz tolerates FILT = 3 with) '
+(almost no extra phase lag. FILT = 7 costs about 25\260 at 4 Hz and can make a) '
+(loop that was stable with FILT = 0 oscillate. See page 49.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 12 of 60) Tj ET
+endstream
+endobj
+29 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 30 0 R >>
+endobj
+30 0 obj
+<< /Length 1790 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 13 I\262C DC characteristics and address selection) '
+() '
+(Table 13-1. I\262C DC characteristics \(VDD = 3.0 to 3.6 V\).) '
+() '
+(  Parameter                          Min        Max        Unit) '
+(  Input low voltage VIL              -0.3       0.3 VDD    V) '
+(  Input high voltage VIH             0.7 VDD    VDD+0.3    V) '
+(  Input hysteresis                   0.05 VDD              V) '
+(  Output low voltage, 3 mA sink                 0.4        V) '
+(  Output low voltage, 20 mA sink                0.4        V    \(Fm+\)) '
+(  Input leakage current              -1         1          \265A) '
+(  Pin capacitance                               10         pF) '
+() '
+(## 13.1 Pull-up resistors) '
+() '
+(SDA and SCL are open-drain. Choose pull-ups for the bus capacitance and) '
+(speed:) '
+() '
+(  Mode               Max clock   Typical pull-up   Max bus capacitance) '
+(  Standard mode      100 kHz     4.7 kOhm          400 pF) '
+(  Fast mode          400 kHz     2.2 kOhm          400 pF) '
+(  Fast-mode plus     1 MHz       1.0 kOhm          550 pF) '
+() '
+(## 13.2 Address selection) '
+() '
+(The 7-bit I\262C address is set by the ADDR pin at reset:) '
+() '
+(  ADDR pin     7-bit address    Write byte   Read byte) '
+(  GND          0x4C             0x98         0x99) '
+(  VDD          0x4D             0x9A         0x9B) '
+() '
+(The ADDR pin is sampled on every reset, including brown-out resets. Do not) '
+(drive ADDR from a GPIO that may change state while the device is running:) '
+(a brown-out would then move the device to the other address.) '
+() '
+(## 13.3 Bus voltage) '
+() '
+(The I\262C pins are not 5 V tolerant. A 5 V host needs a level shifter.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 13 of 60) Tj ET
+endstream
+endobj
+31 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 32 0 R >>
+endobj
+32 0 obj
+<< /Length 1911 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 14 I\262C AC timing) '
+() '
+(Table 14-1. I\262C AC timing.) '
+() '
+(  Parameter                  Symbol    Fm \(400 kHz\)    Fm+ \(1 MHz\)    Unit) '
+(                                       Min     Max     Min     Max) '
+(  SCL clock frequency        fSCL      0       400     0       1000   kHz) '
+(  Hold time START            tHD;STA   0.6             0.26           \265s) '
+(  SCL low period             tLOW      1.3             0.5            \265s) '
+(  SCL high period            tHIGH     0.6             0.26           \265s) '
+(  Setup time repeated START  tSU;STA   0.6             0.26           \265s) '
+(  Data hold time             tHD;DAT   0               0              \265s) '
+(  Data setup time            tSU;DAT   100             50             ns) '
+(  Rise time SDA, SCL         tr                300             120    ns) '
+(  Fall time SDA, SCL         tf                300             120    ns) '
+(  Setup time STOP            tSU;STO   0.6             0.26           \265s) '
+(  Bus free time              tBUF      1.3             0.5            \265s) '
+() '
+(## 14.1 Transfer durations) '
+() '
+(A 3-byte burst read from STATUS \(page 40\) consists of the write address) '
+(byte, the register pointer byte, a repeated START, the read address byte) '
+(and 3 data bytes: 6 bytes with acknowledgements, 54 clock cycles plus the) '
+(START, repeated START and STOP conditions.) '
+() '
+(  Bus speed     Burst read time) '
+(  100 kHz       540 \265s) '
+(  400 kHz       135 \265s) '
+(  1 MHz         54 \265s) '
+() '
+(## 14.2 Clock stretching) '
+() '
+(The device never stretches the clock. The host may use any clock frequency) '
+(up to the limit of the selected mode.) '
+() '
+(## 14.3 General call) '
+() '
+(The device ignores the general call address \(0x00\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 14 of 60) Tj ET
+endstream
+endobj
+33 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 34 0 R >>
+endobj
+34 0 obj
+<< /Length 1753 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 15 Pinout) '
+() '
+(  SOIC-8, top view) '
+() '
+(            +----v----+) '
+(     VDD  1 |o        | 8  SDA) '
+(     GND  2 |         | 7  SCL) '
+(    TEST  3 |         | 6  ADDR) '
+(      NC  4 |         | 5  NC) '
+(            +---------+) '
+() '
+(Table 15-1. Pin functions.) '
+() '
+(  Pin   Name   Type      Function) '
+(  1     VDD    Supply    3.3 V supply. Decouple with 100 nF + 4.7 \265F.) '
+(  2     GND    Supply    Ground.) '
+(  3     TEST   Input     Factory test. Tie to GND.) '
+(  4     NC     -         Not connected. Leave open or tie to GND.) '
+(  5     NC     -         Not connected. Leave open or tie to GND.) '
+(  6     ADDR   Input     I\262C address select, sampled at reset \(page 13\).) '
+(  7     SCL    Input     I\262C clock, open-drain bus.) '
+(  8     SDA    I/O       I\262C data, open-drain.) '
+() '
+(## 15.1 Sensor centre) '
+() '
+(The centre of the Hall array is in the centre of the package body, within) '
+(\2610.1 mm. Use the package outline, not the pin row, to place the magnet axis) '
+(\(page 21\).) '
+() '
+(## 15.2 Direction of rotation) '
+() '
+(Looking at the top of the package, with DIR = 0 \(default\), the angle code) '
+(increases when the magnet rotates clockwise. Setting CONF2.DIR = 1 reverses) '
+(the direction \(page 32\).) '
+() '
+(Important: because DIR lives in CONF2, a brown-out reset also returns DIR to) '
+(0 \(page 58\). A host that relies on DIR = 1 will see the direction reverse) '
+(after a brown-out. In a position loop this turns negative feedback into) '
+(positive feedback. Prefer to handle direction in host software, or rewrite) '
+(CONF2 after every reset \(page 45\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 15 of 60) Tj ET
+endstream
+endobj
+35 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 36 0 R >>
+endobj
+36 0 obj
+<< /Length 1913 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 16 Package dimensions \(SOIC-8\)) '
+() '
+(  Top view                         Side view) '
+() '
+(     |<-- D = 4.90 -->|) '
+(     +----------------+  ---          +----------------+   ---) '
+(     |o               |   ^           |                |    | A = 1.75 max) '
+(     |                |   E1 = 3.90   +-+--+--+--+--+--+   ---) '
+(     |       +        |   v             |  |  |  |  |  A1 = 0.10 to 0.25) '
+(     |  \(Hall centre\) |  ---) '
+(     +----------------+) '
+(       e = 1.27 pitch) '
+() '
+(Table 16-1. SOIC-8 dimensions \(mm\).) '
+() '
+(  Symbol   Description                         Min     Nom     Max) '
+(  A        Total height                                        1.75) '
+(  A1       Standoff                            0.10            0.25) '
+(  b        Lead width                          0.31            0.51) '
+(  D        Body length                         4.80    4.90    5.00) '
+(  E        Width across leads                  5.80    6.00    6.20) '
+(  E1       Body width                          3.80    3.90    4.00) '
+(  e        Lead pitch                                  1.27) '
+(  L        Foot length                         0.40            1.27) '
+(  dZ       Hall array depth below top surface          0.30) '
+() '
+(## 16.1 Hall array position) '
+() '
+(The Hall array is centred in the body in both x and y within \2610.10 mm, and) '
+(sits 0.30 mm below the top surface of the mould compound. Add 0.30 mm to the) '
+(mechanical air gap to obtain the magnetic air gap.) '
+() '
+(## 16.2 Recommended land pattern) '
+() '
+(  Pad width 0.60 mm, pad length 1.55 mm, pad row pitch 5.40 mm,) '
+(  pad pitch 1.27 mm.) '
+() '
+(Keep the area under the package free of copper pours on the top layer to) '
+(avoid eddy-current effects at high rotational speed.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 16 of 60) Tj ET
+endstream
+endobj
+37 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 38 0 R >>
+endobj
+38 0 obj
+<< /Length 1722 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 17 PCB layout guidance) '
+() '
+(## 17.1 Placement) '
+() '
+(  - Place the decoupling capacitors on the same layer as the encoder, as) '
+(    close to pins 1 and 2 as possible.) '
+(  - Route SDA and SCL as a pair, away from motor phase traces.) '
+(  - Keep current-carrying traces at least 5 mm from the package. A trace) '
+(    carrying 1 A at 5 mm produces about 40 \265T, which is small compared with) '
+(    the 30 mT minimum signal, but motor phase currents of 10 A or more are) '
+(    not.) '
+() '
+(## 17.2 Ground) '
+() '
+(Connect GND to a solid ground plane. Do not route the motor return current) '
+(under the encoder.) '
+() '
+(## 17.3 Supply) '
+() '
+(If the board carries a motor driver, give the encoder its own supply branch) '
+(from the regulator, with an RC filter \(10 Ohm, 10 \265F\). This reduces the) '
+(probability of a brown-out reset when the motor starts \(page 53\). It does) '
+(not remove that probability, so firmware must still handle STATUS.RST \(page) '
+(45\).) '
+() '
+(## 17.4 Connectors and cables) '
+() '
+(When the encoder board is connected to the host by a cable longer than) '
+(30 cm, use fast mode \(400 kHz\) rather than fast-mode plus, add 100 Ohm) '
+(series resistors on SDA and SCL at the encoder side, and keep VDD and GND in) '
+(the same cable as the bus. Long cables raise the chance of supply dips at) '
+(the encoder.) '
+() '
+(## 17.5 Magnet keep-out) '
+() '
+(Keep ferromagnetic parts \(steel screws, shields\) at least 5 mm away from the) '
+(magnet. Ferromagnetic parts distort the field and add an angle error that) '
+(repeats once per revolution \(page 27\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 17 of 60) Tj ET
+endstream
+endobj
+39 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 40 0 R >>
+endobj
+40 0 obj
+<< /Length 1669 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 18 Soldering and handling) '
+() '
+(## 18.1 Reflow profile) '
+() '
+(The device is qualified for lead-free reflow according to the following) '
+(profile:) '
+() '
+(  Stage                              Value) '
+(  Preheat, 150 to 200 \260C             60 to 120 s) '
+(  Time above 217 \260C                  60 to 150 s) '
+(  Peak temperature                   260 \260C, max 10 s within 5 \260C of peak) '
+(  Ramp-up rate                       3 \260C/s max) '
+(  Ramp-down rate                     6 \260C/s max) '
+(  Maximum number of reflows          3) '
+() '
+(## 18.2 Moisture sensitivity) '
+() '
+(The device is MSL 3. After opening the dry pack, mount within 168 hours at) '
+(30 \260C and 60 % RH or less, or bake at 125 \260C for 24 hours.) '
+() '
+(## 18.3 Hand soldering) '
+() '
+(Hand soldering is allowed with a soldering iron at up to 350 \260C for 3 s per) '
+(lead. Do not touch the top of the package with the iron; the mould compound) '
+(above the Hall array is thin.) '
+() '
+(## 18.4 Cleaning) '
+() '
+(Use no-clean flux where possible. If cleaning is needed, use isopropyl) '
+(alcohol. Do not use ultrasonic cleaning; it can crack the die attach.) '
+() '
+(## 18.5 Handling the magnet) '
+() '
+(NdFeB magnets are brittle and attract each other strongly. Store magnets) '
+(apart from encoders and from each other. Do not machine NdFeB magnets.) '
+() '
+(## 18.6 OTP and soldering) '
+() '
+(OTP contents are not affected by reflow. Program OTP after assembly \(page) '
+(46\), because the zero position depends on the final mechanical mounting.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 18 of 60) Tj ET
+endstream
+endobj
+41 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 42 0 R >>
+endobj
+42 0 obj
+<< /Length 1606 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 19 Magnet selection) '
+() '
+(## 19.1 Magnet type) '
+() '
+(Use a diametrically magnetised cylindrical magnet. The north and south) '
+(poles are on opposite halves of the cylinder, not on its end faces. An) '
+(axially magnetised magnet does not work with this device.) '
+() '
+(## 19.2 Recommended magnets) '
+() '
+(Table 19-1. Recommended magnets.) '
+() '
+(  Material      Diameter   Height   Air gap range   Notes) '
+(  NdFeB N35     6 mm       2.5 mm   0.5 to 3.0 mm   Reference magnet) '
+(  NdFeB N35     8 mm       3.0 mm   1.0 to 4.0 mm   Larger air gap) '
+(  NdFeB N35     4 mm       2.0 mm   0.5 to 1.8 mm   Small joints) '
+(  SmCo 2:17     6 mm       2.5 mm   0.5 to 2.4 mm   High temperature) '
+() '
+(## 19.3 Temperature) '
+() '
+(The remanence of NdFeB falls by about 0.12 % per \260C. Between 25 \260C and) '
+(125 \260C the field falls by about 12 %. The AGC \(page 35\) compensates for the) '
+(loss automatically as long as the field stays above 30 mT. Check the field) '
+(at the highest operating temperature and largest air gap.) '
+() '
+(## 19.4 Magnet holder) '
+() '
+(Fix the magnet in a non-ferromagnetic holder \(brass, aluminium, plastic\).) '
+(Use an adhesive that keeps the magnet centred to within 0.1 mm. A magnet) '
+(that shifts in its holder causes a slowly growing angle error.) '
+() '
+(## 19.5 Magnet and noise) '
+() '
+(Output noise depends on the field. At 30 mT the raw noise is about 20 %) '
+(higher than at 60 mT. Table 31-2 is measured at 60 mT. See page 26.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 19 of 60) Tj ET
+endstream
+endobj
+43 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 44 0 R >>
+endobj
+44 0 obj
+<< /Length 1810 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 20 Air gap and field strength) '
+() '
+(## 20.1 Field versus air gap) '
+() '
+(Table 20-1 gives the field at the Hall array for the reference magnet) '
+(\(NdFeB N35, 6 mm x 2.5 mm\) as a function of the mechanical air gap tAIR,) '
+(measured from the top of the package to the face of the magnet.) '
+() '
+(Table 20-1. Field versus air gap, reference magnet, 25 \260C.) '
+() '
+(  tAIR \(mm\)    Field \(mT\)   AGC \(typ\)   Status flags) '
+(  0.25         121          0           MAGH) '
+(  0.50         98           12          MAGH \(marginal\)) '
+(  0.75         88           24          -) '
+(  1.00         79           41          -) '
+(  1.50         62           78          -) '
+(  2.00         48           112         -) '
+(  2.50         37           151         -) '
+(  3.00         30           186         MAGL \(marginal\)) '
+(  3.50         24           220         MAGL) '
+(  4.00         19           255         MAGL) '
+() '
+(Rev 1.1 corrected the tAIR maximum from 3.5 mm to 3.0 mm.) '
+() '
+(## 20.2 Choosing the air gap) '
+() '
+(Choose a nominal air gap in the middle of the valid field range so that) '
+(tolerances and temperature drift keep the field within 30 to 90 mT. For the) '
+(reference magnet, 1.5 mm is the recommended nominal value.) '
+() '
+(## 20.3 Field and noise) '
+() '
+(The output noise in table 31-2 is specified at 60 mT. At 30 mT add 20 %.) '
+(At 90 mT subtract 5 %. These factors apply to all FILT settings.) '
+() '
+(## 20.4 Axial play) '
+() '
+(Axial play of the shaft changes the air gap. A play of \2610.2 mm around a) '
+(1.5 mm nominal gap changes the field by about \2617 mT, which is well within) '
+(the AGC range and has no effect on the angle.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 20 of 60) Tj ET
+endstream
+endobj
+45 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 46 0 R >>
+endobj
+46 0 obj
+<< /Length 1690 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 21 Mechanical alignment) '
+() '
+(## 21.1 Lateral displacement) '
+() '
+(The magnet axis should coincide with the centre of the Hall array \(page) '
+(16\). Lateral displacement causes an angle error that repeats once per) '
+(revolution.) '
+() '
+(  Lateral displacement    Peak angle error \(reference magnet, 1.5 mm gap\)) '
+(  0.10 mm                 0.10\260) '
+(  0.25 mm                 0.28\260) '
+(  0.50 mm                 0.62\260) '
+(  1.00 mm                 1.50\260) '
+() '
+(## 21.2 Tilt) '
+() '
+(Tilt of the magnet relative to the package surface causes an angle error) '
+(that repeats twice per revolution.) '
+() '
+(  Tilt      Peak angle error) '
+(  1\260        0.05\260) '
+(  2\260        0.12\260) '
+(  5\260        0.35\260) '
+() '
+(## 21.3 Run-out) '
+() '
+(Shaft run-out moves the magnet in a circle. The error is the same as a) '
+(lateral displacement equal to the run-out radius, but its phase rotates with) '
+(the shaft.) '
+() '
+(## 21.4 Alignment procedure) '
+() '
+(1. Mount the encoder board and the magnet holder.) '
+(2. Rotate the shaft slowly through one revolution while reading ANGLE.) '
+(3. Compare ANGLE with a reference \(a second encoder or an optical index\).) '
+(4. Fit a sine at once and twice the rotation frequency to the difference.) '
+(5. If the once-per-revolution amplitude exceeds the budget, re-centre the) '
+(   board.) '
+() '
+(## 21.5 Effect on servo loops) '
+() '
+(Alignment errors are smooth and repeat with the shaft angle. They appear as) '
+(a slow position error, not as noise. They are not reduced by FILT \(page 31\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 21 of 60) Tj ET
+endstream
+endobj
+47 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 48 0 R >>
+endobj
+48 0 obj
+<< /Length 1794 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 22 Alignment error and its effect on accuracy) '
+() '
+(## 22.1 Error budget example) '
+() '
+(For a robot elbow joint with the reference magnet at a 1.5 mm gap:) '
+() '
+(  Source                               Peak error) '
+(  Lateral displacement 0.25 mm         0.28\260) '
+(  Tilt 1\260                              0.05\260) '
+(  Integral non-linearity \(page 27\)     0.10\260) '
+(  Stray field from motor \(5 mT\)        0.15\260) '
+(  Total \(root sum of squares\)          0.35\260) '
+() '
+(At the end of a 300 mm forearm, 0.35\260 corresponds to 1.8 mm. This is a slow) '
+(error that depends on the joint angle. It does not cause oscillation.) '
+() '
+(## 22.2 Noise is a separate budget) '
+() '
+(Output noise is random and broadband \(page 26\). With FILT = 0 the noise is) '
+(12 LSB RMS = 0.26\260 RMS. At the end of a 300 mm forearm this is 1.4 mm RMS of) '
+(apparent position noise. A position loop with a high proportional gain and a) '
+(derivative term turns this noise into motor torque, which can be seen as) '
+(vibration of the arm. The noise budget is set by FILT, not by alignment.) '
+() '
+(## 22.3 Calibration) '
+() '
+(Alignment errors can be calibrated out with a look-up table in the host) '
+(firmware. Noise cannot be calibrated out; it can only be filtered \(page 31,) '
+(page 49\).) '
+() '
+(## 22.4 Summary) '
+() '
+(  Error type          Varies with           Reduced by) '
+(  Alignment           shaft angle           mechanical fix, calibration) '
+(  Stray field         motor current         shielding, distance) '
+(  Non-linearity       shaft angle           calibration) '
+(  Output noise        nothing \(random\)      FILT[2:0], host filtering) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 22 of 60) Tj ET
+endstream
+endobj
+49 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 50 0 R >>
+endobj
+50 0 obj
+<< /Length 1791 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 23 Signal chain overview) '
+() '
+(The signal chain converts the magnetic field into a 14-bit angle in five) '
+(stages:) '
+() '
+(  1. Hall array. Four Hall plates measure the two field components Bx, By.) '
+(  2. Front end. Differential amplifiers with automatic gain control.) '
+(  3. ADC. Two 12-bit sigma-delta converters sampled at 8 kHz.) '
+(  4. CORDIC. Computes atan2\(By, Bx\) to 14 bits once per sample.) '
+(  5. FILT. A first-order IIR low-pass filter on the angle \(page 31\).) '
+() '
+(After the filter, the output stage applies ZPOS, MPOS, DIR and HYST and) '
+(updates ANGLE and RAW once every 125 \265s.) '
+() '
+(## 23.1 Angle wrap handling in the filter) '
+() '
+(The filter works on the unwrapped angle, so a transition from code 16383 to) '
+(code 0 does not produce a filtered spike. The output is wrapped again to 14) '
+(bits after the filter.) '
+() '
+(## 23.2 Where the noise comes from) '
+() '
+(Most of the output noise comes from the Hall plates and the front end) '
+(\(thermal and 1/f noise\) and from ADC quantisation. CORDIC rounding adds less) '
+(than 0.3 LSB RMS. Page 26 gives the breakdown.) '
+() '
+(## 23.3 Where the delay comes from) '
+() '
+(  Stage                      Delay) '
+(  ADC conversion             40 \265s) '
+(  CORDIC                     20 \265s) '
+(  FILT \(when enabled\)        tau = 2^n / 8000 s, see table 31-2) '
+(  Register update            0 to 125 \265s \(sampling phase\)) '
+(  I\262C transfer               see page 14) '
+(  Host scheduling            depends on the host \(page 12\)) '
+() '
+(The total delay seen by a typical 1 kHz host is 2 ms \(page 12\), plus the) '
+(FILT time constant if the filter is enabled.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 23 of 60) Tj ET
+endstream
+endobj
+51 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 52 0 R >>
+endobj
+52 0 obj
+<< /Length 1714 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 24 Hall array and front end) '
+() '
+(## 24.1 Hall array) '
+() '
+(Four Hall plates are arranged on a circle of 1.0 mm radius at 0\260, 90\260,) '
+(180\260 and 270\260. Opposite plates are subtracted to cancel any uniform) '
+(external field along the package normal. The difference signals are) '
+(proportional to Bx and By of the magnet field.) '
+() '
+(## 24.2 Common-mode field rejection) '
+() '
+(A uniform external field \(for example the field of a nearby motor\) is) '
+(rejected by the differential arrangement with a ratio of about 40 dB. A) '
+(non-uniform stray field is not rejected and appears as an angle error \(page) '
+(22\).) '
+() '
+(## 24.3 Automatic gain control) '
+() '
+(The AGC adjusts the front-end gain so that the amplitude of the Bx/By) '
+(signals at the ADC input is constant. The AGC value \(0 to 255\) is readable) '
+(in register AGC \(0x1A, page 35\). A low AGC value means a strong field; a) '
+(high value means a weak field.) '
+() '
+(The AGC loop time constant is 10 ms. The AGC does not affect the angle) '
+(directly, but a fast change of air gap \(axial shock\) can cause a short) '
+(angle disturbance while the AGC settles.) '
+() '
+(## 24.4 Front-end noise) '
+() '
+(The input-referred noise of the front end is 2.1 \265T RMS in the 4 kHz) '
+(bandwidth of the ADC. Together with the Hall plate noise and quantisation,) '
+(this gives the 12 LSB RMS total output noise at FILT = 0 \(page 26\).) '
+() '
+(## 24.5 Front-end saturation) '
+() '
+(Above 120 mT the front end saturates. MAGH is set. The angle is invalid) '
+(while MAGH is set and must not be used for control.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 24 of 60) Tj ET
+endstream
+endobj
+53 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 54 0 R >>
+endobj
+54 0 obj
+<< /Length 1579 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 25 ADC and CORDIC angle computation) '
+() '
+(## 25.1 ADC) '
+() '
+(Two sigma-delta ADCs convert Bx and By simultaneously at 8 kHz. Each) '
+(conversion has 12 effective bits. Simultaneous sampling avoids an angle) '
+(error that would otherwise grow with rotational speed.) '
+() '
+(## 25.2 CORDIC) '
+() '
+(The CORDIC engine computes the angle atan2\(By, Bx\) in 16 iterations and) '
+(rounds the result to 14 bits. The CORDIC result is available 60 \265s after) '
+(the start of the ADC sample \(page 23\).) '
+() '
+(## 25.3 Output resolution versus noise) '
+() '
+(The output has 14 bits \(0.022\260 per LSB\). With FILT = 0 the output noise is) '
+(12 LSB RMS, so only about 7.7 bits are noise-free in a single read. The) '
+(FILT filter trades bandwidth for noise \(page 31\):) '
+() '
+(  FILT     Noise \(LSB RMS\)   Noise-free bits \(approx.\)) '
+(  0        12.0              7.7) '
+(  3        3.10              9.6) '
+(  5        1.51              10.7) '
+(  7        0.75              11.7) '
+() '
+(Noise-free bits are computed as 14 - log2\(6.6 x noise\), where 6.6 x RMS is) '
+(the peak-to-peak noise for a Gaussian distribution at 99.9 % coverage.) '
+() '
+(## 25.4 Linearity) '
+() '
+(The CORDIC engine is exact to within 0.25 LSB. Non-linearity is dominated) '
+(by magnetic effects \(page 27\).) '
+() '
+(## 25.5 Output data rate) '
+() '
+(ANGLE and RAW are updated every 125 \265s \(8 kHz\). A host that reads faster) '
+(than 8 kHz receives repeated values.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 25 of 60) Tj ET
+endstream
+endobj
+55 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 56 0 R >>
+endobj
+56 0 obj
+<< /Length 1612 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 26 Noise sources) '
+() '
+(## 26.1 Noise breakdown at FILT = 0, 60 mT, 25 \260C) '
+() '
+(  Source                              Contribution \(LSB RMS\)) '
+(  Hall plate thermal noise            9.8) '
+(  Front-end amplifier noise           6.2) '
+(  ADC quantisation                    2.4) '
+(  Supply-coupled noise \(with 4.7 \265F\)  1.1) '
+(  CORDIC rounding                     0.3) '
+(  Total \(root sum of squares\)         12.0) '
+() '
+(## 26.2 Spectrum) '
+() '
+(With FILT = 0 the noise is white from DC to 4 kHz \(half the 8 kHz sampling) '
+(rate\). A host that samples the angle at 1 kHz sees the whole 0 to 4 kHz) '
+(noise power aliased into its 0 to 500 Hz band. The RMS value per read is) '
+(therefore still 12 LSB.) '
+() '
+(## 26.3 Effect of FILT) '
+() '
+(FILT is a first-order low-pass filter running at 8 kHz. It reduces the) '
+(bandwidth of the white noise and therefore its RMS value. The noise gain of) '
+(the filter is sqrt\(alpha / \(2 - alpha\)\), where alpha = 2^-n \(page 31\).) '
+() '
+(## 26.4 Dependence on field) '
+() '
+(  Field     Noise multiplier) '
+(  30 mT     1.20) '
+(  45 mT     1.08) '
+(  60 mT     1.00) '
+(  90 mT     0.95) '
+() '
+(## 26.5 Dependence on temperature) '
+() '
+(The noise increases by about 0.1 % per \260C above 25 \260C, so by about 10 % at) '
+(125 \260C.) '
+() '
+(## 26.6 Noise is not drift) '
+() '
+(Noise as specified here is the fast, random part of the error. Slow) '
+(variations with temperature or shaft angle are covered on page 27.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 26 of 60) Tj ET
+endstream
+endobj
+57 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 58 0 R >>
+endobj
+58 0 obj
+<< /Length 1790 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 27 Accuracy and linearity) '
+() '
+(## 27.1 Definitions) '
+() '
+(  INL     Integral non-linearity: the largest deviation of the output from a) '
+(          straight line through the full revolution, after removing offset.) '
+(  Drift   Change of the output at a fixed angle over temperature.) '
+(  Noise   Random variation of consecutive reads at a fixed angle \(page 26\).) '
+() '
+(## 27.2 Specifications) '
+() '
+(Table 27-1. Accuracy \(reference magnet, 1.5 mm air gap, perfect alignment\).) '
+() '
+(  Parameter                         Typ       Max       Unit) '
+(  INL, 25 \260C                        0.10      0.25      \260) '
+(  INL, -40 to 125 \260C                0.15      0.40      \260) '
+(  Zero drift, -40 to 125 \260C         0.05      0.12      \260) '
+(  Hysteresis \(HYST = 0\)             0         0         LSB) '
+(  Output noise, FILT = 0            12.0      14.0      LSB RMS) '
+(  Output noise, FILT = 3            3.10      3.6       LSB RMS) '
+(  Output noise, FILT = 7            0.75      0.9       LSB RMS) '
+() '
+(## 27.3 Notes) '
+() '
+(1. INL includes the CORDIC error and the effect of magnet inhomogeneity. It) '
+(   excludes alignment errors \(page 21\).) '
+(2. Noise values are at 60 mT. See page 26 for other field values.) '
+(3. Max noise values are the 3-sigma production limits.) '
+() '
+(## 27.4 Improving accuracy) '
+() '
+(  - Calibrate the INL with a look-up table in the host.) '
+(  - Use FILT to reduce noise, at the cost of phase lag \(page 12\).) '
+(  - Average several reads in the host only if the host reads faster than) '
+(    the ANGLE update rate; otherwise averaging repeated values does nothing) '
+(    \(page 25\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 27 of 60) Tj ET
+endstream
+endobj
+59 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 60 0 R >>
+endobj
+60 0 obj
+<< /Length 2388 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 28 Register map summary) '
+() '
+(Table 28-1. Register map.) '
+() '
+(  Addr   Name       Access   Default   Description                        Page) '
+(  0x00   CHIP_ID    R        0x14      Device identifier                  29) '
+(  0x01   REV        R        0xA1/A2   Silicon revision                   29) '
+(  0x02   CONF1      RW/OTP   0x00      Power mode, ADC options            29) '
+(  0x03   ZPOS_H     RW/OTP   0x00      Zero position, bits 13..8          30) '
+(  0x04   ZPOS_L     RW/OTP   0x00      Zero position, bits 7..0           30) '
+(  0x05   MPOS_H     RW/OTP   0x3F      Maximum position, bits 13..8       30) '
+(  0x06   MPOS_L     RW/OTP   0xFF      Maximum position, bits 7..0        30) '
+(  0x07   -          -        -         Reserved, do not write             -) '
+(  0x08   CONF2      RW       0x00      FILT, DIR, HYST, WD \(volatile\)     31, 32) '
+(  0x09   -          -        -         Reserved, do not write             -) '
+(  0x0A   -          -        -         Reserved, do not write             -) '
+(  0x0B   STATUS     RC       0x01      RST, MAGL, MAGH, MD, OVF           33) '
+(  0x0C   ANGLE_H    R        -         Scaled angle, bits 13..8           34) '
+(  0x0D   ANGLE_L    R        -         Scaled angle, bits 7..0            34) '
+(  0x0E   RAW_H      R        -         Raw angle, bits 13..8              34) '
+(  0x0F   RAW_L      R        -         Raw angle, bits 7..0               34) '
+(  0x10   -          -        -         Reserved \(see errata E-4\)          59) '
+(  0x1A   AGC        R        -         Automatic gain control value       35) '
+(  0x1B   MAG_H      R        -         Field magnitude, bits 11..8        35) '
+(  0x1C   MAG_L      R        -         Field magnitude, bits 7..0         35) '
+(  0x30   CMD        W        -         Soft reset, OTP burn               36) '
+() '
+(## 28.1 Volatile and non-volatile registers) '
+() '
+(CONF1, ZPOS and MPOS have OTP shadows: after a reset they are reloaded from) '
+(OTP. CONF2 has no OTP shadow and returns to 0x00 after every reset. STATUS) '
+(returns to 0x01 \(RST set\) after every reset.) '
+() '
+(## 28.2 Reserved addresses) '
+() '
+(Writes to reserved addresses are ignored. Reads return 0x00, except 0x10) '
+(\(errata E-4, page 59\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 28 of 60) Tj ET
+endstream
+endobj
+61 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 62 0 R >>
+endobj
+62 0 obj
+<< /Length 1594 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 29 CHIP_ID, REV and CONF1) '
+() '
+(## 29.1 CHIP_ID \(0x00, R\)) '
+() '
+(  Bits   Field      Value) '
+(  7:0    CHIP_ID    0x14) '
+() '
+(Read CHIP_ID at start-up to confirm that the device answers on the expected) '
+(address. A value other than 0x14 means a wrong address, a bus fault, or a) '
+(different device.) '
+() '
+(## 29.2 REV \(0x01, R\)) '
+() '
+(  Bits   Field      Value) '
+(  7:4    MAJOR      0xA) '
+(  3:0    MINOR      0x1 \(first silicon\) or 0x2 \(E-1, E-2 corrected\)) '
+() '
+(## 29.3 CONF1 \(0x02, RW, OTP shadow\)) '
+() '
+(  Bits   Field      Default   Description) '
+(  7:6    -          0         Reserved, write 0) '
+(  5:4    PM[1:0]    0         Power mode: 0 = active, 1 = low power 1,) '
+(                              2 = low power 2, 3 = reserved) '
+(  3      ADCSLOW    0         1 = halve the ADC rate to 4 kHz \(saves 1 mA,) '
+(                              doubles FILT time constants\)) '
+(  2:0    -          0         Reserved, write 0) '
+() '
+(CONF1 is reloaded from OTP after every reset. If CONF1 has not been burnt,) '
+(its OTP value is 0x00.) '
+() '
+(## 29.4 Low-power modes) '
+() '
+(  PM    Sampling            Current    Note) '
+(  0     continuous 8 kHz    6.5 mA     Use for servo loops) '
+(  1     8 kHz, 50 % duty    3.4 mA     Adds 125 \265s of jitter) '
+(  2     8 kHz, 12.5 % duty  1.2 mA     Not for servo loops) '
+() '
+(Entering low-power mode takes longer than specified on rev 0xA1 silicon;) '
+(see errata E-5 on page 59.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 29 of 60) Tj ET
+endstream
+endobj
+63 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 64 0 R >>
+endobj
+64 0 obj
+<< /Length 1749 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 30 ZPOS and MPOS \(zero and maximum position\)) '
+() '
+(## 30.1 ZPOS \(0x03-0x04, RW, OTP shadow\)) '
+() '
+(  Register   Bits   Field         Description) '
+(  ZPOS_H     5:0    ZPOS[13:8]    Zero position, high bits) '
+(  ZPOS_L     7:0    ZPOS[7:0]     Zero position, low bits) '
+() '
+(ZPOS is subtracted from the filtered angle before it is written to ANGLE.) '
+(Write ZPOS_H first, then ZPOS_L. The new zero takes effect after the write) '
+(to ZPOS_L.) '
+() '
+(## 30.2 MPOS \(0x05-0x06, RW, OTP shadow\)) '
+() '
+(  Register   Bits   Field         Description) '
+(  MPOS_H     5:0    MPOS[13:8]    Maximum position, high bits) '
+(  MPOS_L     7:0    MPOS[7:0]     Maximum position, low bits) '
+() '
+(When MPOS is less than 0x3FFF, ANGLE is scaled so that the range from ZPOS) '
+(to MPOS spans the full 14-bit output. The default 0x3FFF gives a full) '
+(360\260 range with no scaling.) '
+() '
+(## 30.3 Scaling and noise) '
+() '
+(Scaling a small range to the full output also scales the noise. For a) '
+(90\260 range \(MPOS = 4096\) the noise in ANGLE is four times the noise in RAW,) '
+(expressed in output codes. Noise expressed in degrees is unchanged.) '
+() '
+(## 30.4 Programming ZPOS and MPOS permanently) '
+() '
+(ZPOS and MPOS written over I\262C are volatile until burnt into OTP. A reset) '
+(reloads them from OTP. To make them permanent, use the OTP burn command on) '
+(page 36. OTP can be burnt only once.) '
+() '
+(## 30.5 Host-side alternative) '
+() '
+(Many hosts keep ZPOS = 0 and MPOS = 0x3FFF and apply the offset in) '
+(firmware. This avoids OTP programming in production and avoids surprises) '
+(after a reset.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 30 of 60) Tj ET
+endstream
+endobj
+65 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 66 0 R >>
+endobj
+66 0 obj
+<< /Length 2806 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 31 CONF2 and the FILT[2:0] filter) '
+() '
+(## 31.1 CONF2 \(0x08, RW, volatile\)) '
+() '
+(Table 31-1. CONF2 bit fields.) '
+() '
+(  Bits   Field       Default   Description) '
+(  7      -           0         Reserved, write 0) '
+(  6      WD          0         Watchdog enable \(page 32, page 54\)) '
+(  5:4    HYST[1:0]   0         Output hysteresis, 0 to 3 LSB \(page 32\)) '
+(  3      DIR         0         Direction: 0 = clockwise increases \(page 32\)) '
+(  2:0    FILT[2:0]   0         Output noise filter setting n, 0 = off) '
+() '
+(CONF2 has no OTP shadow. Its value after any reset is 0x00, so FILT = 0 and) '
+(the filter is off. This includes brown-out resets \(errata E-3, page 58\).) '
+() '
+(## 31.2 The FILT filter) '
+() '
+(FILT selects a first-order IIR low-pass filter that runs on the angle at the) '
+(8 kHz internal sample rate, before the RAW and ANGLE registers:) '
+() '
+(    y[k] = y[k-1] + alpha x \(x[k] - y[k-1]\),   alpha = 2^-n,  n = FILT[2:0]) '
+() '
+(With n = 0 the filter is bypassed. The time constant is tau = 2^n / 8000 s) '
+(and the -3 dB bandwidth is approximately 1 / \(2 x pi x tau\). For white input) '
+(noise the output noise is multiplied by sqrt\(alpha / \(2 - alpha\)\).) '
+() '
+(Table 31-2. Output noise and bandwidth versus FILT \(60 mT, 25 \260C\).) '
+() '
+(  FILT n   alpha    tau        Noise \(LSB RMS\)   Noise \(\260 RMS\)   Approx. BW) '
+(  0        1        off        12.0              0.264           -) '
+(  1        1/2      0.25 ms    6.93              0.152           637 Hz) '
+(  2        1/4      0.5 ms     4.54              0.100           318 Hz) '
+(  3        1/8      1 ms       3.10              0.068           159 Hz) '
+(  4        1/16     2 ms       2.155             0.047           79.6 Hz) '
+(  5        1/32     4 ms       1.51              0.033           39.8 Hz) '
+(  6        1/64     8 ms       1.06              0.023           19.9 Hz) '
+(  7        1/128    16 ms      0.75              0.016           9.9 Hz) '
+() '
+(## 31.3 Writing FILT) '
+() '
+(To set FILT = 3 with the other CONF2 fields at their defaults, write 0x03 to) '
+(address 0x08. To change FILT without changing other fields, read CONF2,) '
+(clear bits 2..0, OR in the new value and write it back.) '
+() '
+(## 31.4 Important) '
+() '
+(  - FILT = 0 after every reset. A host that needs the filter must write) '
+(    CONF2 at start-up and again after every reset \(page 45, page 58\).) '
+(  - FILT adds phase lag \(table 12-1\). Do not choose a time constant that is) '
+(    large compared with the period of the fastest motion you control.) '
+(  - If ADCSLOW = 1 \(page 29\), the filter runs at 4 kHz and every tau in) '
+(    table 31-2 doubles.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 31 of 60) Tj ET
+endstream
+endobj
+67 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 68 0 R >>
+endobj
+68 0 obj
+<< /Length 1725 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 32 CONF2 other fields \(DIR, HYST, WD\)) '
+() '
+(## 32.1 DIR \(CONF2 bit 3\)) '
+() '
+(  DIR = 0   angle increases for clockwise rotation, seen from the top) '
+(  DIR = 1   angle increases for counter-clockwise rotation) '
+() '
+(DIR is volatile. After a reset it returns to 0. A host that sets DIR = 1) '
+(must set it again after every reset \(page 15, page 58\).) '
+() '
+(## 32.2 HYST[1:0] \(CONF2 bits 5..4\)) '
+() '
+(  HYST    Hysteresis on ANGLE) '
+(  0       none) '
+(  1       1 LSB) '
+(  2       2 LSB) '
+(  3       3 LSB) '
+() '
+(Hysteresis suppresses toggling of the last bits when the shaft is at rest.) '
+(It is applied after FILT and does not reduce noise in a moving shaft.) '
+() '
+(Important: hysteresis is not a noise filter for servo loops. With HYST > 0) '
+(the output moves in steps, which a derivative term turns into spikes. Use) '
+(FILT instead \(page 49\). Hysteresis does not affect RAW.) '
+() '
+(## 32.3 WD \(CONF2 bit 6\)) '
+() '
+(  WD = 0   watchdog disabled \(default\)) '
+(  WD = 1   watchdog enabled; the device resets itself if the internal) '
+(           oscillator stalls for more than 1 ms \(page 54\)) '
+() '
+(Because the watchdog reset is also a reset, it clears CONF2, including WD) '
+(itself. The host sees STATUS.RST = 1 after a watchdog reset \(page 33\).) '
+() '
+(## 32.4 Example values) '
+() '
+(  Purpose                                   CONF2 value) '
+(  Defaults \(after any reset\)                0x00) '
+(  FILT = 3, everything else default         0x03) '
+(  FILT = 3, DIR = 1                         0x0B) '
+(  FILT = 5, HYST = 1, WD = 1                0x55) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 32 of 60) Tj ET
+endstream
+endobj
+69 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 70 0 R >>
+endobj
+70 0 obj
+<< /Length 1886 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 33 STATUS register) '
+() '
+(## 33.1 STATUS \(0x0B, RC\)) '
+() '
+(Table 33-1. STATUS bit fields.) '
+() '
+(  Bits   Field   Type   Description) '
+(  7:5    -       R      Reserved, read as 0) '
+(  4      OVF     RC     CORDIC overflow \(field too weak to compute an angle\)) '
+(  3      MD      R      Magnet detected \(field between 20 mT and 120 mT\)) '
+(  2      MAGH    R      Field too strong \(> 90 mT\)) '
+(  1      MAGL    R      Field too weak \(< 30 mT\)) '
+(  0      RST     RC     A reset has occurred since STATUS was last read) '
+() '
+(## 33.2 The RST flag is sticky) '
+() '
+(RST is set by every reset: power-on, brown-out, watchdog and soft reset) '
+(\(page 11\). It stays set until the host reads STATUS. Reading STATUS clears) '
+(RST and OVF. The value returned by that read still shows RST = 1; the flag) '
+(is cleared after the read completes.) '
+() '
+(This means:) '
+() '
+(  - The host sees RST = 1 exactly once per reset \(or once for several resets) '
+(    that happen between two reads\).) '
+(  - The host must act on RST in the same control step in which it reads it.) '
+(    The next read returns RST = 0 even though the configuration is still) '
+(    lost.) '
+(  - RST = 1 means CONF2 is 0x00 again: FILT is off, DIR = 0, HYST = 0,) '
+(    WD = 0 \(errata E-3, page 58\).) '
+() '
+(## 33.3 Reading STATUS together with the angle) '
+() '
+(The recommended way to read STATUS is the 3-byte burst read starting at) '
+(0x0B \(page 40\). It returns STATUS, ANGLE_H and ANGLE_L in one transaction,) '
+(so the host checks RST on every control step at no extra cost.) '
+() '
+(## 33.4 MAGL, MAGH and MD) '
+() '
+(These flags reflect the current field. They are not sticky. The angle is) '
+(not valid when MAGL or MAGH is set or MD is clear. See page 52.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 33 of 60) Tj ET
+endstream
+endobj
+71 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 72 0 R >>
+endobj
+72 0 obj
+<< /Length 1656 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 34 ANGLE and RAW output registers) '
+() '
+(## 34.1 ANGLE \(0x0C-0x0D, R\)) '
+() '
+(  Register   Bits   Field          Description) '
+(  ANGLE_H    7:6    -              Read as 0) '
+(  ANGLE_H    5:0    ANGLE[13:8]    Scaled angle, high bits) '
+(  ANGLE_L    7:0    ANGLE[7:0]     Scaled angle, low bits) '
+() '
+(ANGLE is the filtered angle after ZPOS, MPOS, DIR and HYST.) '
+() '
+(## 34.2 RAW \(0x0E-0x0F, R\)) '
+() '
+(  Register   Bits   Field          Description) '
+(  RAW_H      7:6    -              Read as 0) '
+(  RAW_H      5:0    RAW[13:8]      Raw angle, high bits) '
+(  RAW_L      7:0    RAW[7:0]       Raw angle, low bits) '
+() '
+(RAW is the filtered angle before ZPOS, MPOS, DIR and HYST. FILT does act on) '
+(RAW: RAW is taken after the filter \(page 6\).) '
+() '
+(## 34.3 Data consistency) '
+() '
+(A multi-byte read latches the high and low bytes together at the start of) '
+(the read, so ANGLE_H and ANGLE_L \(or RAW_H and RAW_L\) always belong to the) '
+(same sample when they are read in one transaction. Two separate single-byte) '
+(reads can combine bytes from different samples.) '
+() '
+(## 34.4 Converting to radians) '
+() '
+(    angle_rad = code x 2 x pi / 16384) '
+(    angle_deg = code x 360 / 16384) '
+() '
+(One code is 383.5 \265rad = 0.02197\260.) '
+() '
+(## 34.5 Unwrapping) '
+() '
+(The output wraps from 16383 to 0. For a joint that moves less than half a) '
+(revolution between two reads, unwrap by adding or subtracting 16384 when) '
+(the difference between consecutive reads exceeds 8192 in magnitude.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 34 of 60) Tj ET
+endstream
+endobj
+73 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 74 0 R >>
+endobj
+74 0 obj
+<< /Length 1576 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 35 AGC and MAG registers) '
+() '
+(## 35.1 AGC \(0x1A, R\)) '
+() '
+(  Bits   Field    Description) '
+(  7:0    AGC      Automatic gain control value, 0 \(strong\) to 255 \(weak\)) '
+() '
+(The AGC value is a convenient indicator of the air gap. Table 20-1 lists) '
+(typical values for the reference magnet. A slowly rising AGC value over the) '
+(life of a product indicates a growing air gap or a weakening magnet.) '
+() '
+(## 35.2 MAG \(0x1B-0x1C, R\)) '
+() '
+(  Register   Bits   Field         Description) '
+(  MAG_H      3:0    MAG[11:8]     Field magnitude after AGC, high bits) '
+(  MAG_L      7:0    MAG[7:0]      Field magnitude after AGC, low bits) '
+() '
+(MAG is the magnitude sqrt\(Bx^2 + By^2\) after the AGC. With the AGC in its) '
+(range, MAG is constant at about 2048. MAG that varies by more than \26110 %) '
+(during one revolution indicates misalignment \(page 21\).) '
+() '
+(## 35.3 Using AGC and MAG in production test) '
+() '
+(  Test                          Pass criterion) '
+(  AGC at nominal air gap        40 to 120 \(reference magnet\)) '
+(  MAG variation per revolution  within \26110 %) '
+(  STATUS.MD                     1) '
+(  STATUS.MAGL, STATUS.MAGH      0) '
+() '
+(## 35.4 AGC and noise) '
+() '
+(A high AGC value \(weak field\) means more front-end gain and more noise. The) '
+(noise multipliers on page 26 apply. If FILT is chosen from table 31-2 for a) '
+(60 mT design, check the noise again at the weakest expected field.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 35 of 60) Tj ET
+endstream
+endobj
+75 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 76 0 R >>
+endobj
+76 0 obj
+<< /Length 1618 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 36 CMD register and OTP) '
+() '
+(## 36.1 CMD \(0x30, W\)) '
+() '
+(  Value    Command) '
+(  0xA5     Soft reset) '
+(  0x80     Burn OTP \(CONF1, ZPOS, MPOS\)) '
+(  others   Ignored) '
+() '
+(## 36.2 Soft reset) '
+() '
+(Writing 0xA5 to CMD resets the device. The effect is identical to a) '
+(power-on reset \(page 11\): CONF2 = 0x00, STATUS.RST = 1, CONF1, ZPOS and) '
+(MPOS reloaded from OTP. The device does not acknowledge the data byte of) '
+(the soft-reset write; a NACK on that byte is expected.) '
+() '
+(## 36.3 OTP burn) '
+() '
+(Writing 0x80 to CMD copies the current CONF1, ZPOS and MPOS register values) '
+(into OTP. The burn takes 10 ms. Do not access the device during the burn.) '
+() '
+(Requirements:) '
+() '
+(  - VDD between 3.2 V and 3.6 V during the burn \(errata E-1, page 57\).) '
+(  - The burn can be done only once. A second burn command is ignored.) '
+(  - CONF2 cannot be burnt. FILT, DIR, HYST and WD must always be written by) '
+(    the host after a reset.) '
+() '
+(## 36.4 Verifying the burn) '
+() '
+(1. Write 0xA5 to CMD \(soft reset\).) '
+(2. Wait 2 ms.) '
+(3. Read ZPOS, MPOS and CONF1 and compare them with the intended values.) '
+(4. Read STATUS and confirm RST = 1 \(the soft reset was seen\).) '
+() '
+(## 36.5 Why CONF2 is not in OTP) '
+() '
+(CONF2 controls behaviour that a host may need to change at run time \(for) '
+(example a stronger filter at standstill\). Keeping CONF2 volatile allows) '
+(this, at the cost that the host must rewrite CONF2 after every reset.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 36 of 60) Tj ET
+endstream
+endobj
+77 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 78 0 R >>
+endobj
+78 0 obj
+<< /Length 1558 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 37 I\262C protocol overview) '
+() '
+(## 37.1 Bus parameters) '
+() '
+(  Address       0x4C \(ADDR = GND\) or 0x4D \(ADDR = VDD\), 7-bit) '
+(  Speeds        100 kHz, 400 kHz, 1 MHz) '
+(  Byte order    Most significant byte first) '
+(  Pointer       8-bit register pointer, auto-increment on read and write) '
+() '
+(## 37.2 Transactions) '
+() '
+(  Transaction       Sequence) '
+(  Write register    S, addr+W, ptr, data..., P) '
+(  Read register     S, addr+W, ptr, Sr, addr+R, data..., P) '
+(  Read current      S, addr+R, data..., P    \(uses the last pointer\)) '
+() '
+(  S = START, Sr = repeated START, P = STOP.) '
+() '
+(## 37.3 Pointer behaviour) '
+() '
+(The register pointer persists between transactions. After a read of N) '
+(bytes starting at pointer p, the pointer is p + N \(with the wrap behaviour) '
+(described on page 41\). A "read current" transaction therefore continues) '
+(where the last read ended, which is rarely what a control loop wants. Always) '
+(set the pointer explicitly.) '
+() '
+(## 37.4 Reset and the bus) '
+() '
+(During a reset the device releases SDA and does not respond to its address.) '
+(A transaction that starts during the 1.5 ms after a reset is NACKed. After) '
+(a brown-out the pointer is reset to 0x00.) '
+() '
+(## 37.5 Typical control-loop traffic) '
+() '
+(One 3-byte burst read from 0x0B per control period \(page 40\). Configuration) '
+(writes only at start-up and after STATUS.RST \(page 45\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 37 of 60) Tj ET
+endstream
+endobj
+79 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 80 0 R >>
+endobj
+80 0 obj
+<< /Length 1308 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 38 Write transaction) '
+() '
+(## 38.1 Sequence) '
+() '
+(  S | 0x98 \(0x4C + W\) | A | ptr | A | data0 | A | data1 | A | ... | P) '
+() '
+(Each data byte is written to the register at the pointer, and the pointer) '
+(is incremented after every byte.) '
+() '
+(## 38.2 Example: enable the filter) '
+() '
+(Set FILT = 3 \(CONF2 = 0x03\):) '
+() '
+(  S | 0x98 | A | 0x08 | A | 0x03 | A | P) '
+() '
+(## 38.3 Example: set ZPOS to 0x1234) '
+() '
+(  S | 0x98 | A | 0x03 | A | 0x12 | A | 0x34 | A | P) '
+() '
+(## 38.4 Writes to read-only and reserved registers) '
+() '
+(Writes to read-only and reserved registers are acknowledged and ignored.) '
+(The pointer is still incremented.) '
+() '
+(## 38.5 Write confirmation) '
+() '
+(The device does not report whether a write took effect. To confirm a) '
+(configuration write, read the register back. A host that writes CONF2 and) '
+(immediately reads it back can still lose the value later through a reset;) '
+(read-back confirms the write, not that the value will stay \(page 58\).) '
+() '
+(## 38.6 Timing between writes) '
+() '
+(There is no minimum time between write transactions, except after a soft) '
+(reset \(2 ms\) and during an OTP burn \(10 ms\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 38 of 60) Tj ET
+endstream
+endobj
+81 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 82 0 R >>
+endobj
+82 0 obj
+<< /Length 1060 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 39 Read transaction) '
+() '
+(## 39.1 Sequence) '
+() '
+(  S | 0x98 | A | ptr | A | Sr | 0x99 | A | data0 | A | data1 | A | ... | NA | P) '
+() '
+(The host acknowledges every byte except the last, which it NACKs before the) '
+(STOP.) '
+() '
+(## 39.2 Example: read CHIP_ID) '
+() '
+(  S | 0x98 | A | 0x00 | A | Sr | 0x99 | A | 0x14 | NA | P) '
+() '
+(## 39.3 Example: read ANGLE) '
+() '
+(  S | 0x98 | A | 0x0C | A | Sr | 0x99 | A | ANGLE_H | A | ANGLE_L | NA | P) '
+() '
+(The two bytes are latched together \(page 34\).) '
+() '
+(## 39.4 Reading STATUS clears flags) '
+() '
+(Any read transaction that includes address 0x0B clears STATUS.RST and) '
+(STATUS.OVF after the byte has been transmitted \(page 33\). This includes) '
+(burst reads that start below 0x0B and run through it.) '
+() '
+(## 39.5 Read latency) '
+() '
+(The data returned are the values latched at the start of the read. The) '
+(latency seen by a typical host is given on page 12.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 39 of 60) Tj ET
+endstream
+endobj
+83 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 84 0 R >>
+endobj
+84 0 obj
+<< /Length 1612 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 40 Burst read of STATUS and ANGLE) '
+() '
+(## 40.1 The recommended per-cycle read) '
+() '
+(A 3-byte burst read starting at STATUS returns the status and the angle in) '
+(one transaction:) '
+() '
+(  S | 0x98 | A | 0x0B | A | Sr | 0x99 | A | STATUS | A | ANGLE_H | A |) '
+(  ANGLE_L | NA | P) '
+() '
+(  Byte 0   STATUS  \(RST, MAGL, MAGH, MD, OVF\)) '
+(  Byte 1   ANGLE_H \(bits 13..8\)) '
+(  Byte 2   ANGLE_L \(bits 7..0\)) '
+() '
+(STATUS and ANGLE are latched together. The read clears STATUS.RST \(page 33\).) '
+() '
+(## 40.2 Why read STATUS every cycle) '
+() '
+(  - RST tells the host that CONF2 has been cleared, so the filter is off and) '
+(    DIR is 0 \(page 58\). The host must rewrite CONF2 in the same step.) '
+(  - MAGL, MAGH and MD tell the host whether the angle is valid \(page 52\).) '
+() '
+(## 40.3 Host pseudocode) '
+() '
+(    every control period \(1 ms\):) '
+(        status, angle = burst_read\(0x0B, 3\)) '
+(        if status & 0x01:                 # STATUS.RST) '
+(            write\(0x08, CONF2_VALUE\)      # restore FILT, DIR, HYST, WD) '
+(        if \(status & 0x06\) or not \(status & 0x08\):) '
+(            hold_last_command\(\)           # angle not valid \(page 52\)) '
+(        else:) '
+(            run_controller\(angle\)) '
+() '
+(## 40.4 Burst read of 4 bytes or more) '
+() '
+(A burst read that continues past ANGLE_L reads RAW_H and RAW_L \(0x0E-0x0F\).) '
+(A burst read past 0x0F wraps incorrectly on all silicon revisions; see) '
+(errata E-4 on page 59.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 40 of 60) Tj ET
+endstream
+endobj
+85 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 86 0 R >>
+endobj
+86 0 obj
+<< /Length 1401 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 41 Address auto-increment and wrap) '
+() '
+(## 41.1 Auto-increment) '
+() '
+(The register pointer increments after every byte in both read and write) '
+(transactions.) '
+() '
+(## 41.2 Wrap rules) '
+() '
+(  Pointer after    Next pointer) '
+(  0x0F             0x0B by design; 0x10 on all silicon \(errata E-4\)) '
+(  0x1C             0x00) '
+(  0x30             0x30 \(CMD does not auto-increment\)) '
+(  reserved         next address) '
+() '
+(## 41.3 Intended wrap after 0x0F) '
+() '
+(The output block 0x0B-0x0F was designed to wrap back to STATUS \(0x0B\) so) '
+(that a host could read STATUS, ANGLE and RAW continuously in one long) '
+(burst. On all silicon the pointer moves to 0x10 instead \(errata E-4, page) '
+(59\), and the byte read from 0x10 is undefined.) '
+() '
+(## 41.4 Recommended practice) '
+() '
+(  - Never rely on wrap. Start every transaction with an explicit pointer.) '
+(  - Keep burst reads within 0x0B-0x0F.) '
+(  - For long logging captures, issue one 5-byte burst read from 0x0B per) '
+(    sample.) '
+() '
+(## 41.5 Write auto-increment across CONF2) '
+() '
+(A multi-byte write starting at 0x06 runs through the reserved address 0x07) '
+(and into CONF2 at 0x08. Avoid writes that span 0x06-0x08; an unintended) '
+(byte in CONF2 changes FILT, DIR, HYST or WD.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 41 of 60) Tj ET
+endstream
+endobj
+87 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 88 0 R >>
+endobj
+88 0 obj
+<< /Length 1568 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 42 Bus error recovery) '
+() '
+(## 42.1 Stuck bus) '
+() '
+(If the host is reset in the middle of a read, the device may hold SDA low) '
+(while it waits for clock pulses to finish a byte. To recover:) '
+() '
+(  1. Configure SCL as a GPIO output and SDA as an input.) '
+(  2. Toggle SCL up to 9 times until SDA reads high.) '
+(  3. Generate a STOP condition.) '
+(  4. Return the pins to the I\262C peripheral.) '
+() '
+(## 42.2 NACK on the address byte) '
+() '
+(A NACK on the address byte means the device is not responding. Causes:) '
+() '
+(  - The device is in reset \(power-on, brown-out, watchdog, soft reset\). It) '
+(    responds again 1.5 ms after the reset \(page 11\).) '
+(  - The ADDR pin changed state before the last reset \(page 13\).) '
+(  - TEST is not tied to GND \(page 9\).) '
+() '
+(After the device responds again, read STATUS. If RST = 1, rewrite CONF2.) '
+() '
+(## 42.3 Wrong data) '
+() '
+(If CHIP_ID does not read 0x14, the bus is corrupted or a different device) '
+(answers. Check pull-ups and cable length \(page 17\).) '
+() '
+(## 42.4 A reset during a transaction) '
+() '
+(A reset that occurs in the middle of a transaction aborts it. The host sees) '
+(a NACK or a byte of 0xFF. The next successful read of STATUS shows RST = 1.) '
+() '
+(## 42.5 Recovery is not configuration) '
+() '
+(Bus recovery restores communication. It does not restore CONF2. After any) '
+(recovery, read STATUS and rewrite CONF2 if RST = 1 \(page 45\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 42 of 60) Tj ET
+endstream
+endobj
+89 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 90 0 R >>
+endobj
+90 0 obj
+<< /Length 1587 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 43 Power-up sequence) '
+() '
+(## 43.1 Sequence) '
+() '
+(  t = 0         VDD rises through VPOR \(2.8 V\). Power-on reset.) '
+(  t = 1.5 ms    I\262C interface ready. STATUS = 0x01 \(RST\) plus field flags.) '
+(  t = 2.0 ms    First valid angle. MD = 1 if a magnet is present.) '
+(  t = 12 ms     AGC settled \(10 ms time constant\).) '
+() '
+(## 43.2 What the host should do) '
+() '
+(  1. Wait at least 2 ms after VDD is stable.) '
+(  2. Read CHIP_ID \(expect 0x14\) and REV.) '
+(  3. Read STATUS. Expect RST = 1 on the first read after power-up.) '
+(  4. Write CONF2 with the required FILT, DIR, HYST and WD values.) '
+(  5. Read CONF2 back and compare.) '
+(  6. Wait 12 ms for the AGC to settle before closing the control loop.) '
+(  7. Start the control loop with the per-cycle burst read \(page 40\).) '
+() '
+(## 43.3 Slow supply ramps) '
+() '
+(If VDD rises slowly through VPOR and then dips \(for example when a motor) '
+(driver on the same rail is enabled\), the device can see a power-on reset) '
+(followed by a brown-out reset. The second reset clears the CONF2 value the) '
+(host has just written. This is why step 7 must include the STATUS.RST check) '
+(on every cycle, not only at start-up.) '
+() '
+(## 43.4 Host reset without encoder reset) '
+() '
+(If the host resets but the encoder does not, STATUS.RST is 0 on the first) '
+(read and CONF2 still holds the old value. The host should write CONF2) '
+(anyway at start-up so that its configuration is known.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 43 of 60) Tj ET
+endstream
+endobj
+91 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 92 0 R >>
+endobj
+92 0 obj
+<< /Length 1621 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 44 Default register values) '
+() '
+(Table 44-1. Register values after any reset.) '
+() '
+(  Addr   Name       Value after reset         Source) '
+(  0x00   CHIP_ID    0x14                      fixed) '
+(  0x01   REV        0xA1 or 0xA2              fixed) '
+(  0x02   CONF1      OTP value \(0x00 if blank\) OTP shadow) '
+(  0x03   ZPOS_H     OTP value \(0x00 if blank\) OTP shadow) '
+(  0x04   ZPOS_L     OTP value \(0x00 if blank\) OTP shadow) '
+(  0x05   MPOS_H     OTP value \(0x3F if blank\) OTP shadow) '
+(  0x06   MPOS_L     OTP value \(0xFF if blank\) OTP shadow) '
+(  0x08   CONF2      0x00                      volatile) '
+(  0x0B   STATUS     0x01 plus field flags     volatile) '
+() '
+(## 44.1 CONF2 = 0x00 means) '
+() '
+(  FILT = 0   the noise filter is off; output noise 12 LSB RMS \(table 31-2\)) '
+(  DIR = 0    clockwise rotation increases the angle) '
+(  HYST = 0   no hysteresis) '
+(  WD = 0     watchdog off) '
+() '
+(## 44.2 "Reset" means every reset) '
+() '
+(The values in table 44-1 apply after a power-on reset, a brown-out reset, a) '
+(watchdog reset and a soft reset. There is no reset source that preserves) '
+(CONF2. Revision 1.0 of this manual implied that brown-out resets preserve) '
+(CONF2. That was wrong; see errata E-3 on page 58.) '
+() '
+(## 44.3 Practical consequence) '
+() '
+(Every configuration value that the application needs and that is not in OTP) '
+(must be written by the host after every reset. The host learns about resets) '
+(from STATUS.RST \(page 33\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 44 of 60) Tj ET
+endstream
+endobj
+93 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 94 0 R >>
+endobj
+94 0 obj
+<< /Length 1918 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 45 Recommended initialisation) '
+() '
+(## 45.1 Start-up) '
+() '
+(    def encoder_init\(\):) '
+(        wait_ms\(2\)) '
+(        assert read\(0x00\) == 0x14            # CHIP_ID) '
+(        read\(0x0B\)                           # clear RST from power-up) '
+(        write\(0x08, CONF2_VALUE\)             # e.g. 0x03 for FILT = 3) '
+(        assert read\(0x08\) == CONF2_VALUE) '
+() '
+(## 45.2 Every control cycle: rewrite CONF2 after a reset) '
+() '
+(    def control_step\(\):) '
+(        status, angle = burst_read\(0x0B, 3\)  # page 40) '
+(        if status & STATUS_RST:              # bit 0, sticky, cleared by read) '
+(            write\(0x08, CONF2_VALUE\)         # the reset cleared CONF2) '
+(            log_event\("encoder reset"\)) '
+(        ...) '
+() '
+(The rewrite costs one 3-byte write transaction, about 70 \265s at 400 kHz.) '
+(Because RST is cleared by the read that reports it, the rewrite must happen) '
+(in the same control step. A host that only checks RST at start-up will run) '
+(with FILT = 0 after the first brown-out.) '
+() '
+(## 45.3 Value to write) '
+() '
+(Choose FILT using page 49. For a robot joint with a 1 kHz loop and a) '
+(crossover between 3 and 10 Hz, FILT = 3 is a good starting point) '
+(\(CONF2 = 0x03\). Handle direction in host software if possible, so that a) '
+(missed rewrite cannot reverse the feedback sign.) '
+() '
+(## 45.4 Firmware review checklist) '
+() '
+(  [ ] CONF2 is written at start-up, after CHIP_ID is confirmed.) '
+(  [ ] STATUS is read on every control cycle \(burst read from 0x0B\).) '
+(  [ ] CONF2 is rewritten in the same cycle whenever STATUS.RST = 1.) '
+(  [ ] Encoder resets are counted and logged.) '
+(  [ ] The angle is not used while MAGL or MAGH is set or MD is clear.) '
+(  [ ] No burst read runs past 0x0F \(errata E-4\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 45 of 60) Tj ET
+endstream
+endobj
+95 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 96 0 R >>
+endobj
+96 0 obj
+<< /Length 1849 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 46 OTP programming in production) '
+() '
+(## 46.1 What OTP stores) '
+() '
+(OTP holds CONF1, ZPOS and MPOS \(page 29, page 30\). After every reset these) '
+(registers are reloaded from OTP. CONF2 is not stored in OTP \(page 36\).) '
+() '
+(## 46.2 Production procedure) '
+() '
+(  1. Mount the magnet and complete mechanical assembly.) '
+(  2. Supply VDD between 3.2 V and 3.6 V \(errata E-1, page 57\). On rev 0xA2) '
+(     silicon 3.0 V is sufficient, but 3.3 V is recommended for all parts.) '
+(  3. Read CHIP_ID \(0x14\) and REV. Record REV in the production log.) '
+(  4. Move the joint to its mechanical zero and read RAW \(0x0E-0x0F\).) '
+(  5. Write ZPOS = RAW. If the joint travels less than a full turn, move to) '
+(     the end stop, read RAW and write MPOS.) '
+(  6. Write CONF1 if a non-default power mode or ADCSLOW is required.) '
+(  7. Write 0x80 to CMD \(0x30\). Wait at least 10 ms without bus access.) '
+(  8. Verify the burn as described on page 36.) '
+() '
+(## 46.3 When not to program OTP) '
+() '
+(Many robot designs keep ZPOS and MPOS at their defaults and apply the zero) '
+(offset in host firmware. This avoids a production step that can be done) '
+(only once and lets a joint be re-zeroed after repair. The configuration) '
+(that matters for servo loops, CONF2, cannot be programmed in OTP in any) '
+(case and must be written by the host after every reset.) '
+() '
+(## 46.4 Failure modes) '
+() '
+(  - Burn at VDD below 3.2 V on rev 0xA1: partial burn, ZPOS and MPOS read) '
+(    back with random bits \(errata E-1\).) '
+(  - Bus access during the 10 ms burn: the burn completes, but the access is) '
+(    NACKed and must be repeated.) '
+(  - A second burn command is ignored. There is no way to erase OTP.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 46 of 60) Tj ET
+endstream
+endobj
+97 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 98 0 R >>
+endobj
+98 0 obj
+<< /Length 1654 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 47 Application: servo loops) '
+() '
+(## 47.1 Typical joint loop) '
+() '
+(A typical robot joint runs a cascaded loop on a microcontroller:) '
+() '
+(  - Position loop: 1 kHz, input = encoder angle, output = velocity command.) '
+(  - Velocity loop: 1 kHz, input = velocity estimate from the encoder angle,) '
+(    output = current command.) '
+(  - Current loop: 10 kHz to 20 kHz in the motor driver.) '
+() '
+(The EncoderX-14 provides the angle for the outer two loops. The host reads) '
+(the angle once per control period with a 3-byte burst read from 0x0B) '
+(\(page 40\), which also returns STATUS.) '
+() '
+(## 47.2 What the encoder adds to the loop) '
+() '
+(  - Delay: the read latency of 2 ms \(page 12\) for a host that polls once) '
+(    per 1 ms period and uses the result in the following period.) '
+(  - Filter lag: the FILT setting adds the lag of a first-order filter with) '
+(    time constant tau = 2^n / 8000 s \(page 31\).) '
+(  - Noise: 12 LSB RMS at FILT = 0, less with FILT > 0 \(table 31-2\).) '
+(  - Quantisation: 1 LSB = 360 / 16384 = 0.022\260.) '
+() '
+(## 47.3 Loop design summary) '
+() '
+(For a joint with a crossover between 3 Hz and 10 Hz:) '
+() '
+(  - Delay and filter lag together must stay small compared with the phase) '
+(    margin. Table 12-1 gives the total lag at 4 Hz.) '
+(  - Noise must be small enough that the derivative path does not drive the) '
+(    motor with noise \(page 48\).) '
+(  - FILT = 3 balances these two needs \(page 49\).) '
+() '
+(The remaining pages of this part give the details.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 47 of 60) Tj ET
+endstream
+endobj
+99 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 100 0 R >>
+endobj
+100 0 obj
+<< /Length 1946 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 48 Quantisation and noise in a derivative term) '
+() '
+(## 48.1 Why the derivative path matters) '
+() '
+(A PD or PID position loop, and every velocity loop, uses the difference of) '
+(two successive angle samples. Differencing multiplies white noise by) '
+(sqrt\(2\) and divides it by the sample period. At a 1 kHz loop rate, small) '
+(angle noise becomes large velocity noise.) '
+() '
+(## 48.2 Velocity noise versus FILT \(1 kHz loop\)) '
+() '
+(Table 48-1. Noise of the one-step difference \(angle[k] - angle[k-1]\) / 1 ms.) '
+() '
+(  FILT n   Angle noise      Velocity noise      Velocity noise) '
+(           \(LSB RMS\)        \(LSB per ms RMS\)    \(\260 / s RMS\)) '
+(  0        12.0             17.0                373) '
+(  1        6.93             9.8                 215) '
+(  2        4.54             6.4                 141) '
+(  3        3.10             3.6                 78) '
+(  5        1.51             0.8                 17) '
+(  7        0.75             0.2                 4) '
+() '
+(For FILT >= 3 successive 1 ms samples are correlated by the filter, so the) '
+(velocity noise falls faster than the angle noise.) '
+() '
+(## 48.3 Consequences at FILT = 0) '
+() '
+(  - A derivative gain that is reasonable for the mechanics multiplies) '
+(    373 \260/s RMS of noise into the current command.) '
+(  - The motor current carries broadband noise. The motor heats, the joint) '
+(    buzzes audibly, and a light link can resonate.) '
+(  - The error appears as an increase in tracking error and in RMS motor) '
+(    current, not as a fault flag. Nothing in STATUS reports it.) '
+() '
+(## 48.4 Quantisation) '
+() '
+(At 16384 counts per turn and a 1 kHz loop, one LSB per sample corresponds) '
+(to 22 \260/s. Quantisation is small compared with the noise at FILT <= 3 and) '
+(can be ignored for loop design.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 48 of 60) Tj ET
+endstream
+endobj
+101 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 102 0 R >>
+endobj
+102 0 obj
+<< /Length 1709 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 49 Choosing FILT for a servo loop) '
+() '
+(## 49.1 The trade-off) '
+() '
+(A larger FILT lowers the noise \(table 31-2, table 48-1\) and adds phase lag) '
+(\(table 12-1\). The right value depends on the loop crossover frequency.) '
+() '
+(## 49.2 Phase lag at the crossover) '
+() '
+(Table 49-1. Total encoder phase lag \(2 ms read delay plus FILT lag\).) '
+() '
+(  FILT n   tau       Lag at 4 Hz   Lag at 10 Hz) '
+(  0        off       2.9\260          7.2\260) '
+(  3        1 ms      4.3\260          10.8\260) '
+(  5        4 ms      8.6\260          21.3\260) '
+(  7        16 ms     24.8\260         52.4\260) '
+() '
+(The values at 4 Hz match table 12-1.) '
+() '
+(## 49.3 Recommendation for robot joints) '
+() '
+(For a joint with a 1 kHz loop and a crossover between 3 Hz and 10 Hz:) '
+() '
+(  - FILT = 3 \(CONF2 = 0x03\) is the recommended starting point. It reduces) '
+(    the angle noise by a factor of 3.9 and the velocity noise by a factor) '
+(    of almost 5, and adds about 1.4\260 of lag at 4 Hz.) '
+(  - FILT = 0 is not recommended. The loop is stable, but the derivative) '
+(    path drives the motor with noise \(page 48\).) '
+(  - FILT >= 5 is only for slow loops. FILT = 7 costs about 25\260 at 4 Hz and) '
+(    can make a loop that was stable with FILT = 0 oscillate.) '
+() '
+(## 49.4 FILT must be maintained) '
+() '
+(The FILT setting chosen here is lost on every reset, including brown-out) '
+(resets that the host does not otherwise see \(page 11, page 58\). Choosing) '
+(FILT is half of the job; the other half is restoring it whenever) '
+(STATUS.RST = 1 \(page 45\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 49 of 60) Tj ET
+endstream
+endobj
+103 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 104 0 R >>
+endobj
+104 0 obj
+<< /Length 1661 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 50 Velocity estimation) '
+() '
+(## 50.1 No velocity output) '
+() '
+(The device has no velocity register. The host estimates velocity from) '
+(successive angle samples.) '
+() '
+(## 50.2 Unwrapping) '
+() '
+(The angle wraps from 16383 to 0. Before differencing, unwrap:) '
+() '
+(    d = angle[k] - angle[k-1]) '
+(    if d > 8192:   d -= 16384) '
+(    if d < -8192:  d += 16384) '
+(    velocity = d x \(2 x pi / 16384\) / T      # rad/s, T = loop period) '
+() '
+(This is valid while the joint turns less than half a revolution per loop) '
+(period \(30000 rpm at 1 kHz\).) '
+() '
+(## 50.3 Estimators) '
+() '
+(  Estimator              Noise          Lag         Note) '
+(  One-step difference    highest        T / 2       Use with FILT >= 3) '
+(  N-step difference      / N            N x T / 2   Simple, good at low speed) '
+(  Tracking observer      tunable        tunable     Best, needs tuning) '
+() '
+(## 50.4 Interaction with FILT) '
+() '
+(FILT filters the angle before the host sees it, so it also filters every) '
+(velocity estimator that uses the angle. If CONF2 is cleared by a reset,) '
+(FILT drops to 0 and the velocity noise rises by a factor of about 5 at) '
+(1 kHz \(table 48-1\) without any change in host code. The velocity estimate) '
+(is often the first signal where a lost CONF2 becomes visible in logs.) '
+() '
+(## 50.5 Direction) '
+() '
+(If the host relies on DIR = 1 \(page 32\), a reset returns DIR to 0 and the) '
+(sign of the velocity estimate reverses. Handle direction in host software) '
+(where possible \(page 15\).) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 50 of 60) Tj ET
+endstream
+endobj
+105 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 106 0 R >>
+endobj
+106 0 obj
+<< /Length 1805 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 51 Diagnostics overview) '
+() '
+(## 51.1 What the device reports) '
+() '
+(  Signal        Where            Meaning                          Page) '
+(  RST           STATUS bit 0     A reset occurred \(sticky\)        33, 53) '
+(  MAGL          STATUS bit 1     Field too weak                   52) '
+(  MAGH          STATUS bit 2     Field too strong                 52) '
+(  MD            STATUS bit 3     Magnet detected                  52) '
+(  OVF           STATUS bit 4     CORDIC overflow \(sticky\)         52) '
+(  AGC           0x1A             Front-end gain                   35, 52) '
+(  MAG           0x1B-0x1C        Field magnitude                  35, 52) '
+(  NACK          I\262C              Bus or device fault              54) '
+() '
+(## 51.2 Reset sources and their evidence) '
+() '
+(All four reset sources \(power-on, brown-out, watchdog, soft reset, page 11\)) '
+(have the same effect and the same evidence: STATUS.RST = 1 on the next) '
+(STATUS read. The device does not record which source caused the reset.) '
+(A host can narrow it down:) '
+() '
+(  - Soft reset: the host itself wrote 0xA5 to CMD.) '
+(  - Power-on: the host also restarted, or the encoder supply was switched.) '
+(  - Watchdog: only possible with CONF2.WD = 1 \(page 54\).) '
+(  - Brown-out: everything else. In a running joint this is the most common) '
+(    cause \(page 53\).) '
+() '
+(## 51.3 What the device does not report) '
+() '
+(  - It does not report that CONF2 has changed. The only evidence is RST.) '
+(  - It does not report excessive noise. Noise is a property of the FILT) '
+(    setting and the field, not a fault.) '
+(  - It does not report a stalled host or a missed read.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 51 of 60) Tj ET
+endstream
+endobj
+107 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 108 0 R >>
+endobj
+108 0 obj
+<< /Length 1701 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 52 Magnet and field faults) '
+() '
+(## 52.1 Field flags) '
+() '
+(  Condition                   Flags                  Angle valid) '
+(  Field 30 mT to 90 mT        MD = 1                 yes) '
+(  Field below 30 mT           MAGL = 1, MD = 1       no) '
+(  Field above 90 mT           MAGH = 1, MD = 1       no) '
+(  Field below 20 mT           MAGL = 1, MD = 0       no) '
+(  Field above 120 mT          MAGH = 1, MD = 0       no) '
+() '
+(MAGL, MAGH and MD are not sticky; they reflect the field at the time of) '
+(the read. OVF is sticky and cleared by a STATUS read.) '
+() '
+(## 52.2 Typical causes) '
+() '
+(  - Air gap too large \(field too weak\): see the air gap table on page 20.) '
+(  - Air gap too small or wrong magnet grade \(field too strong\).) '
+(  - Magnet loosened or cracked: MAG changes over time, AGC drifts.) '
+(  - External field from a nearby motor: AGC and MAG change with motor) '
+(    current.) '
+() '
+(## 52.3 Host response) '
+() '
+(When the angle is not valid, hold the last motor command or bring the) '
+(joint to a safe state. Do not use the angle \(page 40\). Log MAG and AGC) '
+(with the event.) '
+() '
+(## 52.4 Trend monitoring) '
+() '
+(AGC moves slowly as the magnet ages and with temperature \(page 35\). A) '
+(change of more than 20 % from the value recorded at production test) '
+(indicates a mechanical problem.) '
+() '
+(## 52.5 Power-up glitch on rev 0xA1) '
+() '
+(On rev 0xA1 silicon MAGH can be set for up to 1 ms after a power-on reset) '
+(even with a correct field \(errata E-2, page 57\). Wait 2 ms after reset) '
+(before acting on MAGH.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 52 of 60) Tj ET
+endstream
+endobj
+109 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 110 0 R >>
+endobj
+110 0 obj
+<< /Length 2229 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 53 Brown-out events in the field) '
+() '
+(## 53.1 How they happen) '
+() '
+(In a robot joint the encoder often shares the 3.3 V rail with the logic) '
+(that drives the motor. A step in motor current can pull the rail below) '
+(VBOR = 2.6 V for a few microseconds. A dip longer than the brown-out filter) '
+(time tBOR \(typ. 2 \265s, page 11\) resets the device.) '
+() '
+(## 53.2 What the host sees) '
+() '
+(  - No bus error. The I\262C interface is ready 1.5 ms after the reset; a read) '
+(    that falls inside that window is NACKed, later reads succeed.) '
+(  - The angle keeps arriving. It is valid again 2 ms after the reset.) '
+(  - STATUS.RST = 1 on the next STATUS read, then 0 again.) '
+(  - CONF2 = 0x00: FILT = 0, DIR = 0, HYST = 0, WD = 0.) '
+() '
+(The joint keeps moving, but with the filter off. Velocity noise rises by a) '
+(factor of about 5 \(table 48-1\). Tracking error and motor current rise, the) '
+(joint may buzz. If the host relied on DIR = 1, the feedback sign reverses.) '
+() '
+(## 53.3 Detecting a brown-out) '
+() '
+(The only reliable evidence is STATUS.RST. Read STATUS on every control) '
+(cycle with the 3-byte burst read from 0x0B \(page 40\) and test bit 0. A) '
+(host that reads STATUS only at start-up will not detect a brown-out.) '
+() '
+(Indirect evidence, useful when analysing logs after the fact:) '
+() '
+(  - A step increase in angle noise or velocity noise with no mechanical) '
+(    change.) '
+(  - A single NACK on the encoder address during a motor current step.) '
+(  - A coincidence between motor current steps and the change in noise.) '
+() '
+(## 53.4 Required response) '
+() '
+(In the same control step in which RST = 1 is read, rewrite CONF2 \(page 45,) '
+(errata E-3 on page 58\). Count and log the event. If the count rises over) '
+(time, improve supply decoupling \(page 17\); do not rely on decoupling alone.) '
+() '
+(## 53.5 Frequency) '
+() '
+(Field data from robot joints with shared supplies shows brown-out rates) '
+(from less than one per year to several per hour, depending on layout and) '
+(motor current. A design must assume that brown-outs happen.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 53 of 60) Tj ET
+endstream
+endobj
+111 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 112 0 R >>
+endobj
+112 0 obj
+<< /Length 1463 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 54 Watchdog and bus faults) '
+() '
+(## 54.1 Watchdog) '
+() '
+(With CONF2.WD = 1 the device resets itself if the internal oscillator) '
+(stalls for more than 1 ms. The watchdog reset has the same effect as every) '
+(other reset: CONF2 = 0x00 and STATUS.RST = 1. Because WD lives in CONF2,) '
+(the watchdog is disabled again after the reset until the host rewrites) '
+(CONF2.) '
+() '
+(## 54.2 Bus faults) '
+() '
+(  Symptom                    Likely cause                     Action) '
+(  NACK on address            device in reset or not powered   retry next cycle) '
+(  NACK on data               soft reset write \(expected\)      none) '
+(  SDA held low               interrupted transaction          bus recovery) '
+(  Wrong data after 0x0F      burst ran past 0x0F \(E-4\)        limit burst) '
+(  Repeated NACK              wiring, ADDR pin, supply         stop, report) '
+() '
+(Bus recovery is described on page 42.) '
+() '
+(## 54.3 Host-side timeout) '
+() '
+(The host should treat more than three consecutive failed reads as an) '
+(encoder fault and bring the joint to a safe state. A single NACK is normal) '
+(after a reset and must not trip the joint.) '
+() '
+(## 54.4 After a bus fault) '
+() '
+(After any bus fault that lasted longer than 1.5 ms, read STATUS and check) '
+(RST before using the angle. The fault may have been a reset.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 54 of 60) Tj ET
+endstream
+endobj
+113 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 114 0 R >>
+endobj
+114 0 obj
+<< /Length 1195 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 55 Reliability data) '
+() '
+(## 55.1 Failure rate) '
+() '
+(Table 55-1. Reliability \(JESD85 method, 60 % confidence\).) '
+() '
+(  Parameter                     Condition           Value     Unit) '
+(  FIT                           55 \260C junction      4.1       per 10^9 h) '
+(  MTTF                          55 \260C junction      2.8e7     h) '
+(  Early life failure rate                           < 50      ppm) '
+() '
+(## 55.2 OTP data retention) '
+() '
+(  Condition              Retention) '
+(  125 \260C                 10 years) '
+(  85 \260C                  > 50 years) '
+() '
+(## 55.3 Magnet ageing) '
+() '
+(The device itself does not age measurably. NdFeB magnets lose about 0.1 %) '
+(of remanence per 1000 h at 100 \260C. Over a product life this changes the) '
+(field by a few percent, which the AGC compensates \(page 35, page 52\).) '
+() '
+(## 55.4 Reliability and resets) '
+() '
+(Brown-out resets do not damage the device and do not count against its) '
+(reliability. They affect the application through the loss of CONF2) '
+(\(page 58\), not through wear.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 55 of 60) Tj ET
+endstream
+endobj
+115 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 116 0 R >>
+endobj
+116 0 obj
+<< /Length 1512 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 56 Qualification and ESD) '
+() '
+(## 56.1 Qualification summary) '
+() '
+(Table 56-1. Qualification tests.) '
+() '
+(  Test                        Standard       Condition                Result) '
+(  HTOL                        JESD22-A108    125 \260C, 3.6 V, 1000 h    0 / 231) '
+(  Temperature cycling         JESD22-A104    -55 \260C to 150 \260C, 1000x  0 / 231) '
+(  HAST                        JESD22-A110    130 \260C, 85 % RH, 96 h    0 / 231) '
+(  High-temperature storage    JESD22-A103    150 \260C, 1000 h           0 / 77) '
+(  Latch-up                    JESD78         \261100 mA, 85 \260C           pass) '
+(  MSL                         J-STD-020      260 \260C reflow            MSL 3) '
+() '
+(## 56.2 ESD ratings) '
+() '
+(  Model                       Standard       Rating) '
+(  Human body model \(HBM\)      JS-001         \2612 kV) '
+(  Charged device model \(CDM\)  JS-002         \261500 V) '
+() '
+(## 56.3 Handling) '
+() '
+(Handle the device at an ESD-protected workstation \(page 4\). The SDA, SCL) '
+(and ADDR pins are not protected against system-level ESD; add external) '
+(protection if the I\262C bus leaves the board.) '
+() '
+(## 56.4 Supply transients) '
+() '
+(The device tolerates supply transients within the absolute maximum ratings) '
+(\(page 9\). Transients that pull VDD below VBOR cause a brown-out reset) '
+(\(page 11\); they do not damage the device.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 56 of 60) Tj ET
+endstream
+endobj
+117 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 118 0 R >>
+endobj
+118 0 obj
+<< /Length 1563 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 57 Errata summary) '
+() '
+(## 57.1 Errata list) '
+() '
+(Table 57-1. Known errata.) '
+() '
+(  ID    Title                                     0xA1   0xA2   Page) '
+(  E-1   OTP burn requires VDD >= 3.2 V            yes    no     57) '
+(  E-2   MAGH glitch after power-on                yes    no     57) '
+(  E-3   CONF2 cleared by every reset              yes    yes    58) '
+(  E-4   Burst read wraps 0x0F -> 0x10             yes    yes    59) '
+(  E-5   Low-power entry delay                     yes    no     59) '
+() '
+(## 57.2 E-1: OTP burn requires VDD >= 3.2 V) '
+() '
+(Description: on rev 0xA1 an OTP burn at VDD below 3.2 V can program some) '
+(bits incompletely. ZPOS and MPOS then read back with random errors.) '
+() '
+(Workaround: burn OTP only at VDD between 3.2 V and 3.6 V \(page 36, page) '
+(46\). Corrected in rev 0xA2.) '
+() '
+(## 57.3 E-2: MAGH glitch after power-on) '
+() '
+(Description: on rev 0xA1, STATUS.MAGH can read 1 for up to 1 ms after a) '
+(power-on reset even when the field is correct.) '
+() '
+(Workaround: ignore MAGH for 2 ms after any reset \(page 52\). Corrected in) '
+(rev 0xA2.) '
+() '
+(## 57.4 How to read the errata) '
+() '
+(E-3 is the erratum with the largest effect on servo applications. It is) '
+(not a silicon defect that a later revision can fix; it is a property of) '
+(the reset design that revision 1.0 of this manual described incorrectly.) '
+(Every application must apply the E-3 workaround.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 57 of 60) Tj ET
+endstream
+endobj
+119 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 120 0 R >>
+endobj
+120 0 obj
+<< /Length 2096 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 58 Errata E-3: CONF2 is cleared by every reset) '
+() '
+(## 58.1 Description) '
+() '
+(Every reset clears CONF2 to 0x00. This includes power-on, brown-out,) '
+(watchdog and soft reset \(page 11\). After the reset:) '
+() '
+(  - FILT = 0: the noise filter is off \(12 LSB RMS output noise\).) '
+(  - DIR = 0: the angle increases for clockwise rotation.) '
+(  - HYST = 0 and WD = 0.) '
+() '
+(Revision 1.0 of this manual stated that brown-out resets preserve CONF2.) '
+(That statement was wrong. There is no reset source that preserves CONF2.) '
+() '
+(## 58.2 Affected silicon) '
+() '
+(All revisions \(0xA1 and 0xA2\). This behaviour will not change.) '
+() '
+(## 58.3 Effect on applications) '
+() '
+(A brown-out reset is silent \(page 11, page 53\). A host that writes CONF2) '
+(only at start-up runs with FILT = 0 after the first brown-out. In a servo) '
+(loop:) '
+() '
+(  - Angle noise rises from 3.10 LSB RMS \(FILT = 3\) to 12.0 LSB RMS.) '
+(  - Velocity noise at 1 kHz rises from 78 \260/s RMS to 373 \260/s RMS) '
+(    \(table 48-1\).) '
+(  - Motor current noise, tracking error and audible noise increase.) '
+(  - If DIR = 1 was used, the feedback sign reverses.) '
+() '
+(The configuration read back after the original write was correct, so a) '
+(start-up self-test does not catch this failure.) '
+() '
+(## 58.4 Workaround) '
+() '
+(Read STATUS on every control cycle and rewrite CONF2 in the same cycle) '
+(whenever STATUS.RST = 1:) '
+() '
+(    status, angle = burst_read\(0x0B, 3\)) '
+(    if status & 0x01:                 # STATUS.RST, sticky, cleared by read) '
+(        write\(0x08, CONF2_VALUE\)      # restore FILT \(and DIR, HYST, WD\)) '
+() '
+(The rewrite must happen in the same cycle because the read that reports) '
+(RST also clears it \(page 33\). See page 45 for the full initialisation.) '
+() '
+(## 58.5 Verification) '
+() '
+(Force a soft reset \(write 0xA5 to CMD\) while the loop is running. Within) '
+(one control cycle CONF2 must read back as CONF2_VALUE.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 58 of 60) Tj ET
+endstream
+endobj
+121 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 122 0 R >>
+endobj
+122 0 obj
+<< /Length 1572 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 59 Errata E-4 and E-5) '
+() '
+(## 59.1 E-4: burst read wraps 0x0F -> 0x10) '
+() '
+(Description: the register pointer was designed to wrap from 0x0F \(RAW_L\)) '
+(back to 0x0B \(STATUS\). On all silicon it continues to 0x10 instead. The) '
+(byte read from 0x10 is undefined \(page 41\).) '
+() '
+(Affected silicon: 0xA1 and 0xA2.) '
+() '
+(Effect: a host that reads more than 5 bytes from 0x0B, expecting STATUS) '
+(again at byte 6, reads an undefined value instead. If that value has bit 0) '
+(set, the host may treat it as a reset; if it has bit 0 clear, a real reset) '
+(reported in a later read can be missed by code that only checks byte 6.) '
+() '
+(Workaround: keep burst reads within 0x0B-0x0F. Start every read) '
+(transaction with an explicit register address. The recommended read is) '
+(the 3-byte burst from 0x0B \(page 40\).) '
+() '
+(## 59.2 E-5: low-power entry delay) '
+() '
+(Description: on rev 0xA1, after CONF1.PM is changed from 0 to 1 or 2, the) '
+(device takes up to 20 ms instead of the specified 1 ms to enter the low-) '
+(power mode. During that time the current consumption is that of active) '
+(mode.) '
+() '
+(Affected silicon: 0xA1. Corrected in 0xA2.) '
+() '
+(Effect: battery-powered designs that switch to low power for short idle) '
+(periods save less energy than expected. Servo loops, which should use) '
+(PM = 0 \(page 29\), are not affected.) '
+() '
+(Workaround: allow 20 ms for low-power entry on 0xA1, or use rev 0xA2.) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 59 of 60) Tj ET
+endstream
+endobj
+123 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents 124 0 R >>
+endobj
+124 0 obj
+<< /Length 1696 >>
+stream
+BT /F1 9 Tf 11 TL 54 740 Td
+(# 60 Glossary and licence) '
+() '
+(## 60.1 Glossary) '
+() '
+(  AGC         Automatic gain control of the magnetic front end \(page 35\)) '
+(  BOR         Brown-out reset: reset caused by VDD falling below VBOR) '
+(  CONF2       Volatile configuration register 0x08 \(FILT, DIR, HYST, WD\)) '
+(  CORDIC      Algorithm that computes the angle from the sine and cosine) '
+(  FILT        CONF2 bits 2..0: output noise filter setting \(page 31\)) '
+(  LSB         One count of the 14-bit angle, 360 / 16384 = 0.022\260) '
+(  OTP         One-time programmable memory \(page 36\)) '
+(  POR         Power-on reset) '
+(  RST         STATUS bit 0: a reset occurred since the last STATUS read) '
+(  tau         Time constant of the FILT filter, 2^n / 8000 s) '
+(  VBOR        Brown-out reset threshold, 2.6 V typical) '
+(  VPOR        Power-on reset threshold, 2.8 V typical) '
+() '
+(## 60.2 Fictional device notice) '
+() '
+(The EncoderX-14 is a fictional device. This manual was written for the) '
+(ChronoSight project as a test corpus. Any similarity to a real product is) '
+(unintended. Do not use the values in this manual to design real hardware.) '
+() '
+(## 60.3 Licence) '
+() '
+(EncoderX-14 Reference Manual, document ENCX14-RM, revision 1.2.) '
+() '
+(This work is licensed under the Creative Commons Attribution 4.0) '
+(International licence \(CC-BY-4.0\). You may share and adapt it for any) '
+(purpose, provided you give appropriate credit, provide a link to the) '
+(licence, and indicate if changes were made.) '
+() '
+(Licence text: https://creativecommons.org/licenses/by/4.0/) '
+ET
+BT /F1 7.5 Tf 200.25 36 Td (ENCX14-RM rev 1.2    CC-BY-4.0    page 60 of 60) Tj ET
+endstream
+endobj
+xref
+0 125
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000545 00000 n 
+0000000640 00000 n 
+0000000743 00000 n 
+0000000869 00000 n 
+0000003267 00000 n 
+0000003393 00000 n 
+0000005356 00000 n 
+0000005483 00000 n 
+0000009890 00000 n 
+0000010018 00000 n 
+0000012050 00000 n 
+0000012178 00000 n 
+0000014272 00000 n 
+0000014400 00000 n 
+0000017378 00000 n 
+0000017506 00000 n 
+0000020040 00000 n 
+0000020168 00000 n 
+0000021785 00000 n 
+0000021913 00000 n 
+0000023614 00000 n 
+0000023742 00000 n 
+0000025639 00000 n 
+0000025767 00000 n 
+0000027926 00000 n 
+0000028054 00000 n 
+0000030375 00000 n 
+0000030503 00000 n 
+0000032345 00000 n 
+0000032473 00000 n 
+0000034436 00000 n 
+0000034564 00000 n 
+0000036369 00000 n 
+0000036497 00000 n 
+0000038462 00000 n 
+0000038590 00000 n 
+0000040364 00000 n 
+0000040492 00000 n 
+0000042213 00000 n 
+0000042341 00000 n 
+0000043999 00000 n 
+0000044127 00000 n 
+0000045989 00000 n 
+0000046117 00000 n 
+0000047859 00000 n 
+0000047987 00000 n 
+0000049833 00000 n 
+0000049961 00000 n 
+0000051804 00000 n 
+0000051932 00000 n 
+0000053698 00000 n 
+0000053826 00000 n 
+0000055457 00000 n 
+0000055585 00000 n 
+0000057249 00000 n 
+0000057377 00000 n 
+0000059219 00000 n 
+0000059347 00000 n 
+0000061787 00000 n 
+0000061915 00000 n 
+0000063561 00000 n 
+0000063689 00000 n 
+0000065490 00000 n 
+0000065618 00000 n 
+0000068476 00000 n 
+0000068604 00000 n 
+0000070381 00000 n 
+0000070509 00000 n 
+0000072447 00000 n 
+0000072575 00000 n 
+0000074283 00000 n 
+0000074411 00000 n 
+0000076039 00000 n 
+0000076167 00000 n 
+0000077837 00000 n 
+0000077965 00000 n 
+0000079575 00000 n 
+0000079703 00000 n 
+0000081063 00000 n 
+0000081191 00000 n 
+0000082303 00000 n 
+0000082431 00000 n 
+0000084095 00000 n 
+0000084223 00000 n 
+0000085676 00000 n 
+0000085804 00000 n 
+0000087424 00000 n 
+0000087552 00000 n 
+0000089191 00000 n 
+0000089319 00000 n 
+0000090992 00000 n 
+0000091120 00000 n 
+0000093090 00000 n 
+0000093218 00000 n 
+0000095119 00000 n 
+0000095247 00000 n 
+0000096953 00000 n 
+0000097082 00000 n 
+0000099081 00000 n 
+0000099211 00000 n 
+0000100973 00000 n 
+0000101103 00000 n 
+0000102817 00000 n 
+0000102947 00000 n 
+0000104805 00000 n 
+0000104935 00000 n 
+0000106689 00000 n 
+0000106819 00000 n 
+0000109101 00000 n 
+0000109231 00000 n 
+0000110747 00000 n 
+0000110877 00000 n 
+0000112125 00000 n 
+0000112255 00000 n 
+0000113820 00000 n 
+0000113950 00000 n 
+0000115566 00000 n 
+0000115696 00000 n 
+0000117845 00000 n 
+0000117975 00000 n 
+0000119600 00000 n 
+0000119730 00000 n 
+trailer
+<< /Size 125 /Root 1 0 R /Info 4 0 R >>
+startxref
+121479
+%%EOF
