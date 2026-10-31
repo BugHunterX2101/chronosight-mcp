@@ -21,15 +21,17 @@ const asStrings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x 
 export function ApprovalDialog({ run, busy, onApprove, onReject }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const required = run.approval.required;
-  const [dismissed, setDismissed] = useState(false);
-  const [armed, setArmed] = useState(false);
   const key = required === null ? "" : `${required.approvalId}:${required.step}`;
+  // Both flags name the offer they apply to, so a new step starts disarmed and undismissed on its
+  // very first render instead of inheriting the previous step's state for one frame.
+  const [dismissedKey, setDismissedKey] = useState("");
+  const [armedKey, setArmedKey] = useState("");
+  const dismissed = dismissedKey === key;
+  const armed = armedKey === key;
 
   useEffect(() => {
-    setDismissed(false);
-    setArmed(false);
     if (key === "") return;
-    const t = setTimeout(() => setArmed(true), DEBOUNCE_MS);
+    const t = setTimeout(() => setArmedKey(key), DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [key]);
 
@@ -57,12 +59,12 @@ export function ApprovalDialog({ run, busy, onApprove, onReject }: Props) {
       {dismissed ? (
         <p role="status" className="banner">
           An approval is waiting for you.{" "}
-          <button type="button" onClick={() => setDismissed(false)}>
+          <button type="button" onClick={() => setDismissedKey("")}>
             Review approval
           </button>
         </p>
       ) : null}
-      <dialog ref={ref} className="approval" aria-labelledby="ap-h" onCancel={() => setDismissed(true)}>
+      <dialog ref={ref} className="approval" aria-labelledby="ap-h" onCancel={() => setDismissedKey(key)}>
         <h2 id="ap-h">{step2 ? "Step 2 of 2: confirm the patch" : "Step 1 of 2: approve the scope"}</h2>
         <p>
           Risk <strong>{level}</strong> · expires {expires} UTC · spec hash <code>{required.patchSpecHash.slice(0, 12)}</code>
@@ -97,7 +99,7 @@ export function ApprovalDialog({ run, busy, onApprove, onReject }: Props) {
           <button type="button" onClick={onReject} disabled={busy}>
             Reject
           </button>
-          <button type="button" onClick={() => setDismissed(true)}>
+          <button type="button" onClick={() => setDismissedKey(key)}>
             Decide later
           </button>
           <button
