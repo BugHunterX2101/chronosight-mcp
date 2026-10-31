@@ -4,6 +4,7 @@ import { isTerminal, type RunView } from "@chronosight/run-model/browser";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { parseMasks, type MaskFile } from "../lib/replay/csmk.ts";
 import { ApiError, cancelRun, clipUrl, diagnose, fetchMasks, listScenarios, sendApproval, startPerceive, type ScenarioInfo } from "../lib/session/api.ts";
+import { stageForRunState } from "../lib/scene/stages.ts";
 import { useSession } from "../lib/session/useSession.ts";
 import { ApprovalDialog } from "./ApprovalDialog.tsx";
 import { CostMeter, DiagnosisPane, LoopStepper, RepairPane, VerdictPanel } from "./panels.tsx";
@@ -137,7 +138,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
       </div>
 
       <h1>{scenario?.title ?? scenarioId ?? "Inspection"}</h1>
-      <LoopStepper state={state_} />
+      <LoopStepper state={state_} live />
 
       <div className="controls">
         {run === undefined ? (
@@ -185,6 +186,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
             concepts={scenario?.concepts ?? []}
             playing
             onFirstMask={() => undefined}
+            waitingStage={stageForRunState(run?.state)}
           />
           <p className="muted">{run === undefined ? "No clip yet." : `${phase === "post" ? "After the patch" : "Before the patch"}`}</p>
           {state_ === "AWAITING_QUESTION" ? (

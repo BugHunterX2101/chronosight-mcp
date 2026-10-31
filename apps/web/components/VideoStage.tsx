@@ -1,7 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useRef } from "react";
 import { decodeRaster, type MaskFile, type MaskRecord } from "../lib/replay/csmk.ts";
+import type { Stage } from "../lib/scene/stages.ts";
+
+// Loaded on demand so the workbench's first bundle carries no GL code. It is mounted only while there
+// is no clip, so at most one GL context is alive and it never competes with the mask compositor.
+const TwinScene = dynamic(() => import("./TwinScene.tsx").then((m) => m.TwinScene), { ssr: false });
 
 // Compositor (DESIGN §10, §25): the verified clip underneath, SAM mask fills at 35% alpha with an
 // outline and a text chip per track on a canvas above it. The canvas is the frame's own size so the
@@ -23,9 +29,11 @@ interface Props {
   playing: boolean;
   /** Called once with the performance.now() of the first frame that drew a mask. */
   onFirstMask: (at: number) => void;
+  /** What the schematic shows while there is no clip yet. */
+  waitingStage?: Stage;
 }
 
-export function VideoStage({ src, masks, concepts, playing, onFirstMask }: Props) {
+export function VideoStage({ src, masks, concepts, playing, onFirstMask, waitingStage = "watch" }: Props) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const fills = useRef(new WeakMap<MaskRecord, HTMLCanvasElement>());
@@ -122,7 +130,16 @@ export function VideoStage({ src, masks, concepts, playing, onFirstMask }: Props
 
   return (
     <div className="stage">
-      {src !== null ? <video ref={video} className="stage-video" src={src} muted loop playsInline preload="auto" aria-label="Rendered clip" /> : <div className="stage-video stage-empty">Waiting for the clip…</div>}
+      {src !== null ? (
+        <video ref={video} className="stage-video" src={src} muted loop playsInline preload="auto" aria-label="Rendered clip" />
+      ) : (
+        <div className="stage-video stage-empty">
+          <TwinScene variant="stage" stage={waitingStage} hz={null} residual={null} labels={concepts.map((c) => c.slug)} />
+          <p className="stage-wait" role="status">
+            Waiting for the clip…
+          </p>
+        </div>
+      )}
       <canvas ref={canvas} className="stage-overlay" width={masks?.frameW ?? 1280} height={masks?.frameH ?? 720} aria-hidden="true" />
     </div>
   );

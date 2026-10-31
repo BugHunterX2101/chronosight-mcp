@@ -49,7 +49,7 @@ export default async function ReportPage({ params }: { params: Promise<{ session
   if (res.status === 404) notFound();
   if (!res.ok) {
     return (
-      <main className="shell light">
+      <main id="main" className="shell light">
         <div role="alert" className="alert">
           <h1>The report could not be built</h1>
           <p>The gateway answered {res.status}. Try again in a moment.</p>
@@ -60,7 +60,7 @@ export default async function ReportPage({ params }: { params: Promise<{ session
   const report = (await res.json()) as Report;
 
   return (
-    <main className="shell light report">
+    <main id="main" className="shell light report">
       <h1>Audit report</h1>
       <p>
         Session <code>{report.sessionId}</code> · scenario {report.scenarioId} · generated <time dateTime={report.generatedAt}>{report.generatedAt}</time>

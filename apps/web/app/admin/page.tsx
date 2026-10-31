@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "Admin · Chronosight", robots: { ind
 
 export default function AdminPage() {
   return (
-    <main className="shell">
+    <main id="main" className="shell">
       <h1>Admin</h1>
       <AdminConsole />
     </main>

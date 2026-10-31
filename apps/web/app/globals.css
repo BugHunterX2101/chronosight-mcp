@@ -1,10 +1,28 @@
-/* Okabe–Ito tokens (DESIGN §25): colour is never the only signal, every state also carries a label or shape. */
+/*
+  Chronosight design tokens and components (DESIGN §25).
+  Direction: an instrument-grade inspection lab. Dark graphite, a blueprint grid, hairline panels,
+  tabular monospace figures, uppercase tracked micro-labels. System fonts only (§25.4): the character
+  comes from weight, tracking and numerals, not from a download.
+  Rules kept throughout:
+   - type sizes 12 / 14 / 16 / 20 / 24 / 32 px; spacing in multiples of 4 px;
+   - Okabe–Ito hues; object identity (--obj-*) and test state (--fail, --pending, --pass) never share a role,
+     and state always carries a glyph and a word as well as a colour;
+   - no style attributes anywhere (the CSP forbids them): dynamic values arrive as custom properties set
+     through the CSSOM;
+   - 150 ms ease-out for state changes, 400 ms for the red-to-green verdict, none under reduced motion.
+*/
 :root {
   --bg: #0b0d10;
   --surface: #14181d;
+  --deep: #0f1318;
+  --raise: #1a2027;
   --text: #e8eaed;
+  --text-2: #c4c9d0;
   --muted: #a0a7b0;
   --line: #262c33;
+  --line-strong: #38414b;
+  --neutral: #5b6672;
+  --grid: rgb(86 180 233 / 0.055);
   --obj-1: #56b4e9;
   --obj-2: #0072b2;
   --obj-3: #cc79a7;
@@ -12,11 +30,47 @@
   --fail: #d55e00;
   --pending: #e69f00;
   --pass: #009e73;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-num: ui-monospace, "Cascadia Mono", "SF Mono", Menlo, Consolas, monospace;
+  --dur: 150ms;
+  --dur-verdict: 400ms;
+  --ease: ease-out;
   color-scheme: dark;
+}
+
+/* /report and /about use the light tokens (DESIGN §25.4). body:has() carries them to the header too. */
+.light,
+body:has(.light) {
+  --bg: #ffffff;
+  --surface: #f4f5f7;
+  --deep: #eceef1;
+  --raise: #ffffff;
+  --text: #111418;
+  --text-2: #2b323a;
+  --muted: #4a525c;
+  --line: #c9ced6;
+  --line-strong: #9aa3ae;
+  --neutral: #7a8591;
+  --grid: transparent;
+  --obj-1: #0b5cad;
+  --fail: #b34700;
+  --pending: #8a5a00;
+  --pass: #00694d;
+  color-scheme: light;
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  scroll-padding-top: 72px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 html,
@@ -24,65 +78,313 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  font: 16px/1.5 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The blueprint grid fades out toward the bottom of the first screen. It sits behind everything and is never printed. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 0%, #000 0%, transparent 78%);
+}
+
+/* Two soft pools of light behind the first screen, so the page has depth before any content lands.
+   Transform-only drift, off under reduced motion, absent from the light and print themes. */
+body::after {
+  content: "";
+  position: fixed;
+  left: -20vw;
+  top: -30vh;
+  z-index: -1;
+  width: 140vw;
+  height: 90vh;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 50% at 28% 40%, rgb(86 180 233 / 0.13), transparent 70%),
+    radial-gradient(34% 44% at 74% 30%, rgb(204 121 167 / 0.08), transparent 70%);
+  filter: blur(8px);
+}
+
+body:has(.light)::after {
+  display: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body::after {
+    animation: drift 28s ease-in-out infinite alternate;
+  }
+
+  @keyframes drift {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(4vw, 3vh, 0) scale(1.08);
+    }
+  }
 }
 
 a {
   color: var(--obj-1);
+  text-underline-offset: 3px;
 }
 
 a:focus-visible,
-button:focus-visible {
-  outline: 2px solid var(--obj-4);
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--text);
   outline-offset: 2px;
 }
 
+.skip {
+  position: absolute;
+  left: 8px;
+  top: -64px;
+  z-index: 100;
+  padding: 8px 16px;
+  background: var(--text);
+  color: var(--bg);
+  border-radius: 6px;
+  font: 600 14px var(--font-ui);
+}
+
+.skip:focus {
+  top: 8px;
+}
+
+/* ───────── Site header ───────── */
+.site {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 56px;
+  padding: 0 24px;
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+  font: 700 16px var(--font-ui);
+  letter-spacing: 0.01em;
+  text-decoration: none;
+}
+
+/* An elbow: two bars meeting at a joint. */
+.brand-mark {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border-left: 3px solid var(--obj-1);
+  border-bottom: 3px solid var(--obj-1);
+}
+
+.brand-mark::after {
+  content: "";
+  position: absolute;
+  left: -6px;
+  bottom: -6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--text);
+}
+
+.site nav {
+  display: flex;
+  gap: 4px;
+}
+
+.site nav a {
+  padding: 8px 12px;
+  border-radius: 6px;
+  color: var(--text-2);
+  font: 600 14px var(--font-ui);
+  text-decoration: none;
+  transition: background-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.site nav a:hover {
+  background: var(--raise);
+  color: var(--text);
+}
+
+/* ───────── Layout ───────── */
 .shell {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: 24px 24px 64px;
+}
+
+.home {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 24px 64px;
 }
 
 .muted {
   color: var(--muted);
 }
 
+.fine {
+  font-size: 12px;
+}
+
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
 h1 {
-  font-size: 1.5rem;
+  font-size: 24px;
+  line-height: 1.25;
   margin: 16px 0 8px;
 }
 
 h2 {
-  font-size: 1.1rem;
+  font-size: 20px;
+  line-height: 1.3;
   margin: 0 0 8px;
 }
 
 h3 {
-  font-size: 0.95rem;
+  font-size: 16px;
   margin: 0 0 4px;
 }
 
-button {
+.eyebrow {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font: 600 12px var(--font-num);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.eyebrow .num {
+  color: var(--obj-1);
+}
+
+.lede {
+  margin: 0;
+  max-width: 56ch;
+  color: var(--text-2);
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+/* ───────── Controls ───────── */
+button,
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 8px 16px;
   background: var(--surface);
   color: var(--text);
-  border: 1px solid var(--line);
+  border: 1px solid var(--line-strong);
   border-radius: 6px;
-  padding: 6px 14px;
-  font: inherit;
+  font: 600 14px var(--font-ui);
+  text-decoration: none;
   cursor: pointer;
+  transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease), background-color var(--dur) var(--ease);
+}
+
+button:hover:not(:disabled),
+.btn:hover {
+  border-color: var(--text-2);
+  background: var(--raise);
+}
+
+button:active:not(:disabled),
+.btn:active {
+  transform: scale(0.98);
 }
 
 button[aria-pressed="true"] {
   border-color: var(--obj-1);
-  background: #1b2630;
+  background: var(--raise);
 }
 
+button.primary,
+.btn.primary {
+  background: var(--obj-2);
+  border-color: var(--obj-1);
+  color: #fff;
+}
+
+button.primary:hover:not(:disabled),
+.btn.primary:hover {
+  background: #0a80c8;
+}
+
+button:disabled,
+button[aria-disabled="true"],
+.btn[aria-disabled="true"] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+@media (pointer: coarse) {
+  button,
+  .btn,
+  input[type="text"],
+  select {
+    min-height: 44px;
+  }
+}
+
+input[type="text"],
+select {
+  min-height: 36px;
+  background: var(--deep);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.cta .btn {
+  min-height: 44px;
+  padding: 8px 24px;
+  font-size: 16px;
+}
+
+/* ───────── Banner, alerts ───────── */
 .banner {
   background: var(--surface);
   border: 1px solid var(--line);
   border-left: 4px solid var(--pending);
   border-radius: 6px;
-  padding: 8px 14px;
+  padding: 8px 16px;
+  font-size: 14px;
 }
 
 .banner p {
@@ -91,7 +393,7 @@ button[aria-pressed="true"] {
 
 .alert {
   border: 1px solid var(--fail);
-  border-left-width: 6px;
+  border-left-width: 4px;
   border-radius: 6px;
   padding: 12px 16px;
   background: var(--surface);
@@ -103,44 +405,652 @@ button[aria-pressed="true"] {
   margin: 0;
 }
 
-.stepper {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 14px;
-  list-style: none;
-  padding: 0;
-  margin: 8px 0 12px;
-  font-size: 0.85rem;
+/* ───────── Badges: state is a glyph and a word as well as a colour ───────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  color: var(--muted);
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  font: 600 12px var(--font-num);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color var(--dur) var(--ease), background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
 }
 
-.step-done {
+.badge-fail {
+  color: var(--fail);
+}
+
+.badge-pending {
+  color: var(--pending);
+}
+
+/* Entering PASS is the signature moment: the red-to-green crossfade runs 400 ms. */
+.badge-pass {
+  color: var(--pass);
+  transition-duration: var(--dur-verdict);
+}
+
+/* ───────── Home: hero, story, scene ───────── */
+.home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 48px;
+  align-items: start;
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  min-height: min(72dvh, 640px);
+  padding: 48px 0 64px;
+}
+
+/* The one display size on the site: the home headline is set above the 32 px scale (DESIGN §25.4) on purpose. */
+.hero h1 {
+  max-width: 14ch;
+  margin: 0;
+  font-size: clamp(32px, 4.6vw, 56px);
+  line-height: 1.04;
+  font-weight: 750;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+
+.accent {
+  background: linear-gradient(100deg, var(--obj-1) 0%, #8fd3f4 45%, var(--pass) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* The measured figures of the recorded run, set as an instrument read-out under the call to action. */
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, auto));
+  justify-content: start;
+  gap: 0;
+  margin: 8px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  backdrop-filter: blur(6px);
+  overflow: hidden;
+}
+
+.hero-stats > div {
+  min-width: 0;
+  padding: 12px 20px;
+}
+
+.hero-stats > div + div {
+  border-left: 1px solid var(--line);
+}
+
+.hero-stats dt {
+  color: var(--muted);
+  font: 600 12px var(--font-num);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.hero-stats dd {
+  margin: 4px 0 0;
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.hero-stats small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.hero-stats > div:nth-child(2) dd {
   color: var(--pass);
 }
 
-.step-current {
-  color: var(--pending);
-  font-weight: 700;
+.hero-stats > div:first-child dd {
+  color: var(--fail);
 }
 
-.step-pending {
+/* The headline block arrives in order, once, on load. Content is fully visible without it. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero > * {
+    animation: enter 560ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+
+  .hero > :nth-child(2) {
+    animation-delay: 70ms;
+  }
+
+  .hero > :nth-child(3) {
+    animation-delay: 140ms;
+  }
+
+  .hero > :nth-child(4) {
+    animation-delay: 210ms;
+  }
+
+  .hero > :nth-child(5) {
+    animation-delay: 280ms;
+  }
+
+  .hero > :nth-child(6) {
+    animation-delay: 340ms;
+  }
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+.home-scene {
+  position: sticky;
+  top: 72px;
+  height: min(calc(100dvh - 96px), 640px);
+  min-height: 360px;
+}
+
+.beats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.beat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 56dvh;
+  padding: 32px 0 32px 24px;
+  border-left: 1px solid var(--line);
+  transition: border-color var(--dur) var(--ease);
+}
+
+/* A node on the rail marks the beat the scene is showing. */
+.beat::before {
+  content: "";
+  position: absolute;
+  left: -5px;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.beat.is-active {
+  border-left-color: var(--text-2);
+}
+
+.beat.is-active::before {
+  background: var(--text);
+  border-color: var(--text);
+}
+
+.beat h2 {
+  font-size: 24px;
+}
+
+.beat p {
+  max-width: 52ch;
+  color: var(--text-2);
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  margin: 16px 0 0;
+  padding: 16px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.facts div {
+  min-width: 0;
+}
+
+.facts dt {
   color: var(--muted);
+  font: 600 12px var(--font-num);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.facts dd {
+  margin: 4px 0 0;
+  font-size: 20px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.band {
+  margin-top: 64px;
+  padding-top: 48px;
+  border-top: 1px solid var(--line);
+}
+
+/* ───────── Scene ───────── */
+.scene {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  margin: 0;
+}
+
+.scene-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: radial-gradient(120% 90% at 50% 0%, rgb(86 180 233 / 0.1), transparent 60%), var(--deep);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.45);
+  transform: perspective(1200px) rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg));
+  transition: transform 120ms ease-out;
+  will-change: transform;
+}
+
+/* Registration ticks in the four corners, the way a drawing sheet is marked. */
+.scene-host::before {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  z-index: 2;
+  pointer-events: none;
+  --tick: linear-gradient(var(--muted), var(--muted));
+  background:
+    var(--tick) top left / 12px 1px no-repeat,
+    var(--tick) top left / 1px 12px no-repeat,
+    var(--tick) top right / 12px 1px no-repeat,
+    var(--tick) top right / 1px 12px no-repeat,
+    var(--tick) bottom left / 12px 1px no-repeat,
+    var(--tick) bottom left / 1px 12px no-repeat,
+    var(--tick) bottom right / 12px 1px no-repeat,
+    var(--tick) bottom right / 1px 12px no-repeat;
+  opacity: 0.7;
+}
+
+.scene-gl,
+.scene-fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.scene-fallback {
+  padding: 24px;
+}
+
+.fb-floor,
+.fb-upper,
+.fb-fore {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.fb-floor {
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
+.fb-base {
+  fill: var(--surface);
+  stroke: var(--neutral);
+  stroke-width: 2;
+}
+
+.fb-upper {
+  stroke: var(--neutral);
+}
+
+.fb-fore {
+  stroke: var(--obj-1);
+}
+
+.fb-elbow {
+  fill: var(--surface);
+  stroke: var(--obj-2);
+  stroke-width: 3;
+}
+
+.fb-marker {
+  fill: var(--obj-3);
+}
+
+.fb-halo {
+  fill: none;
+  stroke-width: 2;
+}
+
+.fb-halo-fail {
+  stroke: var(--fail);
+}
+
+.fb-halo-pending {
+  stroke: var(--pending);
+}
+
+.fb-halo-pass {
+  stroke: var(--pass);
+}
+
+.scene-chips {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* Tracked-part chips, positioned from the projected 3D anchors through --cx / --cy. */
+.chip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(calc(var(--cx, 0px) + 8px), calc(var(--cy, 0px) - 28px));
+  padding: 4px 8px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--obj-1);
+  border-radius: 4px;
+  font: 600 12px var(--font-num);
+  white-space: nowrap;
+  transition: opacity var(--dur) var(--ease);
+}
+
+.chip[data-on="0"] {
+  opacity: 0;
+}
+
+.chip-1 {
+  border-left-color: var(--obj-2);
+}
+
+.chip-2 {
+  border-left-color: var(--obj-3);
+}
+
+.scene-cap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+.scene-readout {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.scene-note {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Inside the video stage the scene fills the frame and the caption floats over its lower edge. */
+.scene-stage {
+  position: absolute;
+  inset: 0;
+}
+
+.scene-stage .scene-host {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.scene-stage .scene-cap {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 12px;
+  z-index: 4;
+  padding-top: 24px;
+  background: linear-gradient(transparent, rgb(11 13 16 / 0.8));
+}
+
+.scene-stage .scene-note {
+  display: none;
+}
+
+.stage-wait {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  z-index: 4;
+  margin: 0;
+  color: var(--muted);
+  font: 600 12px var(--font-num);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ───────── Recorded run cards: a 3D tilt that follows the pointer ───────── */
+.run-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+  perspective: 1200px;
+}
+
+.run-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: 100%;
+  padding: 24px;
+  overflow: hidden;
+  color: var(--text);
+  text-decoration: none;
+  background: linear-gradient(160deg, var(--raise), var(--surface));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transform-style: preserve-3d;
+  transition: transform var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.run-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(260px circle at var(--gx, 50%) var(--gy, 0%), rgb(86 180 233 / 0.16), transparent 62%);
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+
+.run-card:hover {
+  border-color: var(--obj-1);
+}
+
+.run-card:hover::after {
+  opacity: 1;
+}
+
+.run-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.run-title {
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.run-metric {
+  font-size: 32px;
+  line-height: 1.1;
+}
+
+.run-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--obj-1);
+  border-radius: 4px;
+  font: 600 12px var(--font-num);
+}
+
+.tag-1 {
+  border-left-color: var(--obj-2);
+}
+
+.tag-2 {
+  border-left-color: var(--obj-3);
+}
+
+.run-open {
+  margin-top: auto;
+  color: var(--obj-1);
+  font: 600 14px var(--font-ui);
+}
+
+/* ───────── Loop rail ───────── */
+.rail {
+  margin: 8px 0 16px;
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+/* The line to the previous node: solid once that phase is behind us. */
+.step + .step::before {
+  content: "";
+  position: absolute;
+  top: 15px;
+  right: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--line-strong);
+}
+
+.step-done + .step::before,
+.step-done + .step-current::before {
+  background: var(--text-2);
+}
+
+.step-node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  font: 600 14px var(--font-num);
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+
+.step-label {
+  font: 600 12px var(--font-num);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.step-done {
+  color: var(--text-2);
+}
+
+.step-done .step-node {
+  background: var(--text-2);
+  border-color: var(--text-2);
+  color: var(--bg);
+}
+
+.step-current {
+  color: var(--text);
+}
+
+.step-current .step-node {
+  border: 2px solid var(--text);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--text) 14%, transparent);
 }
 
 .step-fail {
   color: var(--fail);
-  font-weight: 700;
 }
 
+.step-fail .step-node {
+  border: 2px solid var(--fail);
+  color: var(--fail);
+}
+
+.rail-now {
+  margin: 12px 0 0;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.rail-now.fail {
+  color: var(--fail);
+}
+
+/* ───────── Workbench and replay ───────── */
 .controls {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 8px 12px;
   margin: 8px 0 16px;
 }
 
 .controls input[type="range"] {
   flex: 1 1 240px;
+  accent-color: var(--text-2);
 }
 
 .grid {
@@ -149,17 +1059,12 @@ button[aria-pressed="true"] {
   gap: 16px;
 }
 
-@media (max-width: 900px) {
-  .grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .stage {
   position: relative;
   aspect-ratio: 16 / 9;
   background: #000;
-  border-radius: 6px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
   overflow: hidden;
 }
 
@@ -172,22 +1077,35 @@ button[aria-pressed="true"] {
 }
 
 .stage-empty {
-  display: grid;
-  place-items: center;
-  color: var(--muted);
+  background: var(--deep);
 }
 
 .panel {
+  position: relative;
+  margin-bottom: 12px;
+  padding: 16px;
+  overflow-x: auto;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 12px 14px;
-  margin-bottom: 12px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.panel > h2 {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font: 600 12px var(--font-num);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .card {
   border-top: 1px solid var(--line);
-  padding: 8px 0;
+  padding: 12px 0;
+}
+
+.card h3 {
+  font-size: 14px;
 }
 
 .card p {
@@ -195,12 +1113,12 @@ button[aria-pressed="true"] {
 }
 
 .diff {
-  background: var(--bg);
+  background: var(--deep);
   border: 1px solid var(--line);
   border-radius: 4px;
   padding: 8px;
   overflow-x: auto;
-  font: 12px/1.45 ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font: 12px/1.5 var(--font-num);
 }
 
 .diff .add {
@@ -214,64 +1132,69 @@ button[aria-pressed="true"] {
 .criteria {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.85rem;
+  font-size: 14px;
 }
 
 .criteria th,
 .criteria td {
   text-align: left;
-  padding: 4px 6px;
+  padding: 8px;
   border-top: 1px solid var(--line);
   font-weight: 400;
+  vertical-align: top;
+}
+
+.criteria td {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
 }
 
 .criteria thead th {
   color: var(--muted);
+  font: 600 12px var(--font-num);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
+/* The verdict: it enters in the failing hue and crosses to its own in 400 ms. */
 .verdict {
-  font-weight: 700;
-  margin: 4px 0 8px;
+  margin: 4px 0 12px;
+  padding: 12px 16px;
+  color: var(--fail);
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  font: 700 16px var(--font-num);
 }
 
 .verdict.pass {
   color: var(--pass);
+  animation: to-pass var(--dur-verdict) var(--ease) both;
 }
 
-.verdict.fail {
-  color: var(--fail);
+@keyframes to-pass {
+  from {
+    color: var(--fail);
+  }
+  to {
+    color: var(--pass);
+  }
 }
 
 .cost {
   margin: 8px 0;
+  font-size: 14px;
+}
+
+.cost strong {
+  font-family: var(--font-num);
 }
 
 .provenance {
-  margin-top: 24px;
+  margin-top: 32px;
   border-top: 1px solid var(--line);
-  padding-top: 12px;
-  font-size: 0.85rem;
-}
-
-button.primary {
-  background: var(--obj-2);
-  border-color: var(--obj-1);
-}
-
-button:disabled,
-button[aria-disabled="true"] {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-input[type="text"],
-select {
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 6px 10px;
-  font: inherit;
+  padding-top: 16px;
+  font-size: 12px;
 }
 
 .transcript {
@@ -295,24 +1218,42 @@ select {
   white-space: nowrap;
 }
 
+/* ───────── Approval dialog ───────── */
 dialog.approval {
   background: var(--surface);
   color: var(--text);
-  border: 1px solid var(--line);
-  border-top: 6px solid var(--pending);
-  border-radius: 8px;
-  padding: 16px 20px;
+  border: 1px solid var(--line-strong);
+  border-top: 4px solid var(--pending);
+  border-radius: 12px;
+  padding: 24px;
   max-width: min(560px, 92vw);
+  box-shadow: 0 32px 96px rgb(0 0 0 / 0.6);
 }
 
 dialog.approval::backdrop {
   background: rgb(0 0 0 / 0.65);
+  backdrop-filter: blur(4px);
+}
+
+dialog.approval[open] {
+  animation: dialog-in var(--dur) var(--ease) both;
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: perspective(900px) rotateX(8deg) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .approval-actions {
   display: flex;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 24px;
 }
 
 /* Step 2's confirm sits at the opposite end from step 1's approve, so one stray click cannot do both. */
@@ -329,39 +1270,162 @@ dialog.approval::backdrop {
   margin-right: auto;
 }
 
-/* /report and /about use the light tokens (DESIGN §25.4); print drops chrome and keeps the content. */
-.light {
-  --bg: #ffffff;
-  --surface: #f4f5f7;
-  --text: #111418;
-  --muted: #4a525c;
-  --line: #c9ced6;
-  --obj-1: #0b5cad;
-  --fail: #b34700;
-  --pass: #00694d;
-  color: var(--text);
-  background: var(--bg);
-  color-scheme: light;
+/* ───────── Scroll-driven reveal: progressive, and the content is fully visible without it ───────── */
+@media (prefers-reduced-motion: no-preference) {
+  /* A hairline under the header fills as the page is read. */
+  @supports (animation-timeline: scroll()) {
+    .site::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -1px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--obj-1), var(--pass));
+      transform-origin: 0 50%;
+      animation: progress linear both;
+      animation-timeline: scroll(root);
+    }
+
+    @keyframes progress {
+      from {
+        transform: scaleX(0);
+      }
+      to {
+        transform: scaleX(1);
+      }
+    }
+  }
+
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0.15;
+        transform: translateY(24px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+  }
 }
 
-.light a {
-  color: var(--obj-1);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .run-card {
+    transform: none;
+  }
 }
 
+/* ───────── Narrow screens: the scene pins above the story ───────── */
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .home-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .home-scene {
+    position: sticky;
+    top: 56px;
+    z-index: 5;
+    order: -1;
+    height: min(40dvh, 320px);
+    min-height: 240px;
+    padding: 12px 0;
+    background: var(--bg);
+  }
+
+  .hero {
+    min-height: 0;
+    padding: 24px 0 32px;
+  }
+
+  .beat {
+    min-height: 40dvh;
+  }
+
+  .scene-note {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .site {
+    padding: 0 16px;
+  }
+
+  .site nav a:nth-child(2) {
+    display: none;
+  }
+
+  .shell,
+  .home {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .step-label {
+    letter-spacing: 0.02em;
+    font-size: 12px;
+  }
+
+  .hero-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .hero-stats > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .hero-stats > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .hero-stats dd {
+    margin: 0;
+  }
+}
+
+/* ───────── Print: the report keeps its content and drops the chrome ───────── */
 @media print {
   html,
   body {
     background: #fff;
     color: #000;
   }
+
+  body::before,
+  .site,
+  .skip,
+  .scene,
   .no-print {
     display: none;
   }
+
   .light .panel {
     break-inside: avoid;
   }
-}
-
-body:has(.light) {
-  background: #ffffff;
 }

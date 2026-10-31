@@ -10,7 +10,7 @@ export default async function SessionPage({ params }: { params: Promise<{ sessio
   const { sessionId } = await params;
   if (!/^ses_[0-9A-HJKMNP-TV-Z]{26}$/.test(sessionId)) notFound();
   return (
-    <main className="shell">
+    <main id="main" className="shell">
       <Workbench sessionId={sessionId} />
     </main>
   );

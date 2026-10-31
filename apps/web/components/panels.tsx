@@ -3,38 +3,91 @@ import type { Manifest } from "../lib/replay/bundle.ts";
 
 // Presentational panels (DESIGN §25). State is always shown as a glyph AND a word, never colour alone.
 
-const STEPS: { state: RunState; label: string }[] = [
-  { state: "CAPTURING", label: "Capture" },
-  { state: "PERCEIVING_PRE", label: "Perceive before" },
-  { state: "MEASURING_PRE", label: "Measure before" },
-  { state: "AWAITING_QUESTION", label: "Question" },
-  { state: "DIAGNOSING", label: "Diagnose" },
-  { state: "AWAITING_APPROVAL_1", label: "Approve scope" },
-  { state: "AWAITING_APPROVAL_2", label: "Approve patch" },
-  { state: "PATCHING", label: "Patch" },
-  { state: "SIMULATING_POST", label: "Simulate after" },
-  { state: "PERCEIVING_POST", label: "Perceive after" },
-  { state: "MEASURING_POST", label: "Measure after" },
-  { state: "PASSED", label: "Verdict" },
-];
+// The loop has five phases (PRD §12.2, DESIGN §25.5); the twelve run states fold into them, and the
+// exact state is spelled out underneath so no detail is lost.
+const PHASES = [
+  { id: "perceive", label: "Perceive" },
+  { id: "diagnose", label: "Diagnose" },
+  { id: "approve", label: "Approve" },
+  { id: "repair", label: "Repair" },
+  { id: "verify", label: "Verify" },
+] as const;
+type PhaseId = (typeof PHASES)[number]["id"];
 
-const STOPPED: ReadonlySet<RunState> = new Set(["VERDICT_FAIL", "FAILED", "BLOCKED", "ABORTED"]);
+const PHASE_OF: Partial<Record<RunState, PhaseId>> = {
+  CAPTURING: "perceive",
+  PERCEIVING_PRE: "perceive",
+  MEASURING_PRE: "perceive",
+  AWAITING_QUESTION: "diagnose",
+  DIAGNOSING: "diagnose",
+  AWAITING_APPROVAL_1: "approve",
+  AWAITING_APPROVAL_2: "approve",
+  PATCHING: "repair",
+  SIMULATING_POST: "repair",
+  PERCEIVING_POST: "verify",
+  MEASURING_POST: "verify",
+  PASSED: "verify",
+  VERDICT_FAIL: "verify",
+};
 
-export function LoopStepper({ state }: { state: RunState }) {
-  const at = STEPS.findIndex((s) => s.state === state);
-  const stopped = STOPPED.has(state);
+const NOW: Record<RunState, string> = {
+  IDLE: "Ready to start",
+  CAPTURING: "Rendering the clip",
+  PERCEIVING_PRE: "Finding and tracking the parts",
+  MEASURING_PRE: "Measuring the vibration",
+  AWAITING_QUESTION: "Waiting for your question",
+  DIAGNOSING: "Diagnosing",
+  AWAITING_APPROVAL_1: "Waiting for approval, step 1 of 2",
+  AWAITING_APPROVAL_2: "Waiting for approval, step 2 of 2",
+  PATCHING: "Writing and testing the patch",
+  SIMULATING_POST: "Rendering the machine after the patch",
+  PERCEIVING_POST: "Tracking the parts after the patch",
+  MEASURING_POST: "Running the visual test",
+  PASSED: "Visual test passed",
+  VERDICT_FAIL: "Visual test failed",
+  FAILED: "Run failed",
+  BLOCKED: "Run blocked",
+  ABORTED: "Run cancelled",
+};
+
+const STOPPED_EARLY: ReadonlySet<RunState> = new Set(["FAILED", "BLOCKED", "ABORTED"]);
+
+/** `live` announces phase changes to screen readers; it is for the live workbench, not for a scrubbed replay. */
+export function LoopStepper({ state, live = false }: { state: RunState; live?: boolean }) {
+  const at = PHASES.findIndex((p) => p.id === PHASE_OF[state]);
+  const stoppedEarly = STOPPED_EARLY.has(state);
   return (
-    <ol className="stepper" aria-label="Run progress">
-      {STEPS.map((s, i) => {
-        const status = stopped || state === "PASSED" ? "done" : at === -1 ? "pending" : i < at ? "done" : i === at ? "current" : "pending";
-        return (
-          <li key={s.state} className={`step step-${status}`} aria-current={status === "current" ? "step" : undefined}>
-            <span aria-hidden="true">{status === "done" ? "✓" : status === "current" ? "●" : "○"}</span> {s.label}
-          </li>
-        );
-      })}
-      {stopped ? <li className="step step-fail">✕ {state.replace("_", " ")}</li> : null}
-    </ol>
+    <div className="rail">
+      <ol className="stepper" aria-label="Run progress">
+        {PHASES.map((p, i) => {
+          // A run that failed, was blocked or was cancelled does not say how far it got, so no phase is claimed.
+          const status =
+            stoppedEarly || at === -1
+              ? "pending"
+              : state === "PASSED"
+                ? "done"
+                : state === "VERDICT_FAIL" && i === at
+                  ? "fail"
+                  : i < at
+                    ? "done"
+                    : i === at
+                      ? "current"
+                      : "pending";
+          return (
+            <li key={p.id} className={`step step-${status}`} aria-current={status === "current" ? "step" : undefined}>
+              <span className="step-node" aria-hidden="true">
+                {status === "done" ? "✓" : status === "fail" ? "✕" : status === "current" ? "●" : i + 1}
+              </span>
+              <span className="step-label">{p.label}</span>
+            </li>
+          );
+        })}
+      </ol>
+      <p className={stoppedEarly || state === "VERDICT_FAIL" ? "rail-now fail" : "rail-now"} aria-live={live ? "polite" : "off"}>
+        {stoppedEarly || state === "VERDICT_FAIL" ? <span aria-hidden="true">✕ </span> : null}
+        {NOW[state]}
+      </p>
+    </div>
   );
 }
 

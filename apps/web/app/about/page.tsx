@@ -6,7 +6,7 @@ export const metadata: Metadata = { title: "About · Chronosight" };
 // Measured figures are shown where they were measured: in each run's visual test and audit report.
 export default function AboutPage() {
   return (
-    <main className="shell light">
+    <main id="main" className="shell light">
       <h1>About Chronosight</h1>
       <p>
         Chronosight inspects a simulated machine from its video. It finds the faulty part, asks a model why it misbehaves, proposes a code patch, and checks the

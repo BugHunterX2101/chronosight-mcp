@@ -1,69 +1,74 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Bundle, parseManifest } from "../lib/replay/bundle.ts";
-import { bundleBase, indexUrl } from "../lib/config.ts";
+import { useRef } from "react";
+import type { FeaturedRun } from "../lib/replay/featured.ts";
 
-interface Card {
-  slot: string;
-  runId: string;
-  title: string;
-  recordedAt: string;
-}
+// One card per featured run (§24.1). The figures are the ones loadFeatured read from the verified
+// bundle. The card tilts toward the pointer in 3D, through CSS custom properties set on the element
+// (the CSSOM is allowed under the CSP, style attributes are not), and stays flat for reduced motion.
 
-type State = { kind: "loading" } | { kind: "error"; message: string } | { kind: "ready"; cards: Card[] };
+function RunCard({ run }: { run: FeaturedRun }) {
+  const el = useRef<HTMLAnchorElement>(null);
+  const f = run.figures;
 
-// The featured runs come from index.json (§24.1). Each card's title is read from the bundle's own
-// scenario.json after the same sha256 check the player applies, so the home page shows no unverified text.
-async function loadCards(): Promise<Card[]> {
-  const res = await fetch(indexUrl);
-  if (!res.ok) throw new Error(`index.json: HTTP ${res.status}`);
-  const index: unknown = await res.json();
-  const featured = (index as { featured?: Record<string, unknown> }).featured ?? {};
-  const slots = Object.entries(featured).filter((e): e is [string, string] => typeof e[1] === "string");
-  return Promise.all(
-    slots.map(async ([slot, runId]) => {
-      const base = bundleBase(runId);
-      const mres = await fetch(`${base}/manifest.json`);
-      if (!mres.ok) throw new Error(`${runId}: manifest HTTP ${mres.status}`);
-      const manifest = parseManifest(await mres.json());
-      const bundle = new Bundle(base, manifest, fetch);
-      const scenario = bundle.has("scenario.json") ? ((await bundle.json("scenario.json")) as { title?: unknown }) : {};
-      return { slot, runId, title: typeof scenario.title === "string" ? scenario.title : manifest.scenarioId, recordedAt: manifest.recordedAt };
-    }),
+  const onMove = (e: React.PointerEvent<HTMLAnchorElement>) => {
+    const card = el.current;
+    if (card === null || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const r = card.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top) / r.height - 0.5;
+    card.style.setProperty("--ry", `${(x * 7).toFixed(2)}deg`);
+    card.style.setProperty("--rx", `${(-y * 7).toFixed(2)}deg`);
+    card.style.setProperty("--gx", `${((x + 0.5) * 100).toFixed(1)}%`);
+    card.style.setProperty("--gy", `${((y + 0.5) * 100).toFixed(1)}%`);
+  };
+  const onLeave = () => {
+    const card = el.current;
+    if (card === null) return;
+    card.style.removeProperty("--ry");
+    card.style.removeProperty("--rx");
+  };
+
+  return (
+    <li className="run-slot">
+      <a ref={el} className="run-card tilt" href={`/replay/${run.runId}`} onPointerMove={onMove} onPointerLeave={onLeave}>
+        <span className="run-head">
+          {f !== null ? (
+            <span className={f.verdict === "PASS" ? "badge badge-pass" : "badge badge-fail"}>
+              <span aria-hidden="true">{f.verdict === "PASS" ? "✓" : "✕"}</span> {f.verdict}
+            </span>
+          ) : null}
+          <span className="muted fine">
+            Recording of a real run · <time dateTime={run.recordedAt}>{run.recordedAt.slice(0, 10)}</time>
+          </span>
+        </span>
+        <strong className="run-title">{run.title}</strong>
+        {f !== null && f.preRmsMm !== null && f.postRmsMm !== null ? (
+          <span className="run-metric num">
+            {f.preRmsMm.toFixed(2)} <span aria-hidden="true">→</span>
+            <span className="visually-hidden"> to </span> {f.postRmsMm.toFixed(2)} mm RMS
+          </span>
+        ) : null}
+        <span className="run-tags">
+          {run.concepts.map((c, i) => (
+            <span key={c.slug} className={`tag tag-${i % 3}`}>
+              {c.slug}
+            </span>
+          ))}
+        </span>
+        <span className="muted fine">Models: {run.models.join(", ")}</span>
+        <span className="run-open">Open the replay →</span>
+      </a>
+    </li>
   );
 }
 
-export function FeaturedReplays() {
-  const [state, setState] = useState<State>({ kind: "loading" });
-
-  useEffect(() => {
-    let cancelled = false;
-    loadCards().then(
-      (cards) => {
-        if (!cancelled) setState({ kind: "ready", cards });
-      },
-      (err: unknown) => {
-        if (!cancelled) setState({ kind: "error", message: err instanceof Error ? err.message : String(err) });
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (state.kind === "loading") return <p role="status">Loading recorded runs…</p>;
-  if (state.kind === "error") return <p role="alert">Recorded runs could not be loaded: {state.message}</p>;
-  if (state.cards.length === 0) return <p className="muted">No recorded runs are published yet.</p>;
+export function FeaturedReplays({ runs }: { runs: FeaturedRun[] }) {
+  if (runs.length === 0) return <p className="muted">No recorded runs are published yet.</p>;
   return (
-    <ul className="plain">
-      {state.cards.map((c) => (
-        <li key={c.runId}>
-          <a href={`/replay/${c.runId}`}>{c.title}</a>{" "}
-          <span className="muted">
-            · recording of a real run, <time dateTime={c.recordedAt}>{c.recordedAt}</time>
-          </span>
-        </li>
+    <ul className="plain run-grid">
+      {runs.map((r) => (
+        <RunCard key={r.runId} run={r} />
       ))}
     </ul>
   );

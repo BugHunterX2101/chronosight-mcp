@@ -10,7 +10,7 @@ export default async function ReplayPage({ params }: { params: Promise<{ runId: 
   const { runId } = await params;
   if (!/^run_[0-9A-Z]{26}$/.test(runId)) notFound();
   return (
-    <main className="shell">
+    <main id="main" className="shell">
       <ReplayPlayer runId={runId} />
     </main>
   );
