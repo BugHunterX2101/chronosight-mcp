@@ -561,6 +561,15 @@ export class RunDriver {
             contribFailures: this.contribFailures,
             budgetRemainingUsd: () => this.budgetRemaining,
             rateLimited: (model, retryInS) => this.d.emit("ratelimit", { model, retryInS }),
+            retryAttempt: () => {
+              if (this.cursor.attempt >= MAX_ATTEMPTS) return false;
+              this.go("DIAGNOSING", "timeout retry");
+              return true;
+            },
+            chargeEstimate: (usd, detail) => {
+              this.d.audit("cost.estimated", { stage: "DIAGNOSING", diagnosisId, usd: round6(usd), ...detail });
+              this.charge(usd);
+            },
           },
         },
         (kind, text) => this.d.emit("diagnosis.delta", { diagnosisId, kind, text }),

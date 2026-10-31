@@ -39,6 +39,10 @@ export interface RunRouting {
   budgetRemainingUsd: () => number | null;
   /** a 429 backoff: the `ratelimit` event (§9) */
   rateLimited: (model: string, retryInS: number) => void;
+  /** Spends a run attempt on a timeout retry (§16.8); false when every attempt is used. */
+  retryAttempt?: () => boolean;
+  /** Books a billed call that ended without `usage` (a stream cut at its deadline) as an estimate (§22.2, §22.3). */
+  chargeEstimate?: (usd: number, detail: { model: string; inputTokens: number; outputTokens: number }) => void;
 }
 
 export interface DiagnoseDeps {
@@ -112,17 +116,26 @@ interface CallResult {
 }
 
 /** One model call, one try. Failures come back as a MetaError; `runLane` decides on retries (§16.8). */
-async function call(deps: DiagnoseDeps, body: Record<string, unknown>): Promise<CallResult> {
+async function call(deps: DiagnoseDeps, body: Record<string, unknown>, run?: RunRouting): Promise<CallResult> {
   const model = String(body.model);
   const breaker = breakerFor(deps, model);
   if (!breaker.allow()) throw new DiagnosisError("DIAGNOSIS_UPSTREAM", `${model} breaker open`, true);
+  const t0 = Date.now();
+  let raw = "";
+  let summaries = 0;
+  let summaryChars = 0;
+  let firstOutputMs: number | null = null;
   try {
-    let raw = "";
     let done: CallResult | null = null;
     for await (const e of deps.meta.streamResponse(body, AbortSignal.timeout(deps.attemptTimeoutMs ?? ATTEMPT_TIMEOUT_MS))) {
-      if (e.type === "response.reasoning_summary_text.delta") deps.emit("summary", e.delta);
-      else if (e.type === "response.output_text.delta") raw += e.delta;
-      else if (e.type === "response.completed") {
+      if (e.type === "response.reasoning_summary_text.delta") {
+        summaries++;
+        summaryChars += e.delta.length;
+        deps.emit("summary", e.delta);
+      } else if (e.type === "response.output_text.delta") {
+        firstOutputMs ??= Date.now() - t0;
+        raw += e.delta;
+      } else if (e.type === "response.completed") {
         done = { raw: raw || e.response.output_text || "", usage: e.response.usage, model: e.response.model || model };
       } else {
         throw new MetaError("RESPONSE_FAILED", `response ${e.type.split(".")[1]}: ${JSON.stringify(e.response).slice(0, 300)}`, 502);
@@ -132,8 +145,22 @@ async function call(deps: DiagnoseDeps, body: Record<string, unknown>): Promise<
     breaker.success();
     return done;
   } catch (err) {
-    const me = err instanceof MetaError ? err : new MetaError("NETWORK", String(err));
+    let me = err instanceof MetaError ? err : new MetaError("NETWORK", String(err));
     if (me.code === "FIXTURE_MISSING") throw new DiagnosisError("FIXTURE_MISSING", me.message);
+    if (me.code === "TIMEOUT") {
+      // Where the stream was when the deadline fired: still reasoning, or already writing the JSON.
+      const at = firstOutputMs === null ? "no output yet" : `output from ${firstOutputMs} ms, ${raw.length} chars`;
+      me = new MetaError(me.code, `${me.message} (${summaries} summaries, ${at})`, me.status, me.retryAfterS);
+      // The call ran and is billed, but a cut stream never reports `usage`. Input is counted at the
+      // uncached price (an upper bound); output only as far as it was streamed, since reasoning
+      // beyond its summaries is not visible.
+      const price = deps.prices.models[model];
+      if (price && run?.chargeEstimate) {
+        const inputTokens = Math.ceil(JSON.stringify(body.input ?? "").length / 4);
+        const outputTokens = Math.ceil((raw.length + summaryChars) / 4);
+        run.chargeEstimate((inputTokens * price.inputPerM + outputTokens * price.outputPerM) / 1e6, { model, inputTokens, outputTokens });
+      }
+    }
     if (me.status !== null && me.status >= 500) breaker.serverError();
     else breaker.release();
     throw me;
@@ -199,20 +226,21 @@ async function runLane(deps: DiagnoseDeps, input: DiagnoseInput, task: string, d
     const body = buildRequest(input, r, deps.routing, feedback);
     let res: CallResult;
     try {
-      res = await call(deps, body);
+      res = await call(deps, body, ctx.run);
     } catch (err) {
       if (!(err instanceof MetaError)) throw err;
       if (r.cacheLane === "contrib") ctx.run.contribFailures.n++;
       const n = (tries.get(r.model) ?? 0) + 1;
       tries.set(r.model, n);
       if (err.code === "TIMEOUT") timeouts++;
-      deps.log?.(`diagnosis ${r.model} try ${n} failed: ${err.code}`);
+      deps.log?.(`diagnosis ${r.model} try ${n} failed: ${err.code}: ${err.message}`);
       if (!err.retryable || timeouts > 1) throw failureOf(err);
-      if (n >= NETWORK_ATTEMPTS) {
-        // This model's tries are spent; go on only if the router now picks another one.
-        if (routeNow().model === r.model) throw failureOf(err);
-        continue;
-      }
+      const spent = n >= NETWORK_ATTEMPTS;
+      // This model's tries are spent; go on only if the router now picks another one.
+      if (spent && routeNow().model === r.model) throw failureOf(err);
+      // §16.8: the timeout retry counts as an attempt; with none left the run fails here (§8.2 invariant 3).
+      if (err.code === "TIMEOUT" && ctx.run.retryAttempt && !ctx.run.retryAttempt()) throw failureOf(err);
+      if (spent) continue;
       const wait = backoffDelayMs(n - 1, err.retryAfterS);
       if (err.status === 429) ctx.run.rateLimited(r.model, Math.ceil(wait / 1000));
       await sleep(wait);

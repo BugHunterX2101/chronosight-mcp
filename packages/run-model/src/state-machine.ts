@@ -17,7 +17,8 @@ const EDGES: Readonly<Record<RunState, readonly RunState[]>> = {
   PERCEIVING_PRE: ["MEASURING_PRE"],
   MEASURING_PRE: ["BLOCKED", "AWAITING_QUESTION"],
   AWAITING_QUESTION: ["DIAGNOSING"],
-  DIAGNOSING: ["AWAITING_APPROVAL_1", "FAILED"],
+  // The self-edge is ST-6's timeout retry: it re-enters DIAGNOSING and so spends an attempt (§16.8).
+  DIAGNOSING: ["AWAITING_APPROVAL_1", "DIAGNOSING", "FAILED"],
   AWAITING_APPROVAL_1: ["AWAITING_APPROVAL_2", "DIAGNOSING"],
   AWAITING_APPROVAL_2: ["PATCHING", "AWAITING_APPROVAL_1"],
   // FAILED here is §8's "→ DIAGNOSING → FAILED (attempts exhausted)" taken in one step: with

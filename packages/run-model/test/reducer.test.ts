@@ -71,6 +71,16 @@ describe("runReducer", () => {
     expect(back.violation?.message).toContain("one attempt");
   });
 
+  it("re-enters DIAGNOSING on a timeout retry, spending an attempt (§16.8)", () => {
+    seq = 0;
+    const s = fold([...toApproval1().slice(0, 5), go("DIAGNOSING", "DIAGNOSING", 2), go("DIAGNOSING", "FAILED", 2)]);
+    expect(s.violation).toBeNull();
+    expect(s.runs[RUN]!).toMatchObject({ state: "FAILED", attempt: 2 });
+    seq = 0;
+    const free = fold([...toApproval1().slice(0, 5), go("DIAGNOSING", "DIAGNOSING", 1)]);
+    expect(free.violation?.message).toContain("one attempt");
+  });
+
   it("drops the outstanding token when a new diagnosis starts (invariant 2)", () => {
     seq = 0;
     const s = fold([

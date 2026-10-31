@@ -55,6 +55,8 @@ function setup(script: Step[], run?: Partial<RunRouting> & { failures?: number }
     contribFailures: { n: run?.failures ?? 0 },
     budgetRemainingUsd: run?.budgetRemainingUsd ?? (() => null),
     rateLimited: (model, retryInS) => rateLimits.push({ model, retryInS }),
+    retryAttempt: run?.retryAttempt,
+    chargeEstimate: run?.chargeEstimate,
   };
   const input: DiagnoseInput = {
     prefix, dataClass: "PUBLIC", telemetry: { clipId: "s1-baseline-7" }, request: "explain_fault", run: runRouting,
@@ -94,6 +96,34 @@ describe("diagnosis retries and spill (§16.8, §21.3)", () => {
     const { meta, input, deps } = setup([timeout(), timeout()]);
     await expect(diagnose(deps, input)).rejects.toMatchObject({ code: "DIAGNOSIS_TIMEOUT" });
     expect(meta.models()).toEqual([CONTRIB, CONTRIB]);
+  });
+
+  it("spends a run attempt on the timeout retry", async () => {
+    let spent = 0;
+    const { meta, input, deps } = setup([timeout()], { retryAttempt: () => { spent++; return true; } });
+    const res = await diagnose(deps, input);
+    expect(meta.models()).toEqual([CONTRIB, CONTRIB]);
+    expect(res.lane).toBe("contributor-xhigh");
+    expect(spent).toBe(1);
+  });
+
+  it("books a timed-out call as an estimate, since a cut stream reports no usage (§22.2)", async () => {
+    const booked: { usd: number; model: string; inputTokens: number; outputTokens: number }[] = [];
+    const { input, deps } = setup([timeout()], { chargeEstimate: (usd, d) => booked.push({ usd, ...d }) });
+    const res = await diagnose(deps, input);
+    expect(booked).toHaveLength(1);
+    expect(booked[0]).toMatchObject({ model: CONTRIB, outputTokens: 0 });
+    // The whole prefix at the uncached input price: an upper bound on what the cut call cost.
+    expect(booked[0]!.inputTokens).toBeGreaterThan(5_000);
+    expect(booked[0]!.usd).toBeCloseTo((booked[0]!.inputTokens * prices.models[CONTRIB]!.inputPerM) / 1e6, 9);
+    // The completed retry is charged from its own usage, apart from the estimate.
+    expect(res.costUsd).toBeGreaterThan(0);
+  });
+
+  it("does not retry a timeout when the run has no attempt left (§8.2 invariant 3)", async () => {
+    const { meta, input, deps } = setup([timeout()], { retryAttempt: () => false });
+    await expect(diagnose(deps, input)).rejects.toMatchObject({ code: "DIAGNOSIS_TIMEOUT" });
+    expect(meta.models()).toEqual([CONTRIB]);
   });
 
   it("counts Contributor failures across the run's diagnoses", async () => {
