@@ -260,7 +260,8 @@ export class Launcher {
   async collect(id: string): Promise<Collected> {
     const s = this.get(id, "synthesis");
     // -z output is "XY path\0", with a second NUL-terminated path after a rename
-    const status = (await this.git(id, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames"])).toString("utf8");
+    // collect can run while the turn is live; --no-optional-locks keeps status from taking index.lock.
+    const status = (await this.git(id, ["--no-optional-locks", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--no-renames"])).toString("utf8");
     const changedPaths = status.split("\0").filter((e) => e.length > 3).map((e) => e.slice(3));
     const diff = (await this.git(id, ["diff", "--no-color", "--no-ext-diff", "--", ...s.targetFiles])).toString("utf8");
     const files: Record<string, string> = {};

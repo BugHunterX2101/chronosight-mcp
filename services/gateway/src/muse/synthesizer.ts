@@ -20,8 +20,8 @@ import {
 import { sha256Hex, type DataClass, type PatchSpec } from "@chronosight/run-model";
 import { paths } from "../paths.ts";
 import { launcherSocketPath } from "./sandbox-attach.ts";
-import type { Launcher, TestRun } from "./launcher-client.ts";
-import { allowedSummary, policyDecide, type ApprovalRequest, type Policy } from "./policy.ts";
+import { LauncherClient, type Launcher, type TestRun } from "./launcher-client.ts";
+import { allowedSummary, loadPolicy, policyDecide, type ApprovalRequest, type Policy } from "./policy.ts";
 import type { PatchCandidate, PatchSynthesizer, StepMetrics, SynthRequest } from "./types.ts";
 
 /** §18.11 model pin by data class. */
@@ -75,6 +75,17 @@ export function shimCommand(env: NodeJS.ProcessEnv = process.env): (containerId:
       ...(env.SystemRoot ? { SystemRoot: env.SystemRoot } : {}),
       LAUNCHER_SOCKET: socket,
     },
+  });
+}
+
+/** The production synthesizer: the launcher on LAUNCHER_SOCKET, the §18.4 policy table and the attach shim. */
+export function museSynthesizerFromEnv(env: NodeJS.ProcessEnv = process.env, log?: (msg: string) => void): MuseSynthesizer {
+  return new MuseSynthesizer({
+    launcher: new LauncherClient(launcherSocketPath(env)),
+    policy: loadPolicy(join(paths.root, "sandbox/policies/allowlist.yaml")),
+    hostCommand: shimCommand(env),
+    chaos: chaosFromEnv(env),
+    log,
   });
 }
 
@@ -142,6 +153,14 @@ export function pytestTally(output: string): string | null {
   let last: string | null = null;
   for (const m of output.matchAll(TALLY)) last = m[1]!;
   return last;
+}
+
+/**
+ * Whether a turn item left an edit in the workspace. Muse reports a file tool's edit only as
+ * counts (`patchSummary`), with no path, so the caller reads the paths back from the sandbox.
+ */
+export function editedWorkspace(it: { kind: unknown; status: unknown; patchSummary?: { files?: number } | null }): boolean {
+  return String(it.kind) === "toolCall" && String(it.status) === "completed" && (it.patchSummary?.files ?? 0) > 0;
 }
 
 /** What a turn that ended without a usable diff leaves for the next diagnosis (§18.8 item 5, D5). */
@@ -246,7 +265,15 @@ export class MuseSynthesizer implements PatchSynthesizer {
         if (r.subject.kind === "shell" && /\bpytest\b/.test(r.subject.command ?? "")) testsRun++;
         progress(r.subject.kind === "shell" ? `ran ${r.subject.command}` : `${r.subject.access ?? "access"} ${r.subject.path ?? ""}`.trim());
       };
-      await this.supervise(syn.containerId, live, req, model, prompt, audit, onAllowed);
+      // The changed paths as git sees them in the workspace, read after each edit the turn reports.
+      // Chained, so a slow read can't overwrite the paths of a later one.
+      let reads = Promise.resolve();
+      const onEdit = () => (reads = reads.then(() => this.d.launcher.collect(syn.containerId)).then((col) => {
+        touched.clear();
+        for (const f of col.changedPaths) touched.add(f);
+        progress(`edited ${col.changedPaths.join(", ") || "nothing"}`);
+      }, () => undefined));
+      await this.supervise(syn.containerId, live, req, model, prompt, audit, onAllowed, onEdit);
 
       const col = await this.d.launcher.collect(syn.containerId);
       await this.teardownHost(live);
@@ -257,7 +284,9 @@ export class MuseSynthesizer implements PatchSynthesizer {
       c.files = col.files;
       c.unifiedDiff = col.diff;
       c.diffHash = `sha256:${sha256Hex(col.diff)}`;
-      for (const f of Object.keys(col.files)) touched.add(f);
+      // `files` holds every readable target file; only changedPaths says which ones the agent edited.
+      touched.clear();
+      for (const f of col.changedPaths) touched.add(f);
       progress("running the independent tests");
 
       // §18.9: a fresh container from the same image, no key and no network.
@@ -298,7 +327,7 @@ export class MuseSynthesizer implements PatchSynthesizer {
   /** §18.3–18.6 for one candidate. Resolves when the turn completed; throws CandidateFailure otherwise. */
   private async supervise(
     containerId: string, live: Live, req: SynthRequest, model: string, prompt: string,
-    audit: Audit, onAllowed: (r: ApprovalRequest) => void,
+    audit: Audit, onAllowed: (r: ApprovalRequest) => void, onEdit: () => Promise<void>,
   ): Promise<void> {
     const started = Date.now();
     const left = (ms: number) => Math.max(0, started + ms - Date.now());
@@ -380,7 +409,7 @@ export class MuseSynthesizer implements PatchSynthesizer {
         session.onApprovalError((f) => audit("muse.approval.error", { kind: f.kind, approvalId: f.approvalId, error: "error" in f ? String(f.error) : null }));
         audit("muse.session", { sessionId: session.sessionId, model, durability: client.durability });
         turn = await raced(session.sendUserTurn({ input: [{ type: "text", text: prompt }] }));
-        void this.tap(turn, audit, started, live);
+        void this.tap(turn, audit, started, live, onEdit);
 
         let out = await raced(outcome(turn));
         if (out === "died" || out.kind === "terminalUnknown") {
@@ -388,7 +417,7 @@ export class MuseSynthesizer implements PatchSynthesizer {
           if (recovered || left(this.t.cancelMs) === 0) throw new CandidateFailure("MUSE_TURN_FAILED", "muse serve died with no time or attempt left to recover");
           recovered = true;
           ({ session, turn } = await raced(this.recover(containerId, live, session.sessionId, turn.turnId, onApproval, audit)));
-          void this.tap(turn, audit, started, live);
+          void this.tap(turn, audit, started, live, onEdit);
           out = await raced(outcome(turn));
           if (out === "died" || out.kind === "terminalUnknown") throw new CandidateFailure("MUSE_TURN_FAILED", "muse serve died again after session/resume");
         }
@@ -408,7 +437,7 @@ export class MuseSynthesizer implements PatchSynthesizer {
   }
 
   /** Audits each item's status changes, so a slow or stuck turn can be read afterwards. */
-  private async tap(turn: Turn, audit: Audit, started: number, live: Live): Promise<void> {
+  private async tap(turn: Turn, audit: Audit, started: number, live: Live, onEdit: () => Promise<void>): Promise<void> {
     const seen = new Map<string, string>();
     try {
       for await (const it of turn.items()) {
@@ -418,9 +447,12 @@ export class MuseSynthesizer implements PatchSynthesizer {
         if (it.kind === "toolCall" && it.tool === "bash" && status !== "inProgress") {
           live.lastTests = pytestTally(String(it.visibleOutput ?? "")) ?? live.lastTests;
         }
+        if (editedWorkspace(it)) void onEdit();
         audit("muse.item", {
           atMs: Date.now() - started, kind: it.kind, status, tool: it.tool ?? null,
-          label: it.displayLabel?.active ?? null, patch: it.patchSummary ?? null,
+          // The SDK picks the label form by status: active while running, done on success, neutral otherwise.
+          label: (status === "inProgress" ? it.displayLabel?.active : status === "completed" ? it.displayLabel?.done : it.displayLabel?.neutral) ?? null,
+          patch: it.patchSummary ?? null, receipt: it.toolReceipt ?? null,
           failure: it.failureKind || it.failureReason ? { kind: it.failureKind ?? null, reason: String(it.failureReason ?? "").slice(0, 400) } : null,
           exitCode: it.exitCode ?? null,
           output: it.kind === "toolCall" && status !== "inProgress" && (it.tool === "bash" || status !== "completed")

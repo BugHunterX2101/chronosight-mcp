@@ -151,11 +151,11 @@ export function assertPatchAuthorized(
   state: RunState, payload: TokenPayload | null, current: { diagnosisId: string; patchSpecHash: string } | null,
 ): void {
   if (state !== "AWAITING_APPROVAL_2") throw new GateError("STATE_CONFLICT", `PATCHING is not reachable from ${state}`);
-  if (!payload || payload.step !== 2) throw new GateError("APPROVAL_STEP_MISMATCH", "PATCHING needs an accepted step-2 token");
-  if (!current) throw new GateError("APPROVAL_SPEC_MISMATCH", "the run has no current diagnosis");
-  if (payload.diagnosisId !== current.diagnosisId) throw new GateError("APPROVAL_BINDING_MISMATCH", "token is for another diagnosis");
+  if (!payload || payload.step !== 2) throw new GateError("TOKEN_STATE_MISMATCH", "PATCHING needs an accepted step-2 token");
+  if (!current) throw new GateError("TOKEN_HASH_MISMATCH", "the run has no current diagnosis");
+  if (payload.diagnosisId !== current.diagnosisId) throw new GateError("TOKEN_HASH_MISMATCH", "token is for another diagnosis");
   if (payload.patchSpecHash !== current.patchSpecHash) {
-    throw new GateError("APPROVAL_SPEC_MISMATCH", "patchSpecHash does not match the current diagnosis");
+    throw new GateError("TOKEN_HASH_MISMATCH", "patchSpecHash does not match the current diagnosis");
   }
 }
 
@@ -573,7 +573,7 @@ export class RunDriver {
         }
         if (m.kind !== "approve") continue;
         try {
-          if (m.step !== 1) throw new GateError("APPROVAL_STEP_MISMATCH", `the run is waiting for step 1, not ${m.step}`);
+          if (m.step !== 1) throw new GateError("TOKEN_STATE_MISMATCH", `the run is waiting for step 1, not ${m.step}`);
           if (!review) throw new GateError("RISK_REVIEW_REQUIRED", "no risk review is recorded; retry the review first");
           if (review.review.recommend === "stop") {
             const reason = (m.note ?? "").trim();
@@ -616,7 +616,7 @@ export class RunDriver {
         if (m.kind !== "approve") continue;
         let payload: TokenPayload;
         try {
-          if (m.step !== 2) throw new GateError("APPROVAL_STEP_MISMATCH", `the run is waiting for step 2, not ${m.step}`);
+          if (m.step !== 2) throw new GateError("TOKEN_STATE_MISMATCH", `the run is waiting for step 2, not ${m.step}`);
           payload = this.d.gate.accept(m.token, 2, binding);
         } catch (e) {
           p.nack(e as Error);

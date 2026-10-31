@@ -52,17 +52,17 @@ describe("§8.2 invariant 1: PATCHING needs an accepted step-2 token for the cur
 
   it("refuses every other case", () => {
     expect(code(() => assertPatchAuthorized("AWAITING_APPROVAL_1", payload(), cur))).toBe("STATE_CONFLICT");
-    expect(code(() => assertPatchAuthorized("AWAITING_APPROVAL_2", null, cur))).toBe("APPROVAL_STEP_MISMATCH");
-    expect(code(() => assertPatchAuthorized("AWAITING_APPROVAL_2", payload({ step: 1 }), cur))).toBe("APPROVAL_STEP_MISMATCH");
-    expect(code(() => assertPatchAuthorized("AWAITING_APPROVAL_2", payload(), null))).toBe("APPROVAL_SPEC_MISMATCH");
-    expect(code(() => assertPatchAuthorized("AWAITING_APPROVAL_2", payload({ diagnosisId: "dia_2" }), cur))).toBe("APPROVAL_BINDING_MISMATCH");
-    expect(code(() => assertPatchAuthorized("AWAITING_APPROVAL_2", payload({ patchSpecHash: "sha256:bb" }), cur))).toBe("APPROVAL_SPEC_MISMATCH");
+    expect(code(() => assertPatchAuthorized("AWAITING_APPROVAL_2", null, cur))).toBe("TOKEN_STATE_MISMATCH");
+    expect(code(() => assertPatchAuthorized("AWAITING_APPROVAL_2", payload({ step: 1 }), cur))).toBe("TOKEN_STATE_MISMATCH");
+    expect(code(() => assertPatchAuthorized("AWAITING_APPROVAL_2", payload(), null))).toBe("TOKEN_HASH_MISMATCH");
+    expect(code(() => assertPatchAuthorized("AWAITING_APPROVAL_2", payload({ diagnosisId: "dia_2" }), cur))).toBe("TOKEN_HASH_MISMATCH");
+    expect(code(() => assertPatchAuthorized("AWAITING_APPROVAL_2", payload({ patchSpecHash: "sha256:bb" }), cur))).toBe("TOKEN_HASH_MISMATCH");
   });
 
   it("the gate refuses a token whose patchSpecHash is not the current one", () => {
     const gate = new ApprovalGate(KEY);
     const t = gate.issue(1, binding());
-    expect(code(() => gate.accept(t.token, 1, binding({ patchSpecHash: "sha256:bb" })))).toBe("APPROVAL_SPEC_MISMATCH");
+    expect(code(() => gate.accept(t.token, 1, binding({ patchSpecHash: "sha256:bb" })))).toBe("TOKEN_HASH_MISMATCH");
   });
 
   it("the gate refuses step 2 sooner than 400 ms after step 1", () => {
@@ -71,7 +71,7 @@ describe("§8.2 invariant 1: PATCHING needs an accepted step-2 token for the cur
     gate.accept(gate.issue(1, binding()).token, 1, binding());
     const t2 = gate.issue(2, binding());
     now += 100;
-    expect(code(() => gate.accept(t2.token, 2, binding()))).toBe("APPROVAL_TOO_FAST");
+    expect(code(() => gate.accept(t2.token, 2, binding()))).toBe("TOKEN_DEBOUNCE");
     now += 400;
     expect(gate.accept(t2.token, 2, binding()).step).toBe(2);
   });
@@ -82,7 +82,7 @@ describe("§8.2 invariant 2: a new diagnosis voids outstanding tokens", () => {
     const gate = new ApprovalGate(KEY);
     const t = gate.issue(1, binding());
     gate.invalidateAll();
-    expect(code(() => gate.accept(t.token, 1, binding()))).toMatch(/^APPROVAL_(REPLAYED|TOKEN_INVALID)$/);
+    expect(code(() => gate.accept(t.token, 1, binding()))).toMatch(/^TOKEN_(REPLAYED|STATE_MISMATCH)$/);
   });
 });
 
@@ -229,7 +229,7 @@ describe("run loop", () => {
     while (prompts().length < 2) await new Promise((r) => setTimeout(r, 5));
     const [first, second] = prompts() as [Harness["events"][number], Harness["events"][number]];
     await expect(h.driver.submit({ kind: "approve", step: 1, token: first.data.token as string }))
-      .rejects.toMatchObject({ code: expect.stringMatching(/^APPROVAL_(REPLAYED|TOKEN_INVALID|BINDING_MISMATCH)$/) });
+      .rejects.toMatchObject({ code: expect.stringMatching(/^TOKEN_(REPLAYED|STATE_MISMATCH|HASH_MISMATCH)$/) });
     await h.driver.submit({ kind: "approve", step: 1, token: second.data.token as string });
     const out = await run;
     expect(out.state).toBe("PASSED");

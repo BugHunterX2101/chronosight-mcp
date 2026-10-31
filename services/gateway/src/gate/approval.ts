@@ -42,18 +42,18 @@ export function encodeToken(key: Buffer, p: TokenPayload): string {
 /** Verifies the MAC in constant time and returns the payload; checks nothing else. */
 export function decodeToken(key: Buffer, token: string): TokenPayload {
   const [body64, mac64, extra] = token.split(".");
-  if (!body64 || !mac64 || extra !== undefined) throw new GateError("APPROVAL_TOKEN_INVALID", "malformed token");
+  if (!body64 || !mac64 || extra !== undefined) throw new GateError("TOKEN_MALFORMED", "malformed token");
   const body = Buffer.from(body64, "base64url");
   const mac = Buffer.from(mac64, "base64url");
   const want = createHmac("sha256", key).update(body).digest();
-  if (mac.length !== want.length || !timingSafeEqual(mac, want)) throw new GateError("APPROVAL_TOKEN_INVALID", "bad signature");
+  if (mac.length !== want.length || !timingSafeEqual(mac, want)) throw new GateError("TOKEN_BAD_MAC", "bad signature");
   let p: TokenPayload;
   try {
     p = JSON.parse(body.toString("utf8")) as TokenPayload;
   } catch {
-    throw new GateError("APPROVAL_TOKEN_INVALID", "bad payload");
+    throw new GateError("TOKEN_MALFORMED", "bad payload");
   }
-  if (jcs(p) !== body.toString("utf8")) throw new GateError("APPROVAL_TOKEN_INVALID", "payload is not canonical");
+  if (jcs(p) !== body.toString("utf8")) throw new GateError("TOKEN_MALFORMED", "payload is not canonical");
   return p;
 }
 
@@ -103,20 +103,20 @@ export class ApprovalGate {
    */
   accept(token: string, step: 1 | 2, current: Binding): TokenPayload {
     const p = decodeToken(this.key, token);
-    if (this.spent.has(p.nonce)) throw new GateError("APPROVAL_REPLAYED", "token already used");
-    if (!this.outstanding.has(p.nonce)) throw new GateError("APPROVAL_TOKEN_INVALID", "token was invalidated or never issued");
-    if (p.step !== step) throw new GateError("APPROVAL_STEP_MISMATCH", `token is for step ${p.step}, not ${step}`);
-    if (this.now() > p.exp) throw new GateError("APPROVAL_EXPIRED", `step ${step} window has passed`);
+    if (this.spent.has(p.nonce)) throw new GateError("TOKEN_REPLAYED", "token already used");
+    if (!this.outstanding.has(p.nonce)) throw new GateError("TOKEN_STATE_MISMATCH", "token was invalidated or never issued");
+    if (p.step !== step) throw new GateError("TOKEN_STATE_MISMATCH", `token is for step ${p.step}, not ${step}`);
+    if (this.now() > p.exp) throw new GateError("TOKEN_EXPIRED", `step ${step} window has passed`);
     for (const k of ["sessionId", "runId", "diagnosisId", "approvalId"] as const) {
-      if (p[k] !== current[k]) throw new GateError("APPROVAL_BINDING_MISMATCH", `${k} does not match the current run`);
+      if (p[k] !== current[k]) throw new GateError("TOKEN_HASH_MISMATCH", `${k} does not match the current run`);
     }
     if (p.patchSpecHash !== current.patchSpecHash) {
-      throw new GateError("APPROVAL_SPEC_MISMATCH", "patchSpecHash does not match the current diagnosis");
+      throw new GateError("TOKEN_HASH_MISMATCH", "patchSpecHash does not match the current diagnosis");
     }
     if (step === 2) {
-      if (this.step1At === null) throw new GateError("APPROVAL_STEP_MISMATCH", "step 1 was not recorded");
+      if (this.step1At === null) throw new GateError("TOKEN_STATE_MISMATCH", "step 1 was not recorded");
       if (this.now() - this.step1At < STEP2_MIN_DELAY_MS) {
-        throw new GateError("APPROVAL_TOO_FAST", `confirm at least ${STEP2_MIN_DELAY_MS} ms after review`);
+        throw new GateError("TOKEN_DEBOUNCE", `confirm at least ${STEP2_MIN_DELAY_MS} ms after review`);
       }
     }
     this.outstanding.delete(p.nonce);

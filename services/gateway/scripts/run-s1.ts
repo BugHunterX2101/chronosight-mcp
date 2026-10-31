@@ -6,7 +6,8 @@
 // Diagnosis and SAM follow MOCK_META. The risk review has its own client so it can be
 // recorded once (RISK_MOCK=record) while diagnosis replays. The operator role is played
 // by this script: it approves step 1, then confirms step 2 after APPROVE_DELAY_MS.
-// Patching needs the Muse Code synthesizer; until it is wired the run ends at PATCHING.
+// Patching runs Muse Code through the sandbox launcher, which must be listening on LAUNCHER_SOCKET
+// (services/sandbox-launcher: npm start) with the egress proxy up (sandbox/compose.yaml).
 // Prints events and the outcome, never any key.
 
 import { ulid } from "ulid";
@@ -19,8 +20,8 @@ import { reviewRisk } from "../src/gate/risk.ts";
 import { ApprovalGate, hmacKeyFromEnv } from "../src/gate/approval.ts";
 import { TwinClient } from "../src/twin.ts";
 import { SamClient } from "../src/sam/client.ts";
-import { RunDriver, RunError } from "../src/orchestrator/run.ts";
-import type { PatchSynthesizer } from "../src/muse/types.ts";
+import { RunDriver } from "../src/orchestrator/run.ts";
+import { museSynthesizerFromEnv } from "../src/muse/synthesizer.ts";
 import { paths } from "../src/paths.ts";
 
 const [scenarioId = "s1", seedArg = "7"] = process.argv.slice(2);
@@ -46,11 +47,6 @@ let sessionUsd = 0;
 let seq = 0;
 let auditSeq = 0;
 
-const unavailable: PatchSynthesizer = {
-  kind: "unavailable",
-  synthesize: () => Promise.reject(new RunError("MUSE_UNAVAILABLE", "the Muse Code synthesizer is not configured", "ABORTED")),
-};
-
 const runId = `run_${ulid()}`;
 const driver: RunDriver = new RunDriver({
   sessionId: `ses_${ulid()}`, runId, scenarioId, seed, dataDir: paths.data, prefix, prices,
@@ -61,7 +57,7 @@ const driver: RunDriver = new RunDriver({
     attemptTimeoutMs: Number(process.env.DIAGNOSIS_ATTEMPT_TIMEOUT_MS ?? 90_000),
   }, input),
   reviewRisk: (input) => reviewRisk({ meta: riskMeta, routing, prices, log }, input),
-  synth: unavailable,
+  synth: museSynthesizerFromEnv(process.env, log),
   gate: new ApprovalGate(hmacKeyFromEnv()),
   emit: (type, data) => {
     seq += 1;

@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { PatchSpec } from "@chronosight/run-model";
-import { failureContext, pytestTally } from "../src/muse/synthesizer.ts";
+import { editedWorkspace, failureContext, pytestTally } from "../src/muse/synthesizer.ts";
 
 // A bash tool result as muse serve 1.4.14 reports it: a JSON chunk whose output is escaped.
 const chunk = (output: string) =>
@@ -51,5 +51,21 @@ describe("failureContext", () => {
     expect(s).toContain("Files the agent changed: unknown.");
     expect(s).toContain("Last test run inside the sandbox: none.");
     expect(failureContext(["params.py"], null, spec)).toContain("Files the agent changed: params.py.");
+  });
+});
+
+describe("editedWorkspace", () => {
+  // The shape muse reports for write_file: counts only, no label, no receipt, no path.
+  const write = { kind: "toolCall", tool: "write_file", status: "completed", patchSummary: { added: 15, files: 1, removed: 3 } };
+
+  it("is true for a completed file tool that changed a file", () => {
+    expect(editedWorkspace(write)).toBe(true);
+  });
+
+  it("is false while the tool runs, for tools without an edit, and for other items", () => {
+    expect(editedWorkspace({ ...write, status: "inProgress", patchSummary: null })).toBe(false);
+    expect(editedWorkspace({ kind: "toolCall", status: "completed", patchSummary: null })).toBe(false);
+    expect(editedWorkspace({ ...write, patchSummary: { files: 0 } })).toBe(false);
+    expect(editedWorkspace({ kind: "reasoning", status: "completed" })).toBe(false);
   });
 });
