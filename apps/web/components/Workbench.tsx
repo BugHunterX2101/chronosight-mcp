@@ -1,14 +1,19 @@
 "use client";
 
 import { isTerminal, type RunView } from "@chronosight/run-model/browser";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseMasks, type MaskFile } from "../lib/replay/csmk.ts";
 import { ApiError, cancelRun, clipUrl, diagnose, fetchMasks, listScenarios, sendApproval, startPerceive, type ScenarioInfo } from "../lib/session/api.ts";
 import { stageForRunState } from "../lib/scene/stages.ts";
 import { useSession } from "../lib/session/useSession.ts";
+import { planIntent } from "../lib/voice/intents.ts";
+import { narrate } from "../lib/voice/narration.ts";
+import type { RelayMessage } from "../lib/voice/messages.ts";
+import { useVoice } from "../lib/voice/useVoice.ts";
 import { ApprovalDialog } from "./ApprovalDialog.tsx";
 import { CostMeter, DiagnosisPane, LoopStepper, RepairPane, VerdictPanel } from "./panels.tsx";
 import { VideoStage } from "./VideoStage.tsx";
+import { VoiceBar } from "./VoiceBar.tsx";
 
 type Phase = "pre" | "post";
 
@@ -82,6 +87,102 @@ export function Workbench({ sessionId }: { sessionId: string }) {
     }
   }, []);
 
+  // Approvals by hand and by voice go through the same two calls, so the token, the hash binding and
+  // the gateway's debounce apply to both. `latest` lets the voice handler read the current run without re-binding.
+  const latest = useRef({ run, concepts: scenario?.concepts.map((c) => c.slug) ?? [] });
+  latest.current = { run, concepts: scenario?.concepts.map((c) => c.slug) ?? [] };
+
+  const approveNow = useCallback(
+    (step: 1 | 2) =>
+      act(() => {
+        const r = latest.current.run;
+        const required = r?.approval.required ?? null;
+        if (r === undefined || required === null || r.diagnosis.diagnosisId === null) return Promise.resolve();
+        return sendApproval(sessionId, { diagnosisId: r.diagnosis.diagnosisId, patchSpecHash: required.patchSpecHash, step, token: required.token, decision: "approve" });
+      }),
+    [act, sessionId],
+  );
+  const rejectNow = useCallback(
+    (note?: string) =>
+      act(() => {
+        const r = latest.current.run;
+        const required = r?.approval.required ?? null;
+        if (r === undefined || required === null || r.diagnosis.diagnosisId === null) return Promise.resolve();
+        return sendApproval(sessionId, {
+          diagnosisId: r.diagnosis.diagnosisId, patchSpecHash: required.patchSpecHash, step: required.step, token: required.token, decision: "reject",
+          ...(note !== undefined && note !== "" ? { note } : {}),
+        });
+      }),
+    [act, sessionId],
+  );
+
+  const [reply, setReply] = useState<string | null>(null);
+  const [focus, setFocus] = useState<string | null>(null);
+  const speakRef = useRef<(text: string) => void>(() => undefined);
+
+  const onVoiceFinal = useCallback(
+    (m: Extract<RelayMessage, { type: "transcript.final" }>) => {
+      const r = latest.current.run;
+      const required = r?.approval.required ?? null;
+      const plan = planIntent(m.intent, {
+        state: r?.state ?? "IDLE",
+        approvalStep: required?.step ?? null,
+        approveEnabled: required?.approveEnabled ?? false,
+        concepts: latest.current.concepts,
+      });
+      setReply(plan.reply);
+      speakRef.current(plan.reply);
+      const a = plan.action;
+      if (a === null) return;
+      switch (a.kind) {
+        case "approve":
+          void approveNow(a.step);
+          break;
+        case "reject":
+          void rejectNow(a.note);
+          break;
+        case "diagnose":
+          void act(() => diagnose(sessionId, a.transcript === null ? {} : { transcript: a.transcript }));
+          break;
+        case "cancel":
+          if (r !== undefined) void act(() => cancelRun(r.runId));
+          break;
+        case "datasheet":
+          document.getElementById("dx-h")?.scrollIntoView({ block: "start" });
+          break;
+        case "inspect":
+          setFocus(a.target);
+          break;
+      }
+    },
+    [act, approveNow, rejectNow, sessionId],
+  );
+  const voice = useVoice(sessionId, onVoiceFinal);
+  speakRef.current = voice.speak;
+
+  // Spoken prompts when the run reaches a point that needs the user; each state is spoken once per offer,
+  // and only while voice is on, so turning it on mid-run still hears where things stand.
+  const narrated = useRef("");
+  const listening = voice.status === "listening";
+  useEffect(() => {
+    if (!listening || run === undefined) return;
+    const key = `${run.runId}:${run.state}:${run.approval.required?.approvalId ?? ""}`;
+    if (narrated.current === key) return;
+    const dx = run.diagnosis.final;
+    const top = dx?.diagnosis.hypotheses[0];
+    const text = narrate(run.state, {
+      topHypothesis: top === undefined ? null : { title: top.title, confidencePct: Math.round(top.confidence * 100) },
+      riskLevel: dx?.diagnosis.riskLevel ?? null,
+      citations: dx?.citations ?? null,
+    });
+    narrated.current = key;
+    if (text === null) return;
+    setReply(text);
+    voice.speak(text);
+  }, [listening, run, voice]);
+
+  useEffect(() => setFocus(null), [runId]);
+
   const phase: Phase = run !== undefined && Object.values(run.perception.clips).some((c) => c.phase === "post") ? "post" : "pre";
   const shown = useMemo(() => {
     if (run === undefined) return null;
@@ -114,17 +215,6 @@ export function Workbench({ sessionId }: { sessionId: string }) {
   const active = run !== undefined && !isTerminal(run.state);
   const errors = [...state.errors, ...(run?.errors ?? [])];
   const approval = run?.approval.required ?? null;
-
-  const approve = (step: 1 | 2) =>
-    act(() => {
-      if (run === undefined || approval === null || run.diagnosis.diagnosisId === null) return Promise.resolve();
-      return sendApproval(sessionId, { diagnosisId: run.diagnosis.diagnosisId, patchSpecHash: approval.patchSpecHash, step, token: approval.token, decision: "approve" });
-    });
-  const reject = () =>
-    act(() => {
-      if (run === undefined || approval === null || run.diagnosis.diagnosisId === null) return Promise.resolve();
-      return sendApproval(sessionId, { diagnosisId: run.diagnosis.diagnosisId, patchSpecHash: approval.patchSpecHash, step: approval.step, token: approval.token, decision: "reject" });
-    });
 
   return (
     <>
@@ -162,6 +252,8 @@ export function Workbench({ sessionId }: { sessionId: string }) {
         <a href={`/report/${sessionId}`}>Audit report</a>
       </div>
 
+      <VoiceBar voice={voice} reply={reply} />
+
       {problem !== null ? (
         <p role="alert" className="alert">
           {problem}
@@ -187,6 +279,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
             playing
             onFirstMask={() => undefined}
             waitingStage={stageForRunState(run?.state)}
+            focus={focus}
           />
           <p className="muted">{run === undefined ? "No clip yet." : `${phase === "post" ? "After the patch" : "Before the patch"}`}</p>
           {state_ === "AWAITING_QUESTION" ? (
@@ -213,7 +306,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
         </div>
       </div>
 
-      {run !== undefined ? <ApprovalDialog run={run} busy={busy} onApprove={(s) => void approve(s)} onReject={() => void reject()} /> : null}
+      {run !== undefined ? <ApprovalDialog run={run} busy={busy} onApprove={(s) => void approveNow(s)} onReject={() => void rejectNow()} /> : null}
       <p className="visually-hidden" role="status" aria-live="polite">
         {run?.verdict ? `Visual test ${run.verdict.verdict}` : approval ? `Approval step ${approval.step} is waiting` : ""}
       </p>

@@ -31,9 +31,11 @@ interface Props {
   onFirstMask: (at: number) => void;
   /** What the schematic shows while there is no clip yet. */
   waitingStage?: Stage;
+  /** A concept slug to look at (a spoken "inspect the elbow"): the other parts are dimmed, this one is outlined heavier. */
+  focus?: string | null;
 }
 
-export function VideoStage({ src, masks, concepts, playing, onFirstMask, waitingStage = "watch" }: Props) {
+export function VideoStage({ src, masks, concepts, playing, onFirstMask, waitingStage = "watch", focus = null }: Props) {
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const fills = useRef(new WeakMap<MaskRecord, HTMLCanvasElement>());
@@ -87,11 +89,13 @@ export function VideoStage({ src, masks, concepts, playing, onFirstMask, waiting
       for (const rec of records) {
         const [x1, y1, x2, y2] = rec.box;
         const [r, g, b] = rgb(rec.conceptIdx);
+        const slug = concepts[rec.conceptIdx]?.slug ?? `concept ${rec.conceptIdx}`;
+        const looked = focus !== null && slug === focus;
+        ctx.globalAlpha = focus !== null && !looked ? 0.25 : 1;
         ctx.drawImage(fillFor(rec), x1, y1, x2 - x1, y2 - y1);
         ctx.strokeStyle = `rgb(${r} ${g} ${b})`;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = looked ? 6 : 3;
         ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
-        const slug = concepts[rec.conceptIdx]?.slug ?? `concept ${rec.conceptIdx}`;
         const label = `${slug} #${rec.objectId} ${Math.round(rec.conf * 100)}%`;
         const w = ctx.measureText(label).width + 12;
         ctx.fillStyle = "#0b0d10";
@@ -99,6 +103,7 @@ export function VideoStage({ src, masks, concepts, playing, onFirstMask, waiting
         ctx.fillStyle = `rgb(${r} ${g} ${b})`;
         ctx.fillText(label, x1 + 6, Math.max(0, y1 - 26) + 4);
       }
+      ctx.globalAlpha = 1;
       if (records.length > 0 && !first.current) {
         first.current = true;
         notify.current(performance.now());
@@ -126,7 +131,7 @@ export function VideoStage({ src, masks, concepts, playing, onFirstMask, waiting
       if (v.cancelVideoFrameCallback) v.cancelVideoFrameCallback(handle);
       else cancelAnimationFrame(handle);
     };
-  }, [masks, concepts, src]);
+  }, [masks, concepts, src, focus]);
 
   return (
     <div className="stage">
