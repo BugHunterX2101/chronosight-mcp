@@ -674,7 +674,7 @@ export class RunDriver {
     if (!win) {
       const why = cands.length ? cands.map((c) => `candidate ${c.candidate}: ${candidateFailure(c)}`).join("\n") : "no candidate was produced";
       this.d.emit("error", { code: "PATCH_NO_CANDIDATE", message: why.slice(0, 500), retryable: true, stage: "PATCHING" });
-      return `No patch candidate passed its checks.\n${why}`;
+      return `No patch candidate passed its checks.\n${why}`.slice(0, 4000);
     }
     this.patchId = win.patchId;
     // Second Wonder pass on the diff: advisory for twins (§17.3).

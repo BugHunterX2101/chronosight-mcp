@@ -133,6 +133,27 @@ export function patchPrompt(
   return lines.join("\n");
 }
 
+const TALLY_PART = "\\d+ (?:failed|passed|errors?|skipped|xfailed|xpassed|deselected|warnings?)";
+// (?<!\d), not \b: in muse's escaped chunks the summary follows a literal "\n", so it reads "n9 failed".
+const TALLY = new RegExp(`(?<!\\d)(${TALLY_PART}(?:, ${TALLY_PART})*) in \\d+(?:\\.\\d+)?s\\b`, "g");
+
+/** The last pytest summary ("9 failed, 3 passed") in a shell tool's output, if any. */
+export function pytestTally(output: string): string | null {
+  let last: string | null = null;
+  for (const m of output.matchAll(TALLY)) last = m[1]!;
+  return last;
+}
+
+/** What a turn that ended without a usable diff leaves for the next diagnosis (§18.8 item 5, D5). */
+export function failureContext(changed: readonly string[] | null, lastTests: string | null, spec: PatchSpec): string {
+  const files = changed === null ? "unknown" : changed.length ? changed.join(", ") : "none";
+  const bounds = Object.entries(spec.bounds).map(([k, [lo, hi]]) => `${k} [${lo}, ${hi}]`).join(", ") || "none";
+  const o = spec.objectives;
+  return `Files the agent changed: ${files}. Last test run inside the sandbox: ${lastTests ?? "none"}. ` +
+    `The candidate was held to bounds ${bounds} and objectives overshoot <= ${o.overshootPctMax} %, ` +
+    `settling <= ${o.settleSecMax} s, steady-state error <= ${o.sseMax} rad.`;
+}
+
 /** passed/total from the junit report's <testsuite> counters. */
 export function junitCounts(xml: string): { passed: number; total: number } {
   const m = /<testsuite\b[^>]*>/.exec(xml);
@@ -164,6 +185,8 @@ interface Live {
   connection: Connection | null;
   containers: Set<string>;
   closed: boolean;
+  /** the agent's most recent pytest summary, read from its shell output */
+  lastTests: string | null;
 }
 
 export class MuseSynthesizer implements PatchSynthesizer {
@@ -198,7 +221,8 @@ export class MuseSynthesizer implements PatchSynthesizer {
       patchId: `pat_${ulid()}`, candidate: index, model, files: {}, unifiedDiff: "", diffHash: "",
       tests: { passed: 0, total: 0, metrics: null }, boundsCheck: { ok: false, code: null, details: [] }, failure: null,
     };
-    const live: Live = { client: null, connection: null, containers: new Set(), closed: false };
+    const live: Live = { client: null, connection: null, containers: new Set(), closed: false, lastTests: null };
+    let synId: string | null = null;
     const touched = new Set<string>();
     let testsRun = 0;
     const progress = (message: string) =>
@@ -213,6 +237,7 @@ export class MuseSynthesizer implements PatchSynthesizer {
       const files = (this.d.baselineFiles ?? readBaseline)(req.scenario.id, spec.targetFiles);
       const syn = await this.d.launcher.launch({ kind: "synthesis", ...base, files });
       live.containers.add(syn.containerId);
+      synId = syn.containerId;
       progress("sandbox ready");
 
       const prompt = patchPrompt(spec, req.diagnosis.patchSpecHash, this.d.policy, req.priorFailure, readOnlyLayout(req.scenario.id));
@@ -253,6 +278,14 @@ export class MuseSynthesizer implements PatchSynthesizer {
       if (req.signal.aborted) c.failure = { code: "PATCH_TIMEOUT", message: "the patch stage ended before this candidate finished" };
       else if (e instanceof CandidateFailure) c.failure = { code: e.code, message: e.message };
       else c.failure = { code: "MUSE_TURN_FAILED", message: e instanceof Error ? e.message : String(e) };
+      if (!req.signal.aborted && (c.failure.code === "SANDBOX_TIMEOUT" || c.failure.code === "MUSE_TURN_FAILED")) {
+        // The workspace as the turn left it; after the 120 s kill the container is gone and this is unknown.
+        let changed: string[] | null = null;
+        if (synId && live.containers.has(synId)) {
+          changed = await this.d.launcher.collect(synId).then((col) => col.changedPaths, () => null);
+        }
+        c.failure.message += `\n${failureContext(changed, live.lastTests, spec)}`;
+      }
       audit("patch.failure", c.failure);
       progress(`failed: ${c.failure.code}`);
     } finally {
@@ -347,7 +380,7 @@ export class MuseSynthesizer implements PatchSynthesizer {
         session.onApprovalError((f) => audit("muse.approval.error", { kind: f.kind, approvalId: f.approvalId, error: "error" in f ? String(f.error) : null }));
         audit("muse.session", { sessionId: session.sessionId, model, durability: client.durability });
         turn = await raced(session.sendUserTurn({ input: [{ type: "text", text: prompt }] }));
-        void this.tap(turn, audit, started);
+        void this.tap(turn, audit, started, live);
 
         let out = await raced(outcome(turn));
         if (out === "died" || out.kind === "terminalUnknown") {
@@ -355,7 +388,7 @@ export class MuseSynthesizer implements PatchSynthesizer {
           if (recovered || left(this.t.cancelMs) === 0) throw new CandidateFailure("MUSE_TURN_FAILED", "muse serve died with no time or attempt left to recover");
           recovered = true;
           ({ session, turn } = await raced(this.recover(containerId, live, session.sessionId, turn.turnId, onApproval, audit)));
-          void this.tap(turn, audit, started);
+          void this.tap(turn, audit, started, live);
           out = await raced(outcome(turn));
           if (out === "died" || out.kind === "terminalUnknown") throw new CandidateFailure("MUSE_TURN_FAILED", "muse serve died again after session/resume");
         }
@@ -375,13 +408,16 @@ export class MuseSynthesizer implements PatchSynthesizer {
   }
 
   /** Audits each item's status changes, so a slow or stuck turn can be read afterwards. */
-  private async tap(turn: Turn, audit: Audit, started: number): Promise<void> {
+  private async tap(turn: Turn, audit: Audit, started: number, live: Live): Promise<void> {
     const seen = new Map<string, string>();
     try {
       for await (const it of turn.items()) {
         const status = String(it.status);
         if (it.kind === "userMessage" || seen.get(it.itemId) === status) continue;
         seen.set(it.itemId, status);
+        if (it.kind === "toolCall" && it.tool === "bash" && status !== "inProgress") {
+          live.lastTests = pytestTally(String(it.visibleOutput ?? "")) ?? live.lastTests;
+        }
         audit("muse.item", {
           atMs: Date.now() - started, kind: it.kind, status, tool: it.tool ?? null,
           label: it.displayLabel?.active ?? null, patch: it.patchSummary ?? null,
