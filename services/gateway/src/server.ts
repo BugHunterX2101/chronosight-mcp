@@ -75,6 +75,8 @@ const app = await buildApp({
   conceptPlan: (id) => prefixes.get(id)!.scenario.concepts,
   scenarioTitle: (id) => prefixes.get(id)!.scenario.title,
   logger: true,
+  // Voice (§15) needs the real upstream; with MOCK_META=true there is none, so the route stays off.
+  ...(apiKey && mode !== "true" ? { asr: { apiKey, base: metaBase, onAlert: (m: string) => app.log.warn(m) } } : {}),
   runDeps: (c) => {
     const prefix = prefixes.get(c.scenarioId)!;
     const seeds = prefix.scenario.seeds as { baseline?: number } | undefined;

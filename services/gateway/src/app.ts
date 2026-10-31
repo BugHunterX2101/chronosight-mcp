@@ -11,13 +11,15 @@ import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import websocket from "@fastify/websocket";
-import type { WebSocket } from "ws";
+import { WebSocket as WebSocketClient, type WebSocket } from "ws";
 import { ulid } from "ulid";
 import { z } from "zod";
 import { coalesceKey, isTerminal, type Envelope, type RunState } from "@chronosight/run-model";
 import { RESERVE_USD, type BudgetLedger } from "./ledger.ts";
 import { RunDriver, selectConcepts, type RunDeps } from "./orchestrator/run.ts";
 import { Session, type SessionMode } from "./session.ts";
+import { MAX_RELAYS } from "./asr/lifecycle.ts";
+import { serveRelay } from "./asr/relay.ts";
 import { CsmkError, parseTrack, readMaskRange } from "./csmk.ts";
 import { sendFile } from "./http/static.ts";
 import { buildReport, renderReportHtml } from "./report.ts";
@@ -73,6 +75,8 @@ export interface AppOptions {
   runDeps: (c: RunContext) => RunDeps;
   /** Readiness of the gateway's dependencies (twin, launcher): the problems found, none when ready. */
   ready?: () => Promise<string[]>;
+  /** Voice relay (DESIGN §15): the upstream key and base. Unset turns /ws/asr/:id off (the route is not registered). */
+  asr?: { apiKey: string; base: string; connect?: (url: string) => WebSocket; onAlert?: (message: string) => void };
   /** Fastify trustProxy: which hops may set X-Forwarded-For (Caddy). */
   trustProxy?: string | boolean;
   logger?: boolean;
@@ -589,6 +593,43 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     socket.on("error", stop);
     // The workbench channel is server-to-client; client frames are ignored.
   });
+
+  // ---------------------------------------------------------------- voice relay (§15)
+
+  if (o.asr) {
+    const asr = o.asr;
+    let relays = 0;
+    app.get("/ws/asr/:id", {
+      websocket: true,
+      preValidation: async (req) => {
+        const origin = req.headers.origin;
+        if (typeof origin !== "string" || !origins.has(origin)) throw new ApiError("ORIGIN_DENIED", "origin is not allowed");
+        owned(req);
+      },
+    }, (socket: WebSocket, req: FastifyRequest) => {
+      if (relays >= MAX_RELAYS) {
+        socket.send(JSON.stringify({ type: "asr.notice", level: "info", message: "Voice busy" }));
+        socket.close(1013, "voice busy");
+        return;
+      }
+      const s = sessions.get((req.params as { id: string }).id)!;
+      relays += 1;
+      socket.once("close", () => { relays -= 1; });
+      const ping = setInterval(() => socket.ping(), WS_PING_MS);
+      socket.once("close", () => clearInterval(ping));
+      serveRelay(socket, {
+        session: s,
+        apiKey: asr.apiKey,
+        base: asr.base,
+        concepts: o.conceptPlan(s.scenarioId).map((c) => c.slug),
+        connect: asr.connect ?? ((url) => new WebSocketClient(url)),
+        now,
+        // Audio time is voice spend; it shows on the session total (it is not part of a run's reservation).
+        onSpend: (usd) => { s.usd += usd; },
+        ...(asr.onAlert ? { onAlert: asr.onAlert } : {}),
+      });
+    });
+  }
 
   // ---------------------------------------------------------------- lifecycle
 
