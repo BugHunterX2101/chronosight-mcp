@@ -4,6 +4,7 @@
 //   replays/{runId}/manifest.json  events.jsonl  clips/{pre,post}.mp4  sam/{clipId}/{concept}.sse
 //                   masks/{clipId}.csmk(.idx)  telemetry/{phase}.json  test/{testId}.json
 //                   diagnosis/{diagnosisId}.json  patch/{patchId}.diff|.session.jsonl  report.html
+//                   scenario.json (title and concept plan: the player labels tracks without the gateway)
 //
 // Only PUBLIC runs are recorded (§8.2 invariant 4). Approval tokens and session cookies never
 // enter a bundle, and every file is listed with its sha256 so the player can detect a flipped byte.
@@ -42,6 +43,8 @@ export interface RecordOptions {
   runId?: string;
   /** Default: the prefix of the pre clip's file name ("s1-baseline-…" → "s1"). */
   scenarioId?: string;
+  /** The scenario's title and concept plan; written to scenario.json so a replay needs no gateway. */
+  loadScenario?: (scenarioId: string) => { title: string; concepts: readonly { slug: string; role: string }[] };
   appCommit: string;
   now: number;
 }
@@ -149,6 +152,11 @@ export function recordReplay(o: RecordOptions): { dir: string; manifest: Manifes
       v: 1, seq: i + 1, sessionId: l.sessionId, runId, ts: l.ts, type: l.type, replay: false, data: scrub(l.data),
     }));
     st.write("events.jsonl", `${events.join("\n")}\n`);
+
+    if (o.loadScenario) {
+      const sc = o.loadScenario(scenarioId);
+      st.write("scenario.json", JSON.stringify({ id: scenarioId, title: sc.title, concepts: sc.concepts.map((c) => ({ slug: c.slug, role: c.role })) }, null, 2));
+    }
 
     // Clips, masks and the SAM stream tees, per phase.
     for (const phase of ["pre", "post"] as const) {

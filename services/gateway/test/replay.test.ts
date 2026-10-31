@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { AuditLog } from "../src/audit.ts";
+import { loadScenario } from "../src/prefix.ts";
 import { recordReplay, ReplayError, updateIndex, verifyBundle } from "../src/replay/record.ts";
 
 const root = mkdtempSync(join(tmpdir(), "replay-"));
@@ -51,7 +52,7 @@ function volume(name: string, o: Opts = {}): string {
 }
 
 const record = (dataDir: string, runId?: string) =>
-  recordReplay({ dataDir, replaysDir: join(dataDir, "..", "replays"), sessionId: SES, runId, appCommit: "abc123", now: Date.parse("2026-02-02T00:00:00Z") });
+  recordReplay({ dataDir, replaysDir: join(dataDir, "..", "replays"), sessionId: SES, runId, appCommit: "abc123", now: Date.parse("2026-02-02T00:00:00Z"), loadScenario });
 
 describe("recordReplay", () => {
   const dataDir = volume("ok");
@@ -64,8 +65,12 @@ describe("recordReplay", () => {
       "clips/post.mp4", "clips/pre.mp4", "diagnosis/dia_TEST01.json", "events.jsonl",
       `masks/${PRE}.csmk`, `masks/${PRE}.csmk.idx`, `masks/${POST}.csmk`, `masks/${POST}.csmk.idx`,
       "patch/pat_TEST01.diff", "patch/pat_TEST01.session.jsonl", "report.html",
-      `sam/${PRE}/elbow.sse`, `sam/${POST}/elbow.sse`, "telemetry/pre.json", "test/vut_TEST01.json",
+      `sam/${PRE}/elbow.sse`, `sam/${POST}/elbow.sse`, "scenario.json", "telemetry/pre.json", "test/vut_TEST01.json",
     ]);
+    // The real s1 plan from scenario.yaml, so the player can name tracks with no gateway.
+    const scenario = JSON.parse(readFileSync(join(dir, "scenario.json"), "utf8"));
+    expect(scenario.id).toBe("s1");
+    expect(scenario.concepts.map((c: { slug: string }) => c.slug)).toEqual(["forearm", "elbow", "marker"]);
     expect(verifyBundle(dir)).toEqual({ ok: true, files: manifest.files.length });
   });
 

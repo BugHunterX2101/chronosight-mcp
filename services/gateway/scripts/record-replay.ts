@@ -8,6 +8,7 @@
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { paths } from "../src/paths.ts";
+import { loadScenario } from "../src/prefix.ts";
 import { recordReplay, updateIndex, verifyBundle } from "../src/replay/record.ts";
 
 const [sessionId, runId] = process.argv.slice(2);
@@ -20,7 +21,7 @@ const appCommit = execFileSync("git", ["rev-parse", "HEAD"], { cwd: paths.root, 
 const replaysDir = join(paths.root, "replays");
 const now = Date.now();
 
-const { dir, manifest } = recordReplay({ dataDir: paths.data, replaysDir, sessionId, runId, appCommit, now });
+const { dir, manifest } = recordReplay({ dataDir: paths.data, replaysDir, sessionId, runId, appCommit, now, loadScenario });
 const v = verifyBundle(dir);
 if (!v.ok) {
   console.error(`bundle ${dir} failed verification: ${v.path}: ${v.reason}`);
