@@ -20,6 +20,8 @@ out/
 
 # Runtime data (renders, masks, audit logs live on the data volume)
 data/
+# Recorded replay bundles (~18 MB each, mostly SAM stream tees): built by scripts/record-replay.ts and published to the CDN
+replays/
 fixtures/raw/
 *.partial
 
