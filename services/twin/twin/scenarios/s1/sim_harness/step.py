@@ -5,7 +5,10 @@ and abi.py, and links it into every patch workspace as /workspace/sim_harness/. 
 the candidate's controller.py and params.py from the workspace root and runs a
 closed-loop step from rest to STEP_RAD.
 The run includes the scenario's warm-up, so the encoder brown-out happens inside the
-measured window: a controller that never restores FILT keeps hunting and fails.
+run. DESIGN §20.2: a patch must write FILT after every reset, not just once. The controller
+sees STATUS_RST in the same step as the reset and its register writes apply in that step,
+so a compliant controller never has FILT at 0; `filtOffMs` is how long it was, and
+tests/test_step_response.py requires 0.
 
 `python sim_harness/step.py` prints the worst case over SEEDS as one JSON line, which is
 what the independent harness reports as the candidate's StepMetrics.
@@ -56,18 +59,21 @@ def load_controller(seed: int):
 
 
 def run_case(seed: int) -> dict:
-    """Step-response metrics for one seed: overshootPct (%), settleSec (s), sse (rad)."""
+    """Step-response metrics for one seed: overshootPct (%), settleSec (s), sse (rad), and
+    filtOffMs, the time over warm-up and clip with the encoder filter off (ms)."""
     trace = simulate(load_controller(seed), np.random.SeedSequence(seed), DURATION_S, WARMUP_S, q_ref=STEP_RAD)
     total = WARMUP_S + DURATION_S
+    filt_off_ms = float(np.count_nonzero(trace.filt == 0)) * trace.dt * 1000.0
     if trace.error is not None:
-        return {"overshootPct": float("inf"), "settleSec": total, "sse": float("inf"), "error": trace.error}
+        return {"overshootPct": float("inf"), "settleSec": total, "sse": float("inf"),
+                "filtOffMs": filt_off_ms, "error": trace.error}
     err = trace.q - STEP_RAD
     overshoot = max(0.0, float(np.max(trace.q)) - STEP_RAD) / STEP_RAD * 100.0
     outside = np.flatnonzero(np.abs(err) > BAND * STEP_RAD)
     settle = 0.0 if outside.size == 0 else min(total, float(trace.t[outside[-1]] - trace.t[0] + trace.dt))
     n = int(round(SSE_WINDOW_S / trace.dt))
     sse = float(np.mean(np.abs(err[-n:])))
-    return {"overshootPct": overshoot, "settleSec": settle, "sse": sse, "error": None}
+    return {"overshootPct": overshoot, "settleSec": settle, "sse": sse, "filtOffMs": filt_off_ms, "error": None}
 
 
 def worst() -> dict:
@@ -77,6 +83,7 @@ def worst() -> dict:
         "overshootPct": max(c["overshootPct"] for c in cases),
         "settleSec": max(c["settleSec"] for c in cases),
         "sse": max(c["sse"] for c in cases),
+        "filtOffMs": max(c["filtOffMs"] for c in cases),
         "error": errors[0] if errors else None,
     }
 

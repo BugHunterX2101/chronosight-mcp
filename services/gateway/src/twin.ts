@@ -48,6 +48,18 @@ export interface SamIngestResult {
   warnings: string[];
 }
 
+/** D3 (DESIGN §16.1): one key frame with its mask outlines drawn, 768 px long edge. */
+export interface KeyFrame {
+  frameIdx: number;
+  role: "max" | "min" | "zero";
+  displacementPx: number;
+  objects: string[];
+  width: number;
+  height: number;
+  mime: "image/jpeg";
+  dataBase64: string;
+}
+
 export interface ClipRef {
   clipId: string;
   csmkPath?: string;
@@ -75,7 +87,7 @@ export class TwinError extends Error {
 /** Per-call deadlines: render ≤ 8 s warm (§30.1) with headroom for a cold cache; patch load runs a child import.
  *  SAM ingest parses and decodes every mask of the clip inside PERCEIVING, so its cap is that stage's
  *  60 s (DESIGN §8.1 ST-3, ST-11); the caller's stage signal ends it sooner. */
-const TIMEOUT_MS = { health: 3_000, render: 60_000, metrics: 60_000, visualTest: 30_000, patchLoad: 30_000, samIngest: 60_000 } as const;
+const TIMEOUT_MS = { health: 3_000, render: 60_000, metrics: 60_000, keyFrames: 30_000, visualTest: 30_000, patchLoad: 30_000, samIngest: 60_000 } as const;
 
 export class TwinClient {
   readonly baseURL: string;
@@ -101,6 +113,11 @@ export class TwinClient {
     nFrames?: number; groundTruthPath?: string; includeSpectrum?: boolean;
   }): Promise<MetricsResult> {
     return this.req("POST", "/metrics", body, TIMEOUT_MS.metrics);
+  }
+
+  /** D3 key frames of a clip whose masks are ingested (DESIGN §16.1). */
+  async keyFrames(body: { clipId: string; scenarioId: string; clipPath: string; csmkPath: string; nFrames?: number }): Promise<{ clipId: string; frames: KeyFrame[] }> {
+    return this.req("POST", "/keyframes", body, TIMEOUT_MS.keyFrames);
   }
 
   async visualTest(body: {

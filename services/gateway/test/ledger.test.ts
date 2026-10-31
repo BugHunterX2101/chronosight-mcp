@@ -1,6 +1,6 @@
 // Budget ledger (TECHNICAL §6.8, DESIGN §22.3, §33 burst case, TD-5 lock).
 
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -83,7 +83,7 @@ describe("BudgetLedger.reserve", () => {
 });
 
 describe("BudgetLedger.boot", () => {
-  it("replays today's spend, releases reservations a dead process left open, and keeps the visitor cap", () => {
+  it("replays today's spend and releases reservations a dead process left open (§6.8 boot)", () => {
     clock = Date.parse("2026-10-31T12:00:00.000Z");
     const l = open();
     l.reserve("v", "run_a");
@@ -92,7 +92,21 @@ describe("BudgetLedger.boot", () => {
     const again = reopen(l);
     expect(again.totals()).toMatchObject({ spentUsd: 0.3, reservedUsd: 0 });
     expect(sumLedger(again).filter((e) => e.t === "release").map((e) => e.runId).sort()).toEqual(["run_a", "run_b"]);
-    expect(again.reserve("v", "run_c")).toMatchObject({ ok: false, code: "VISITOR_CAP" });
+  });
+
+  it("writes ledger lines in the §8.3 shape, with no visitor key, and reads older lines that had one", () => {
+    clock = Date.parse("2026-10-31T12:00:00.000Z");
+    const l = open();
+    l.reserve("v", "run_a");
+    l.charge("run_a", 0.25, "muse-spark-1.3-contributor");
+    for (const e of sumLedger(l)) {
+      expect(Object.keys(e).every((k) => ["t", "runId", "usd", "model", "at"].includes(k))).toBe(true);
+    }
+    const ledgerPath = l.ledgerPath;
+    l.close();
+    appendFileSync(ledgerPath, `${JSON.stringify({ t: "charge", runId: "run_old", usd: 0.05, visitor: "abc", at: new Date(clock).toISOString() })}\n`);
+    const again = reopen(l);
+    expect(again.totals().spentUsd).toBeCloseTo(0.3, 6);
   });
 
   it("starts a new UTC day from zero", () => {

@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import type { PatchSpec } from "@chronosight/run-model";
 import { editedWorkspace, failureContext, harnessSummary, pytestTally } from "../src/muse/synthesizer.ts";
+import { launcherSocketPath } from "../src/muse/sandbox-attach.ts";
 
 // A bash tool result as muse serve 1.4.14 reports it: a JSON chunk whose output is escaped.
 const chunk = (output: string) =>
@@ -71,6 +72,18 @@ describe("harnessSummary", () => {
     );
   });
 
+  it("says how long the encoder filter was off, so the next attempt learns the errata was missed", () => {
+    const junit15 = '<testsuites><testsuite name="pytest" errors="0" failures="3" skipped="0" tests="15"></testsuite></testsuites>';
+    // A gains-only S1 patch as the real harness measures it: inside the limits, FILT never written.
+    const run = { junitXml: junit15, metrics: { overshootPct: 5.1667, settleSec: 0.317, sse: 0.000584, filtOffMs: 13001, error: null } };
+    expect(harnessSummary(run, spec, true)).toBe(
+      "Independent step test of the workspace as the agent left it: 12/15 tests passed; worst case over the test seeds: " +
+      "overshoot 5.17 % (limit 10), settling 0.317 s (limit 1.5), steady-state error 0.000584 rad (limit 0.01). " +
+      "The encoder filter was off for 13001 ms; FILT must be rewritten after every reset (errata E-3).",
+    );
+    expect(harnessSummary({ junitXml: junit15, metrics: { ...run.metrics, filtOffMs: 0 } }, spec, true)).not.toContain("encoder filter");
+  });
+
   it("names the baseline when nothing changed, and the harness error when there are no metrics", () => {
     const run = { junitXml: junit, metrics: { overshootPct: null, settleSec: null, sse: null, error: "ImportError: abi" } };
     expect(harnessSummary(run, spec, false)).toBe(
@@ -93,5 +106,16 @@ describe("editedWorkspace", () => {
     expect(editedWorkspace({ kind: "toolCall", status: "completed", patchSummary: null })).toBe(false);
     expect(editedWorkspace({ ...write, patchSummary: { files: 0 } })).toBe(false);
     expect(editedWorkspace({ kind: "reasoning", status: "completed" })).toBe(false);
+  });
+});
+
+describe("launcherSocketPath (TECHNICAL §9.1)", () => {
+  it("agrees with the launcher: a named pipe on Windows, an absolute socket path elsewhere, else the default", () => {
+    const pipe = String.raw`\\.\pipe\chronosight-launcher`;
+    expect(launcherSocketPath({ LAUNCHER_SOCKET: pipe }, "win32")).toBe(pipe);
+    expect(launcherSocketPath({}, "win32")).toBe(pipe);
+    expect(launcherSocketPath({ LAUNCHER_SOCKET: "" }, "linux")).toBe("/run/launcher/launcher.sock");
+    expect(() => launcherSocketPath({ LAUNCHER_SOCKET: String.raw`\.\pipe\chronosight-launcher` }, "win32")).toThrow(/named pipe/);
+    expect(() => launcherSocketPath({ LAUNCHER_SOCKET: "run/launcher.sock" }, "linux")).toThrow(/absolute/);
   });
 });

@@ -17,13 +17,15 @@ const toMicros = (usd: number) => Math.round(usd * 1e6);
 const toUsd = (micros: number) => micros / 1e6;
 const utcDay = (ms: number) => Math.floor(ms / DAY_MS);
 
+/**
+ * TECHNICAL §8.3: `{t, runId, usd, model?, at}`. The visitor key belongs to the session, not the
+ * ledger; lines an earlier build wrote with a `visitor` field still parse (zod drops the key).
+ */
 const Entry = z.object({
   t: z.enum(["reserve", "charge", "release"]),
   runId: z.string(),
   usd: z.number().min(0),
   model: z.string().optional(),
-  /** Reserve lines only: the hashed visitor key, so the hourly cap survives a restart. Never a raw IP. */
-  visitor: z.string().optional(),
   at: z.iso.datetime(),
 });
 export type LedgerEntry = z.infer<typeof Entry>;
@@ -89,7 +91,8 @@ export class BudgetLedger {
   /** Open reservations: runId -> UTC day they were taken. */
   private open = new Map<string, number>();
   private runSpend = new Map<string, number>();
-  /** Reserve times per visitor, pruned to the last hour. */
+  /** Reserve times per visitor key, pruned to the last hour. Process memory only: §6.8 boot()
+   *  rebuilds spentToday and reservedToday, and the daily cap is the hard stop across restarts. */
   private visits = new Map<string, number[]>();
   private live: boolean;
   private liveAt: string | null = null;
@@ -156,7 +159,6 @@ export class BudgetLedger {
       const e = Entry.parse(JSON.parse(raw));
       const at = Date.parse(e.at);
       const usd = toMicros(e.usd);
-      if (e.t === "reserve" && e.visitor && now - at < HOUR_MS) this.visit(e.visitor, at);
       if (utcDay(at) !== today) continue;
       if (e.t === "reserve") {
         this.reserved += usd;
@@ -212,7 +214,7 @@ export class BudgetLedger {
     this.reserved += r;
     this.open.set(runId, this.day);
     this.visit(visitorKey, now);
-    this.append({ t: "reserve", runId, usd: RESERVE_USD, visitor: visitorKey, at: new Date(now).toISOString() });
+    this.append({ t: "reserve", runId, usd: RESERVE_USD, at: new Date(now).toISOString() });
     return { ok: true, runId, usd: RESERVE_USD };
   }
 

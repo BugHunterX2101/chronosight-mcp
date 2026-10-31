@@ -28,6 +28,7 @@ from ..hotload import bounds as hb
 from ..hotload import runner as hr
 from ..metrics import csmk, sam
 from ..metrics.telemetry import Telemetry, Track, assign_refs, measure, measure_ground_truth
+from ..render import keyframes as kf
 from ..render.encode import ffmpeg_version
 from ..render.s1 import RENDERER_VERSION
 from ..sim.loader import SCENARIOS, load_baseline
@@ -95,6 +96,14 @@ class MetricsBody(_B):
     nFrames: int | None = Field(default=None, gt=0, le=600)
     groundTruthPath: str | None = None
     includeSpectrum: bool = True
+
+
+class KeyFramesBody(_B):
+    clipId: str
+    scenarioId: str = "s1"
+    clipPath: str
+    csmkPath: str
+    nFrames: int | None = Field(default=None, gt=0, le=600)
 
 
 class ClipRef(_B):
@@ -353,6 +362,28 @@ async def metrics(body: MetricsBody):
         out["groundTruth"] = {"rmsMmTrue": _num(g.a_mm), "fStarHzTrue": _num(g.f_star_hz),
                               "trueAmplitudeMm": gt.get("trueAmplitudeMm"), "trueFStarHz": gt.get("trueFStarHz")}
     return out
+
+
+def _key_frames(body: KeyFramesBody, sc: dict, clip: Path, path: Path) -> list[dict]:
+    t = _tele.get(body.clipId) or _measure_csmk(body.scenarioId, path, body.nFrames)
+    _remember(body.clipId, t)
+    return kf.render(clip, csmk.read(path)[1], sc["concepts"], t)
+
+
+@app.post("/keyframes")
+async def key_frames(body: KeyFramesBody):
+    """D3 (DESIGN §16.1): 2–4 frames of a clip with the mask outlines drawn, 768 px long edge, JPEG."""
+    sc = _scenario(body.scenarioId)
+    clip, path = _inside(body.clipPath), _inside(body.csmkPath)
+    if not clip.is_file():
+        return _err(404, "CLIP_NOT_FOUND", body.clipPath)
+    if not path.is_file():
+        return _err(404, "CSMK_NOT_FOUND", body.csmkPath)
+    try:
+        frames = await asyncio.to_thread(_key_frames, body, sc, clip, path)
+    except (kf.KeyFrameError, csmk.CsmkError) as exc:
+        return _err(422, "KEYFRAMES_UNAVAILABLE", str(exc))
+    return {"clipId": body.clipId, "frames": frames}
 
 
 def _ingest(body: SamIngestBody, sc: dict) -> dict:

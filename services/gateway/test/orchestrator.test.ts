@@ -106,6 +106,11 @@ interface Harness {
   audits: { kind: string; data: Record<string, unknown> }[];
   diagnoses: DiagnoseInput[];
   states: () => string[];
+  keyFrameCalls: () => number;
+  /** leadPatchId read at each PATCHING entry, and at each event emitted while PATCHING */
+  leadAtPatching: () => (string | null)[];
+  leadDuringPatching: () => (string | null)[];
+  samCalls: { clipId: string; concepts: { idx: number; slug: string }[] }[];
 }
 
 interface HarnessOpts {
@@ -116,6 +121,8 @@ interface HarnessOpts {
   /** null: wait for an `ask` message instead of replaying an intent. */
   intent?: string | null;
   charge?: RunDeps["charge"];
+  candidates?: number;
+  concepts?: string[];
 }
 
 function harness(opts: HarnessOpts = {}): Harness {
@@ -125,6 +132,10 @@ function harness(opts: HarnessOpts = {}): Harness {
   const verdicts = [...(opts.verdicts ?? ["PASS"])];
   const step1 = [...(opts.step1 ?? [])];
   let clock = 1_000_000;
+  let keyFrameCalls = 0;
+  const leadAtPatching: (string | null)[] = [];
+  const samCalls: Harness["samCalls"] = [];
+  const leadDuringPatching: (string | null)[] = [];
   const gate = new ApprovalGate(KEY, () => clock);
   let n = 0;
 
@@ -140,13 +151,20 @@ function harness(opts: HarnessOpts = {}): Harness {
 
   const synth: PatchSynthesizer = {
     kind: "synthetic",
-    synthesize: async (req) => [candidate({ patchId: `p${req.attempt}` })],
+    // Candidate 2, when asked for, scores better than 1, so selection moves away from the lead id.
+    synthesize: async (req) => req.patchIds.map((patchId, i) =>
+      candidate({ patchId, candidate: i + 1, ...(i === 1 ? { tests: { passed: 3, total: 3, metrics: { overshootPct: 1, settleSec: 0.1, sse: 0.01 } } } : {}) })),
   };
 
   const deps: RunDeps = {
     sessionId: "ses_1", runId: "run_1", scenarioId: "s1", seed: 7,
     dataDir: mkdtempSync(join(tmpdir(), "cs-run-")),
-    prefix: { scenario: { id: "s1", concepts: [{ slug: "forearm", prompt: "forearm" }] } } as unknown as Prefix,
+    prefix: { scenario: { id: "s1", concepts: [
+      { slug: "forearm", prompt: "orange robot arm segment", role: "fault" },
+      { slug: "elbow", prompt: "round joint", role: "context" },
+      { slug: "marker", prompt: "checkered square", role: "refs" },
+    ] } } as unknown as Prefix,
+    concepts: opts.concepts,
     prices: { models: {} } as unknown as Prices,
     twin: {
       render: async (b) => ({
@@ -154,11 +172,18 @@ function harness(opts: HarnessOpts = {}): Harness {
         rawFramesSha256: "0", cached: false, cacheKey: `k-${b.controller}`,
       }),
       metrics: async (b) => ({ clipId: b.clipId, rmsMm: 3.9, fStarHz: 4, coverage: { fault: 1 }, precheck: { ok: true, failures: [] } }) as never,
+      keyFrames: async (b) => {
+        keyFrameCalls += 1;
+        const frame = (frameIdx: number, role: "max" | "min") => ({
+          frameIdx, role, displacementPx: role === "max" ? 15 : -16, objects: ["forearm"], width: 768, height: 432, mime: "image/jpeg" as const, dataBase64: "AA==",
+        });
+        return { clipId: b.clipId, frames: [frame(144, "min"), frame(148, "max")] };
+      },
       patchLoad: async (b) => (b.dryRun ? { ok: true, code: null, details: [], params: null } : { ok: true, patchId: b.patchId, params: null, approvalExempt: null }),
       visualTest: async () => verdict(verdicts.shift() ?? "FAIL"),
     },
     sam: {
-      perceive: async (i) => ({
+      perceive: async (i) => (samCalls.push({ clipId: i.clipId, concepts: i.concepts.map(({ idx, slug }) => ({ idx, slug })) }), {
         clipId: i.clipId, csmkPath: `masks/${i.clipId}.csmk`, records: 150, objects: {}, warnings: [], marks: {}, fromFixture: true,
       }),
     },
@@ -174,8 +199,13 @@ function harness(opts: HarnessOpts = {}): Harness {
     }),
     synth,
     gate,
+    candidates: opts.candidates,
     emit: (type, data) => {
       n += 1;
+      if (driver.state === "PATCHING") {
+        if (type === "run.state") leadAtPatching.push(driver.leadPatchId);
+        else leadDuringPatching.push(driver.leadPatchId);
+      }
       events.push({ type, data: data as Record<string, unknown> });
       if (type === "approval.required") operate(data as { step: 1 | 2; token: string; approveEnabled: boolean });
       return n;
@@ -204,7 +234,7 @@ function harness(opts: HarnessOpts = {}): Harness {
   }
 
   const states = () => events.filter((e) => e.type === "run.state").map((e) => String(e.data.to));
-  return { driver, events, audits, diagnoses, states };
+  return { driver, events, audits, diagnoses, states, keyFrameCalls: () => keyFrameCalls, leadAtPatching: () => leadAtPatching, leadDuringPatching: () => leadDuringPatching, samCalls };
 }
 
 describe("run loop", () => {
@@ -221,6 +251,38 @@ describe("run loop", () => {
     expect(rec.patchSpecHash).toBe(h.audits.find((a) => a.kind === "diagnosis")!.data.patchSpecHash);
     expect(h.audits.find((a) => a.kind === "patch.candidates")!.data.synthesizer).toBe("synthetic");
     expect(out.taint).toBe("PUBLIC");
+  });
+
+  it("has a patchId from PATCHING entry that stays put when another candidate wins (TECHNICAL §7.1 /patch)", async () => {
+    const h = harness({ candidates: 2 });
+    const out = await h.driver.drive();
+    expect(out.state).toBe("PASSED");
+    const [lead] = h.leadAtPatching();
+    expect(lead).toMatch(/^pat_[0-9A-HJKMNP-TV-Z]{26}$/);
+    expect(new Set(h.leadDuringPatching())).toEqual(new Set([lead]));
+    const diffs = h.events.filter((e) => e.type === "patch.diff").map((e) => e.data);
+    expect(diffs.map((d) => d.candidate)).toEqual([1, 2]);
+    expect(diffs[0]!.patchId).toBe(lead);
+    // Candidate 2 scores better, so it is the one simulated, while /patch still answers the lead id.
+    expect(out.patchId).toBe(diffs[1]!.patchId);
+    expect(out.patchId).not.toBe(lead);
+  });
+
+  it("perceives a concept subset under its plan indices and its own baseline cache key (TECHNICAL §7.1 /perceive)", async () => {
+    const full = harness();
+    await full.driver.drive();
+    expect(full.samCalls[0]).toEqual({ clipId: "bl-k-baseline", concepts: [{ idx: 0, slug: "forearm" }, { idx: 1, slug: "elbow" }, { idx: 2, slug: "marker" }] });
+
+    const sub = harness({ concepts: ["marker", "forearm"] });
+    expect((await sub.driver.drive()).state).toBe("PASSED");
+    const want = [{ idx: 0, slug: "forearm" }, { idx: 2, slug: "marker" }];
+    expect(sub.samCalls.map((c) => c.concepts)).toEqual([want, want]);
+    expect(sub.samCalls[0]!.clipId).toBe("bl-k-baseline-c02");
+  });
+
+  it("refuses a concept set that measurement cannot use", () => {
+    expect(() => harness({ concepts: ["forearm", "elbow"] })).toThrow(/needs the refs concept/);
+    expect(() => harness({ concepts: ["arm"] })).toThrow(/unknown concept arm/);
   });
 
   it("a rejection re-diagnoses with feedback, and the old token no longer works (invariant 2)", async () => {
@@ -247,6 +309,17 @@ describe("run loop", () => {
     expect(out.state).toBe("PASSED");
     expect(out.attempt).toBe(2);
     expect(h.diagnoses[1]!.priorAttempt).toMatch(/Visual test FAIL/);
+  });
+
+  it("attaches the pre clip's key frames to every diagnosis, built once per run (FR-DIA-2)", async () => {
+    const h = harness({ verdicts: ["FAIL", "PASS"] });
+    const run = h.driver.drive();
+    while (!h.states().includes("VERDICT_FAIL")) await new Promise((r) => setTimeout(r, 5));
+    await h.driver.submit({ kind: "retry" });
+    expect((await run).state).toBe("PASSED");
+    expect(h.diagnoses).toHaveLength(2);
+    for (const d of h.diagnoses) expect(d.keyFrames?.map((f) => f.frameIdx)).toEqual([144, 148]);
+    expect(h.keyFrameCalls()).toBe(1);
   });
 
   it("a stop recommendation needs an override reason of at least 10 characters (§17)", async () => {

@@ -13,8 +13,25 @@ import { ContainerId, LaunchError, Launcher, type LauncherConfig } from "./launc
 const MAX_BODY_BYTES = 1024 * 1024;
 const here = dirname(fileURLToPath(import.meta.url));
 
-export function defaultListenPath(): string {
-  return process.platform === "win32" ? "\\\\.\\pipe\\chronosight-launcher" : "/run/launcher/launcher.sock";
+export function defaultListenPath(platform: NodeJS.Platform = process.platform): string {
+  return platform === "win32" ? "\\\\.\\pipe\\chronosight-launcher" : "/run/launcher/launcher.sock";
+}
+
+const PIPE_RE = /^\\\\[.?]\\pipe\\[^\\/]+$/;
+
+/**
+ * LAUNCHER_SOCKET (TECHNICAL §9.1), the same rule the gateway applies: a named pipe on Windows,
+ * an absolute Unix socket path elsewhere, or unset for the default. A malformed value stops the
+ * launcher at startup instead of leaving it listening where the gateway will never look.
+ */
+export function listenPathFromEnv(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string {
+  const v = env.LAUNCHER_SOCKET?.trim();
+  if (!v) return defaultListenPath(platform);
+  if (platform === "win32" ? !PIPE_RE.test(v) : !v.startsWith("/")) {
+    const want = platform === "win32" ? String.raw`a named pipe such as \\.\pipe\chronosight-launcher` : "an absolute Unix socket path";
+    throw new Error(`LAUNCHER_SOCKET must be ${want}, got ${JSON.stringify(v)}`);
+  }
+  return v;
 }
 
 function readKey(env: NodeJS.ProcessEnv): string | null {
@@ -204,7 +221,7 @@ async function main(): Promise<void> {
 
   log({ event: "sweep", removed: await launcher.sweep() });
 
-  const listenPath = process.env.LAUNCHER_SOCKET?.trim() || defaultListenPath();
+  const listenPath = listenPathFromEnv();
   if (process.platform !== "win32" && existsSync(listenPath)) unlinkSync(listenPath);
   const server = createLauncherServer({ launcher, docker, image: cfg.image, log, redact: redactor(cfg.metaApiKey) });
   server.listen(listenPath, () => {

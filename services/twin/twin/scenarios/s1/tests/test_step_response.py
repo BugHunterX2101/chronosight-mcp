@@ -35,3 +35,8 @@ def test_settling_time(case):
 
 def test_steady_state_error(case):
     assert case["sse"] <= OBJ["sseMax"], f"steady-state error {case['sse']:.5f} rad"
+
+
+def test_encoder_filter_after_every_reset(case):
+    # DESIGN §20.2 and errata E-3 (p. 58): every reset clears FILT, so it must be rewritten each time.
+    assert case["filtOffMs"] == 0, f"encoder filter off for {case['filtOffMs']:.0f} ms; rewrite FILT after every reset"

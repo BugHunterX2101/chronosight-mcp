@@ -19,7 +19,7 @@ import type { Prefix } from "../prefix.ts";
 import { costOf, type Prices } from "../budget.ts";
 import type { PerceiveInput, PerceiveResult } from "../sam/client.ts";
 import { telemetrySummary } from "../telemetry.ts";
-import { isPatchFailure, type BoundsResult, type MetricsResult, type TwinClient } from "../twin.ts";
+import { isPatchFailure, type BoundsResult, type KeyFrame, type MetricsResult, type TwinClient } from "../twin.ts";
 import { scoreJ, type PatchCandidate, type PatchSynthesizer } from "../muse/types.ts";
 
 /** §8.1 timeouts in milliseconds. */
@@ -67,7 +67,7 @@ export interface RunDeps {
   dataDir: string;
   prefix: Prefix;
   prices: Prices;
-  twin: Pick<TwinClient, "render" | "metrics" | "visualTest" | "patchLoad">;
+  twin: Pick<TwinClient, "render" | "metrics" | "keyFrames" | "visualTest" | "patchLoad">;
   sam: { perceive(input: PerceiveInput): Promise<PerceiveResult> };
   diagnose: (input: DiagnoseInput, emit: (kind: "summary" | "progress", text: string) => void) => Promise<DiagnoseResult>;
   reviewRisk: (input: RiskInput) => Promise<RiskResult>;
@@ -85,6 +85,8 @@ export interface RunDeps {
   timeouts?: Partial<Timeouts>;
   /** Patch candidates per attempt (§18.10: 1–3). */
   candidates?: number;
+  /** POST /perceive `concepts[]`: slugs from the scenario's plan; absent or null for the whole plan. */
+  concepts?: readonly string[] | null;
   /** Replays auto-advance AWAITING_QUESTION with the recorded intent (ST-5). */
   replayIntent?: string | null;
   mediaUrl?: (absPath: string) => string;
@@ -169,6 +171,32 @@ export function assertPatchAuthorized(
   }
 }
 
+/** The roles measurement cannot do without (DESIGN §14.1 pre-check): the fault track and the two reference markers. */
+const MEASURED_ROLES = ["fault", "refs"] as const;
+
+/**
+ * POST /perceive `concepts[]?` (TECHNICAL §7.1) against the scenario's plan (DESIGN §12.1). The
+ * client names concepts by slug, never by prompt text, so nothing it sends reaches SAM as a prompt.
+ * Omitted means the whole plan. A selection keeps plan order and each concept's plan index, which
+ * is the `conceptIdx` of every track key and how the twin looks up the role. It must keep the
+ * roles measurement needs, so dropping only `context` concepts is allowed (DESIGN §30.2 item 6).
+ */
+export function selectConcepts<C extends { slug: string; role: string }>(
+  plan: readonly C[], slugs?: readonly string[] | null,
+): (C & { idx: number })[] {
+  const all = plan.map((c, idx) => ({ ...c, idx }));
+  if (!slugs) return all;
+  const planned = plan.map((c) => c.slug);
+  const unknown = slugs.filter((s) => !planned.includes(s));
+  if (unknown.length) throw new RunError("BAD_REQUEST", `unknown concept ${unknown.join(", ")}; this scenario plans ${planned.join(", ")}`);
+  if (new Set(slugs).size !== slugs.length) throw new RunError("BAD_REQUEST", "a concept is named more than once");
+  const picked = all.filter((c) => slugs.includes(c.slug));
+  for (const role of MEASURED_ROLES) {
+    if (!picked.some((c) => c.role === role)) throw new RunError("BAD_REQUEST", `measurement needs the ${role} concept`);
+  }
+  return picked;
+}
+
 /** Lowest J wins; ties go to the smaller diff (§18.10). Only candidates that pass every check compete. */
 export function selectCandidate(cands: PatchCandidate[], objectives: Diagnosis["patchSpec"]["objectives"]): PatchCandidate | null {
   const ok = cands.filter((c) => !c.failure && c.boundsCheck.ok && c.tests.total > 0 && c.tests.passed === c.tests.total && c.tests.metrics);
@@ -202,7 +230,11 @@ export class RunDriver {
   private request: string | null = null;
   private pre: ClipState | null = null;
   private preMetrics: MetricsResult | null = null;
+  /** D3 for every diagnosis of this run: built once from the pre clip (§16.1). */
+  private keyFrames: KeyFrame[] | null = null;
   private patchId: string | null = null;
+  /** This attempt's candidate ids, minted before PATCHING is entered (TECHNICAL §7.1). */
+  private patchIds: string[] = [];
   private verdict: VisualTestResult | null = null;
   private runUsd = 0;
   private overrun = false;
@@ -214,11 +246,18 @@ export class RunDriver {
   private nextDiagnosisId: string | null = null;
   private nextEscalate = false;
   private running = false;
+  /** The concepts SAM is asked for on both clips, with their plan indices. */
+  private readonly conceptSet: { idx: number; slug: string; prompt: string }[];
+  /** "" for the whole plan; otherwise a clip id suffix naming the plan indices used. */
+  private readonly conceptTag: string;
 
   constructor(deps: RunDeps) {
     this.d = deps;
     this.t = { ...DEFAULT_TIMEOUTS, ...deps.timeouts };
     this.now = deps.now ?? Date.now;
+    const plan = deps.prefix.scenario.concepts;
+    this.conceptSet = selectConcepts(plan, deps.concepts).map(({ idx, slug, prompt }) => ({ idx, slug, prompt }));
+    this.conceptTag = this.conceptSet.length === plan.length ? "" : `-c${this.conceptSet.map((c) => c.idx).join("")}`;
   }
 
   get state(): RunState {
@@ -229,9 +268,13 @@ export class RunDriver {
     return this.cursor.attempt;
   }
 
-  /** The selected candidate of the current attempt, once patching has picked one. */
-  get currentPatchId(): string | null {
-    return this.patchId;
+  /**
+   * What POST /patch answers (TECHNICAL §7.1): candidate 1's id, which exists from the moment
+   * PATCHING is entered and stays the same for the attempt, whichever candidate is later selected.
+   * The other candidates' ids arrive on `patch.progress`.
+   */
+  get leadPatchId(): string | null {
+    return this.patchIds[0] ?? null;
   }
 
   /** Which messages the driver will take right now ("stop" is always taken until the run ends). */
@@ -385,7 +428,7 @@ export class RunDriver {
   }
 
   private concepts() {
-    return this.d.prefix.scenario.concepts.map((c, idx) => ({ idx, slug: c.slug, prompt: c.prompt }));
+    return this.conceptSet;
   }
 
   private samCost(res: PerceiveResult, frames: number): number {
@@ -412,8 +455,9 @@ export class RunDriver {
     if (isPatchFailure(r)) throw new RunError("BASELINE_FAILED", r.detail);
     if (!r.cacheKey) throw new RunError("BASELINE_FAILED", "twin returned no baseline cache key");
     // FR-PER-7: the baseline's perception is keyed by its render cache key, so a cached
-    // render reuses its masks and never spends SAM calls twice.
-    const clipId = `bl-${r.cacheKey}`;
+    // render reuses its masks and never spends SAM calls twice. A concept subset is its own
+    // cache entry, so its masks never stand in for the whole plan's.
+    const clipId = `bl-${r.cacheKey}${this.conceptTag}`;
     this.pre = {
       clipId, absPath: this.abs(r.clipPath), groundTruthPath: this.abs(r.groundTruthPath),
       csmkPath: `masks/${clipId}.csmk`, frames: r.frames, fps: r.fps,
@@ -502,6 +546,8 @@ export class RunDriver {
       assertPatchAuthorized(this.cursor.state, decision.payload, this.current && {
         diagnosisId: this.current.diagnosisId, patchSpecHash: this.current.diagnosis.patchSpecHash,
       });
+      // Minted in the same tick as the transition, so no caller ever sees PATCHING without an id.
+      this.patchIds = Array.from({ length: this.candidateCount() }, () => `pat_${ulid()}`);
       this.go("PATCHING", "step 2 confirmed");
       const cand = await this.patchStage(prior);
       if (typeof cand === "string") { prior = cand; continue; }
@@ -544,6 +590,7 @@ export class RunDriver {
     this.d.gate.invalidateAll();
     this.current = null;
     this.patchId = null;
+    this.patchIds = [];
     this.go("DIAGNOSING", prior ? "retry with feedback" : "question received");
     const diagnosisId = this.nextDiagnosisId ?? `dia_${ulid()}`;
     this.nextDiagnosisId = null;
@@ -552,11 +599,12 @@ export class RunDriver {
     const m = this.preMetrics!;
     // D2 names the clip by its stable label, never the per-render ID, so replays match (§16.3).
     const telemetry = telemetrySummary({ ...m, clipId: `${this.d.scenarioId}-baseline-${this.d.seed}` }, this.d.prefix.scenario);
+    const keyFrames = await this.preKeyFrames(diagnosisId);
     this.billed();
     const res = await this.within(null, "DIAGNOSIS_TIMEOUT", "FAILED", () =>
       this.d.diagnose(
         {
-          prefix: this.d.prefix, dataClass: this.dataClass, telemetry, request: this.request!, priorAttempt: prior, diagnosisId, escalate,
+          prefix: this.d.prefix, dataClass: this.dataClass, telemetry, keyFrames, request: this.request!, priorAttempt: prior, diagnosisId, escalate,
           run: {
             contribFailures: this.contribFailures,
             budgetRemainingUsd: () => this.budgetRemaining,
@@ -582,6 +630,31 @@ export class RunDriver {
     this.charge(res.costUsd);
     this.go("AWAITING_APPROVAL_1", "diagnosis ready");
     return true;
+  }
+
+  /**
+   * D3 (FR-DIA-2): the pre clip's key frames with mask outlines, built by the twin from the
+   * masks already ingested. If the twin cannot build them the diagnosis goes ahead on
+   * telemetry and documents, and says so in its progress lines.
+   */
+  private async preKeyFrames(diagnosisId: string): Promise<KeyFrame[]> {
+    if (this.keyFrames) return this.keyFrames;
+    const pre = this.pre!;
+    try {
+      const r = await this.d.twin.keyFrames({
+        clipId: pre.clipId, scenarioId: this.d.scenarioId, clipPath: pre.absPath, csmkPath: pre.csmkPath, nFrames: pre.frames,
+      });
+      this.keyFrames = r.frames;
+      this.d.emit("diagnosis.delta", {
+        diagnosisId, kind: "progress", text: `Attaching ${r.frames.length} key frames (${r.frames.map((f) => `${f.role} #${f.frameIdx}`).join(", ")})…`,
+      });
+      return r.frames;
+    } catch (e) {
+      if (e instanceof Stopped) throw e;
+      this.d.log?.(`key frames unavailable: ${errMsg(e)}`);
+      this.d.emit("diagnosis.delta", { diagnosisId, kind: "progress", text: "Key frames unavailable; diagnosing from telemetry and documents…" });
+      return [];
+    }
   }
 
   private async runRiskReview(diff: { unifiedDiff: string; diffHash: string } | null): Promise<RiskResult | null> {
@@ -706,10 +779,15 @@ export class RunDriver {
     }
   }
 
+  /** FR-PAT-5: 1–3 independent candidates per attempt. */
+  private candidateCount(): number {
+    return Math.min(3, Math.max(1, this.d.candidates ?? 1));
+  }
+
   /** ST-9. Returns the winning candidate, or the D5 feedback string after moving back to DIAGNOSING's predecessor. */
   private async patchStage(prior: string | null): Promise<PatchCandidate | string> {
     const cur = this.current!;
-    const n = Math.min(3, Math.max(1, this.d.candidates ?? 1));
+    const n = this.patchIds.length;
     const spec = cur.diagnosis.patchSpec;
     // The 120 s per candidate is the Muse turn (§18.5); the harness allowance covers the
     // sandbox launches and the independent tests around it (§18.9).
@@ -718,7 +796,7 @@ export class RunDriver {
     const cands = await this.within(budget, "PATCH_TIMEOUT", null, (signal) =>
       this.d.synth.synthesize({
         runId: this.d.runId, scenario: this.d.prefix.scenario, diagnosis: cur.diagnosis, attempt: this.cursor.attempt,
-        dataClass: taintOf(this.dataClass, cur.diagnosis.dataClass), priorFailure: prior, candidates: n, signal,
+        dataClass: taintOf(this.dataClass, cur.diagnosis.dataClass), priorFailure: prior, patchIds: this.patchIds, signal,
         onProgress: (p) => this.d.emit("patch.progress", p),
         audit: (kind, data) => void this.d.audit(kind, data),
       }));

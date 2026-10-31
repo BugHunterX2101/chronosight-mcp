@@ -31,6 +31,8 @@ export interface HarnessMetrics {
   overshootPct: number | null;
   settleSec: number | null;
   sse: number | null;
+  /** S1: ms of warm-up and clip with the encoder filter off; 0 when FILT is rewritten after every reset (DESIGN §20.2) */
+  filtOffMs?: number | null;
   error: string | null;
 }
 

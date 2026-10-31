@@ -10,6 +10,7 @@ import { type Prefix, promptCacheKey } from "./prefix.ts";
 import { Breaker, backoffDelayMs, cacheRetention, route, type Route, type RoutingConfig } from "./router.ts";
 import { intersectBounds, sanitizeHints, verifyCitation } from "./citations.ts";
 import { costOf, type Prices } from "./budget.ts";
+import type { KeyFrame } from "./twin.ts";
 
 export const ATTEMPT_TIMEOUT_MS = 90_000;
 const NETWORK_ATTEMPTS = 3;
@@ -19,6 +20,8 @@ export interface DiagnoseInput {
   dataClass: DataClass;
   /** D2: canonical telemetry summary (§13) */
   telemetry: Record<string, unknown>;
+  /** D3: 2–4 key frames with mask outlines drawn (FR-DIA-2) */
+  keyFrames?: KeyFrame[];
   /** D4: an intent token (PUBLIC) or free text (CONFIDENTIAL) */
   request: string;
   /** D5: failed-verdict reasons or a traceback from a previous loop attempt */
@@ -92,7 +95,13 @@ function openBreakers(deps: DiagnoseDeps): Set<string> {
 export function buildRequest(input: DiagnoseInput, r: Route, routing: RoutingConfig, feedback: string[]): Record<string, unknown> {
   const { prefix } = input;
   const text = (t: string) => ({ type: "input_text", text: t });
-  const dynamic = [text(`<<telemetry>>\n${jcs(input.telemetry)}\n`), text(`<<request dataClass=${input.dataClass}>>\n${input.request}\n`)];
+  // D2, D3, D4, D5 in the §16.3 order, all after the cache boundary.
+  const dynamic: Record<string, unknown>[] = [text(`<<telemetry>>\n${jcs(input.telemetry)}\n`)];
+  for (const f of input.keyFrames ?? []) {
+    dynamic.push(text(`<<frame=${f.frameIdx} role=${f.role} displacementPx=${f.displacementPx} outlined=${f.objects.join(",")}>>\n`));
+    dynamic.push({ type: "input_image", image_url: `data:${f.mime};base64,${f.dataBase64}` });
+  }
+  dynamic.push(text(`<<request dataClass=${input.dataClass}>>\n${input.request}\n`));
   const d5 = [input.priorAttempt ?? "", ...feedback].filter(Boolean);
   if (d5.length) dynamic.push(text(`<<prior attempt>>\n${d5.join("\n")}\n`));
   return {

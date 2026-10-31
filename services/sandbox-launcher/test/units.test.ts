@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Demuxer } from "../src/docker.ts";
 import { BWRAP_SYSCALLS, hostConfig, LaunchError, Launcher, synthesisSeccomp, type LauncherConfig } from "../src/launcher.ts";
-import { configFromEnv, museServeArgv, redactor } from "../src/server.ts";
+import { configFromEnv, listenPathFromEnv, museServeArgv, redactor } from "../src/server.ts";
 import { tar } from "../src/tar.ts";
 
 const cfg: LauncherConfig = {
@@ -191,5 +191,23 @@ describe("server config", () => {
   it("redacts the key everywhere it appears", () => {
     expect(redactor("s3cret")("a s3cret b s3cret")).toBe("a [REDACTED] b [REDACTED]");
     expect(redactor(null)("s3cret")).toBe("s3cret");
+  });
+});
+
+describe("LAUNCHER_SOCKET (TECHNICAL §9.1)", () => {
+  it("takes a named pipe on Windows and an absolute socket path elsewhere", () => {
+    const pipe = String.raw`\\.\pipe\chronosight-launcher`;
+    expect(listenPathFromEnv({ LAUNCHER_SOCKET: pipe }, "win32")).toBe(pipe);
+    expect(listenPathFromEnv({ LAUNCHER_SOCKET: "/run/launcher/launcher.sock" }, "linux")).toBe("/run/launcher/launcher.sock");
+  });
+
+  it("falls back to the platform default when unset or blank", () => {
+    expect(listenPathFromEnv({}, "win32")).toBe(String.raw`\\.\pipe\chronosight-launcher`);
+    expect(listenPathFromEnv({ LAUNCHER_SOCKET: " " }, "linux")).toBe("/run/launcher/launcher.sock");
+  });
+
+  it("refuses a pipe that lost a backslash, and a relative socket path", () => {
+    expect(() => listenPathFromEnv({ LAUNCHER_SOCKET: String.raw`\.\pipe\chronosight-launcher` }, "win32")).toThrow(/named pipe/);
+    expect(() => listenPathFromEnv({ LAUNCHER_SOCKET: "launcher.sock" }, "linux")).toThrow(/absolute/);
   });
 });

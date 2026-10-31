@@ -7,8 +7,22 @@ import { connect, type Socket } from "node:net";
 
 const HEADER_LIMIT = 16 * 1024;
 
-export function launcherSocketPath(env: NodeJS.ProcessEnv = process.env): string {
-  return env.LAUNCHER_SOCKET?.trim() || (process.platform === "win32" ? "\\\\.\\pipe\\chronosight-launcher" : "/run/launcher/launcher.sock");
+const PIPE_RE = /^\\\\[.?]\\pipe\\[^\\/]+$/;
+
+/**
+ * LAUNCHER_SOCKET (TECHNICAL §9.1): a named pipe on Windows, an absolute Unix socket path elsewhere,
+ * or unset for the platform default. Anything else fails here, at startup, rather than as a
+ * connect error on the first patch; a pipe path that lost a backslash is the usual culprit.
+ */
+export function launcherSocketPath(env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string {
+  const v = env.LAUNCHER_SOCKET?.trim();
+  if (!v) return platform === "win32" ? "\\\\.\\pipe\\chronosight-launcher" : "/run/launcher/launcher.sock";
+  const ok = platform === "win32" ? PIPE_RE.test(v) : v.startsWith("/");
+  if (!ok) {
+    const want = platform === "win32" ? String.raw`a named pipe such as \\.\pipe\chronosight-launcher` : "an absolute Unix socket path";
+    throw new Error(`LAUNCHER_SOCKET must be ${want}, got ${JSON.stringify(v)}`);
+  }
+  return v;
 }
 
 /** Connects and upgrades. Resolves with the raw socket and any bytes that followed the 101. */

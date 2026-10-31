@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { diagnose, type DiagnoseInput, type RunRouting } from "../src/diagnosis.ts";
+import { buildRequest, diagnose, type DiagnoseInput, type RunRouting } from "../src/diagnosis.ts";
 import { MetaClient, MetaError, type ResponseEvent } from "../src/meta.ts";
 import { buildPrefix } from "../src/prefix.ts";
 import { loadPrices } from "../src/budget.ts";
@@ -146,6 +146,32 @@ describe("diagnosis retries and spill (§16.8, §21.3)", () => {
     const { meta, input, deps } = setup([new MetaError("HTTP_400", "bad request", 400)]);
     await expect(diagnose(deps, input)).rejects.toMatchObject({ code: "DIAGNOSIS_REJECTED" });
     expect(meta.models()).toEqual([CONTRIB]);
+  });
+});
+
+describe("request layout (§16.3)", () => {
+  it("puts D3 key frames after the telemetry and before the request, outside the cached prefix", () => {
+    const frame = (frameIdx: number, role: "max" | "min" | "zero") => ({
+      frameIdx, role, displacementPx: 1, objects: ["forearm", "marker"], width: 768, height: 432, mime: "image/jpeg" as const, dataBase64: `F${frameIdx}`,
+    });
+    const input: DiagnoseInput = {
+      prefix, dataClass: "PUBLIC", telemetry: { clipId: "s1-baseline-7" }, request: "explain_fault",
+      keyFrames: [frame(144, "min"), frame(146, "zero"), frame(148, "max")],
+    };
+    const r = route(routing, "diagnosis.routine", "PUBLIC", { contribFailures: 0, openBreakers: new Set() });
+    const body = buildRequest(input, r, routing, []);
+    const items = body.input as { content: { type: string; text?: string; image_url?: string }[] }[];
+    const dynamic = items.at(-1)!.content;
+    expect(dynamic.map((c) => c.type)).toEqual([
+      "input_text", "input_text", "input_image", "input_text", "input_image", "input_text", "input_image", "input_text",
+    ]);
+    expect(dynamic[0]!.text).toMatch(/^<<telemetry>>/);
+    expect(dynamic[1]!.text).toContain("<<frame=144 role=min");
+    expect(dynamic[2]!.image_url).toBe("data:image/jpeg;base64,F144");
+    expect(dynamic.at(-1)!.text).toMatch(/^<<request dataClass=PUBLIC>>/);
+    // The prefix is byte-identical with or without frames, so the cache key holds.
+    const without = buildRequest({ ...input, keyFrames: [] }, r, routing, []);
+    expect(JSON.stringify((without.input as unknown[]).slice(0, -1))).toBe(JSON.stringify(items.slice(0, -1)));
   });
 });
 

@@ -12,7 +12,6 @@ import { readdirSync, readFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ulid } from "ulid";
 import {
   MuseClient, MuseHostDiedError, readSessionDurability, spawnMspConnection,
   type ApprovalDecisionInput, type ApprovalHandler, type Connection, type Session, type Turn, type TurnOutcome,
@@ -184,8 +183,10 @@ export function harnessSummary(run: Pick<TestRun, "junitXml" | "metrics">, spec:
   const head = `Independent step test of ${what}: ${passed}/${total} tests passed`;
   if (!m) return `${head}; no step metrics (${run.metrics?.error ?? "none reported"}).`;
   const o = spec.objectives;
+  const off = run.metrics?.filtOffMs;
+  const filt = off ? ` The encoder filter was off for ${Math.round(off)} ms; FILT must be rewritten after every reset (errata E-3).` : "";
   return `${head}; worst case over the test seeds: overshoot ${m.overshootPct.toFixed(2)} % (limit ${o.overshootPctMax}), ` +
-    `settling ${m.settleSec.toFixed(3)} s (limit ${o.settleSecMax}), steady-state error ${m.sse.toPrecision(3)} rad (limit ${o.sseMax}).`;
+    `settling ${m.settleSec.toFixed(3)} s (limit ${o.settleSecMax}), steady-state error ${m.sse.toPrecision(3)} rad (limit ${o.sseMax}).${filt}`;
 }
 
 /** passed/total from the junit report's <testsuite> counters. */
@@ -257,7 +258,8 @@ export class MuseSynthesizer implements PatchSynthesizer {
   }
 
   async synthesize(req: SynthRequest): Promise<PatchCandidate[]> {
-    const n = Math.min(3, Math.max(1, req.candidates));
+    const n = req.patchIds.length;
+    if (n < 1 || n > 3) throw new Error(`1-3 candidates, got ${n}`);
     const width = Math.min(n, this.d.concurrency ?? Math.min(3, Math.max(1, Math.floor(availableParallelism() / 2))));
     const out: PatchCandidate[] = [];
     let next = 0;
@@ -275,7 +277,7 @@ export class MuseSynthesizer implements PatchSynthesizer {
     const spec = req.diagnosis.patchSpec;
     const model = pinnedModel(req.dataClass);
     const c: PatchCandidate = {
-      patchId: `pat_${ulid()}`, candidate: index, model, files: {}, unifiedDiff: "", diffHash: "",
+      patchId: req.patchIds[index - 1]!, candidate: index, model, files: {}, unifiedDiff: "", diffHash: "",
       tests: { passed: 0, total: 0, metrics: null }, boundsCheck: { ok: false, code: null, details: [] }, failure: null, usage: null,
     };
     const live: Live = { client: null, connection: null, containers: new Set(), closed: false, lastTests: null, usage: new Map() };

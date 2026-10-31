@@ -63,7 +63,7 @@ async function make(o: { live?: boolean; cap?: number; perHour?: number; admin?:
   ledger.boot();
   const app = await buildApp({
     ledger, dataDir, signingKey: "s".repeat(40), adminToken: o.admin === undefined ? ADMIN : o.admin,
-    publicOrigins: [ORIGIN], sessionTtlMs: 3_600_000, scenarios: ["s1"], runDeps: runDeps(dataDir), now: o.now,
+    publicOrigins: [ORIGIN], sessionTtlMs: 3_600_000, scenarios: ["s1"], conceptPlan: () => buildPrefix("s1").scenario.concepts, runDeps: runDeps(dataDir), now: o.now,
   });
   cleanups.push(async () => {
     await app.close();
@@ -194,6 +194,28 @@ describe("live runs and the budget (§6.8, §22.3)", () => {
       expect(r.statusCode).toBe(409);
       expect(r.json().code).toBe("STATE_CONFLICT");
     }
+  });
+
+  it("checks concepts[] against the scenario plan before reserving, and takes a subset that keeps fault and refs", async () => {
+    const { app, ledger } = await make({ perHour: 1 });
+    const { id, cookie } = await session(app);
+    const perceive = (payload: object) => app.inject({ method: "POST", url: `/api/sessions/${id}/perceive`, headers: { ...json, cookie }, payload });
+    for (const [payload, msg] of [
+      [{ concepts: ["forearm", "marker", "wheel"] }, /unknown concept wheel/],
+      [{ concepts: ["forearm", "elbow"] }, /needs the refs concept/],
+      [{ concepts: ["forearm", "forearm", "marker"] }, /more than once/],
+      [{ concepts: ["orange robot arm segment"] }, /concepts/],
+      [{ clipId: "clp_01J9ZQ4V6W8X0Y2Z3A4B5C6D7E" }, /byo session/],
+    ] as const) {
+      const r = await perceive(payload);
+      expect(r.statusCode).toBe(400);
+      expect(r.json()).toMatchObject({ code: "BAD_REQUEST" });
+      expect(r.json().message).toMatch(msg);
+    }
+    // None of the refusals used the visitor's one live run.
+    expect(ledger.totals().reservedUsd).toBe(0);
+    const ok = await perceive({ concepts: ["marker", "forearm"] });
+    expect(ok.statusCode).toBe(202);
   });
 
   it("refuses with LIVE_PAUSED while the kill switch is off", async () => {

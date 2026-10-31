@@ -47,6 +47,8 @@ export interface Metrics {
   overshootPct: number | null;
   settleSec: number | null;
   sse: number | null;
+  /** S1: ms of warm-up and clip with the encoder filter off (sim_harness/step.py) */
+  filtOffMs?: number | null;
   error: string | null;
 }
 

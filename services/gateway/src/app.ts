@@ -14,7 +14,7 @@ import { ulid } from "ulid";
 import { z } from "zod";
 import { coalesceKey, isTerminal, type Envelope, type RunState } from "@chronosight/run-model";
 import { RESERVE_USD, type BudgetLedger } from "./ledger.ts";
-import { RunDriver, type RunDeps } from "./orchestrator/run.ts";
+import { RunDriver, selectConcepts, type RunDeps } from "./orchestrator/run.ts";
 import { Session, type SessionMode } from "./session.ts";
 import { ApiError, toApiError } from "./http/errors.ts";
 
@@ -38,6 +38,8 @@ export interface RunContext {
   sessionId: string;
   runId: string;
   scenarioId: string;
+  /** POST /perceive `concepts[]`, already checked against the plan; null for the whole plan. */
+  concepts: readonly string[] | null;
   emit: RunDeps["emit"];
   audit: RunDeps["audit"];
   charge: RunDeps["charge"];
@@ -54,6 +56,8 @@ export interface AppOptions {
   sessionTtlMs: number;
   /** Scenario ids a session may name; the first is the default. */
   scenarios: readonly string[];
+  /** Each scenario's concept plan (DESIGN §12.1), which POST /perceive `concepts` is checked against. */
+  conceptPlan: (scenarioId: string) => readonly { slug: string; role: string }[];
   runDeps: (c: RunContext) => RunDeps;
   /** Readiness of the gateway's dependencies (twin, launcher): the problems found, none when ready. */
   ready?: () => Promise<string[]>;
@@ -69,7 +73,7 @@ const SessionBody = z.strictObject({
 });
 const PerceiveBody = z.strictObject({
   clipId: z.string().regex(ID_RE).optional(),
-  concepts: z.array(z.string().min(1).max(64)).max(8).optional(),
+  concepts: z.array(z.string().regex(/^[a-z0-9_-]{1,32}$/)).min(1).max(8).optional(),
 });
 const DiagnoseBody = z.strictObject({
   transcript: z.string().min(1).max(2000).optional(),
@@ -262,8 +266,12 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     if (s.mode === "replay") throw new ApiError("STATE_CONFLICT", "a replay session plays a recorded run; it starts no live run");
     if (s.mode === "byo") throw new ApiError("STATE_CONFLICT", "upload a clip first (POST /clips)");
     if (s.run) throw new ApiError("STATE_CONFLICT", s.busy ? "a run is already active" : "this session's run has ended; start a new session");
-    if (b.clipId) throw new ApiError("BAD_REQUEST", "a live run captures the scenario baseline; clipId names an uploaded clip");
-    if (b.concepts) throw new ApiError("BAD_REQUEST", "a live run perceives the scenario's concept plan; custom concepts apply to uploaded clips");
+    // A live run renders its own baseline after the run exists, so there is no clip to name yet;
+    // clipId names an uploaded clip, which only a byo session has (POST /clips).
+    if (b.clipId) throw new ApiError("BAD_REQUEST", "a live run renders the scenario baseline itself; clipId names a clip uploaded to a byo session");
+    // Checked before reserve() so a bad selection never spends a live-run slot.
+    const concepts = b.concepts ?? null;
+    selectConcepts(o.conceptPlan(s.scenarioId), concepts);
 
     const runId = `run_${ulid()}`;
     const r = o.ledger.reserve(s.visitorKey, runId);
@@ -274,7 +282,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     let driver: RunDriver;
     try {
       driver = new RunDriver(o.runDeps({
-        sessionId: s.id, runId, scenarioId: s.scenarioId,
+        sessionId: s.id, runId, scenarioId: s.scenarioId, concepts,
         emit: (type, data) => s.emit(runId, type, data),
         audit: (kind, data) => s.audit.append(runId, kind, data, now()).seq,
         charge: (usd) => {
@@ -339,8 +347,8 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     const d = driverOf(s);
     if (d.state !== "PATCHING") throw new ApiError("STATE_CONFLICT", `patch is not accepted in ${d.state}`);
     // The orchestrator starts patching itself after step 2; this call reports it (idempotent).
-    // patchId stays null until a candidate is selected.
-    return reply.code(202).send({ patchId: d.currentPatchId });
+    // The id is minted before PATCHING is entered, so it is never null here.
+    return reply.code(202).send({ patchId: d.leadPatchId });
   });
 
   app.post("/api/runs/:runId/cancel", async (req) => {

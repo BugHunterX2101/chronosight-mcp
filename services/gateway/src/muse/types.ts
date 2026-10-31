@@ -47,7 +47,11 @@ export interface SynthRequest {
   dataClass: DataClass;
   /** D5 for later attempts: why the previous candidate failed (§18.8 item 5) */
   priorFailure: string | null;
-  candidates: number;
+  /**
+   * One id per candidate, 1–3, minted by the orchestrator before it enters PATCHING so that
+   * POST /patch can answer with a patchId before any candidate exists (TECHNICAL §7.1).
+   */
+  patchIds: readonly string[];
   signal: AbortSignal;
   onProgress: (p: { patchId: string; candidate: number; filesTouched: string[]; testsRun: number; message: string }) => void;
   /** the run's audit log: approvals, decisions, resolutions and turn terminals (§18.4, §18.12) */
