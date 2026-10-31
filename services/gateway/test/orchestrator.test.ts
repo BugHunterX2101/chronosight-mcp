@@ -39,7 +39,7 @@ function candidate(over: Partial<PatchCandidate> = {}): PatchCandidate {
     patchId: "p1", candidate: 1, model: "synthetic", files: { "controller.py": "x = 1\n" },
     unifiedDiff: "--- a\n+++ b\n", diffHash: "sha256:d1",
     tests: { passed: 3, total: 3, metrics: { overshootPct: 5, settleSec: 0.5, sse: 0.1 } },
-    boundsCheck: { ok: true, code: null, details: [] }, failure: null, ...over,
+    boundsCheck: { ok: true, code: null, details: [] }, failure: null, usage: null, ...over,
   };
 }
 
@@ -115,6 +115,7 @@ interface HarnessOpts {
   step1?: ({ kind: "approve"; note?: string } | { kind: "reject"; note: string } | { kind: "none" })[];
   /** null: wait for an `ask` message instead of replaying an intent. */
   intent?: string | null;
+  charge?: RunDeps["charge"];
 }
 
 function harness(opts: HarnessOpts = {}): Harness {
@@ -183,7 +184,7 @@ function harness(opts: HarnessOpts = {}): Harness {
       audits.push({ kind, data: data as Record<string, unknown> });
       return audits.length;
     },
-    charge: () => ({ sessionUsd: 0, budgetRemainingUsd: 0.6 }),
+    charge: opts.charge ?? (() => ({ sessionUsd: 0, budgetRemainingUsd: 0.6 })),
     replayIntent: opts.intent === undefined ? "intent=explain_fault" : opts.intent,
   };
   const driver = new RunDriver(deps);
@@ -283,5 +284,31 @@ describe("run loop", () => {
     const out = await run;
     expect(out.taint).toBe("CONFIDENTIAL");
     expect(h.diagnoses[0]!.dataClass).toBe("CONFIDENTIAL");
+  });
+
+  it("uses the diagnosisId the caller was given with the question", async () => {
+    const h = harness({ intent: null });
+    const run = h.driver.drive();
+    while (h.driver.state !== "AWAITING_QUESTION") await new Promise((r) => setTimeout(r, 5));
+    await h.driver.submit({ kind: "ask", request: "intent=explain_fault", diagnosisId: "dia_01JBCALLERGIVENXXXXXXXXXXX" });
+    await run;
+    expect(h.diagnoses[0]!.diagnosisId).toBe("dia_01JBCALLERGIVENXXXXXXXXXXX");
+  });
+
+  it("a run that spends past its reservation aborts at the next state boundary (§22.3)", async () => {
+    let spent = 0;
+    const h = harness({ charge: (usd) => ({ sessionUsd: (spent += usd), budgetRemainingUsd: 0, overReserve: true }) });
+    const out = await h.driver.drive();
+    expect(out.state).toBe("ABORTED");
+    // The diagnosis is the first billed call; the run stops right after the next transition.
+    expect(h.states()).toEqual([
+      "CAPTURING", "PERCEIVING_PRE", "MEASURING_PRE", "AWAITING_QUESTION", "DIAGNOSING", "AWAITING_APPROVAL_1", "ABORTED",
+    ]);
+    // Nothing billed and no approval token after the boundary: the risk review never starts.
+    const at = h.events.findIndex((e) => e.type === "run.state" && e.data.to === "AWAITING_APPROVAL_1");
+    expect(h.events.slice(at).map((e) => e.type)).toEqual(["run.state", "error", "run.state"]);
+    const err = h.events.find((e) => e.type === "error")!.data;
+    expect(err).toMatchObject({ code: "BUDGET_OVERRUN", retryable: false, stage: "AWAITING_APPROVAL_1" });
+    expect(h.events.at(-1)!.data).toMatchObject({ to: "ABORTED", reason: "BUDGET_OVERRUN" });
   });
 });

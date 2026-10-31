@@ -20,8 +20,11 @@ const EDGES: Readonly<Record<RunState, readonly RunState[]>> = {
   DIAGNOSING: ["AWAITING_APPROVAL_1", "FAILED"],
   AWAITING_APPROVAL_1: ["AWAITING_APPROVAL_2", "DIAGNOSING"],
   AWAITING_APPROVAL_2: ["PATCHING", "AWAITING_APPROVAL_1"],
-  PATCHING: ["SIMULATING_POST", "DIAGNOSING"],
-  SIMULATING_POST: ["PERCEIVING_POST", "DIAGNOSING"],
+  // FAILED here is §8's "→ DIAGNOSING → FAILED (attempts exhausted)" taken in one step: with
+  // every attempt spent, entering DIAGNOSING again is refused (invariant 3), so the run fails
+  // where it stands, as VERDICT_FAIL does (§16.8 "FAILED after 3 attempts").
+  PATCHING: ["SIMULATING_POST", "DIAGNOSING", "FAILED"],
+  SIMULATING_POST: ["PERCEIVING_POST", "DIAGNOSING", "FAILED"],
   PERCEIVING_POST: ["MEASURING_POST"],
   MEASURING_POST: ["PASSED", "VERDICT_FAIL"],
   VERDICT_FAIL: ["DIAGNOSING", "FAILED"],

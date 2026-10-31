@@ -46,6 +46,8 @@ export interface Health {
   contribFailures: number;
   /** models whose breaker is open */
   openBreakers: ReadonlySet<string>;
+  /** §21.3 "if the budget allows": false keeps a failing Contributor primary (the caller queues as busy) */
+  spillAllowed?: boolean;
 }
 
 export interface Route {
@@ -101,7 +103,7 @@ export function route(
   }
   const reason = taskId === "diagnosis.user" ? "confidential input" : taskId === "diagnosis.escalated" ? "escalated" : "routine";
   const primaryDown = health.openBreakers.has(row.primary.model)
-    || (isContributor(row.primary.model) && health.contribFailures >= SPILL_AFTER);
+    || (isContributor(row.primary.model) && health.contribFailures >= SPILL_AFTER && health.spillAllowed !== false);
   if (primaryDown && row.fallback) {
     const why = health.openBreakers.has(row.primary.model) ? "breaker open" : `spilled after ${SPILL_AFTER} Contributor failures`;
     return guard(toRoute(row.fallback, `${reason}; ${why}`), dataClass, log);
@@ -147,9 +149,21 @@ export class Breaker {
     return false;
   }
 
+  /** Calls are refused right now: open, or half-open with the one probe in flight. */
+  blocked(): boolean {
+    const s = this.state();
+    return s === "open" || (s === "half_open" && this.probing);
+  }
+
   success(): void {
     this.failures = [];
     this.openedAt = null;
+    this.probing = false;
+  }
+
+  /** A call failed without a 5xx (timeout, 429, network): it says nothing about the breaker, but a
+   *  half-open probe is over, so the next call may probe again. */
+  release(): void {
     this.probing = false;
   }
 

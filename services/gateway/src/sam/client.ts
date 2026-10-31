@@ -137,7 +137,7 @@ export class SamClient {
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, input.concepts.length) }, worker));
 
     tees.sort((a, b) => a.conceptIdx - b.conceptIdx);
-    const ing = await this.d.twin.samIngest({ clipId: input.clipId, scenarioId: input.scenarioId, sources: tees });
+    const ing = await this.d.twin.samIngest({ clipId: input.clipId, scenarioId: input.scenarioId, sources: tees }, input.signal);
     for (const w of ing.warnings) this.d.log?.(w);
     return { clipId: input.clipId, csmkPath: ing.csmkPath, records: ing.records, objects: ing.objects, warnings: ing.warnings, marks, fromFixture };
   }

@@ -72,8 +72,10 @@ export class TwinError extends Error {
   }
 }
 
-/** Per-call deadlines: render ≤ 8 s warm (§30.1) with headroom for a cold cache; patch load runs a child import. */
-const TIMEOUT_MS = { health: 3_000, render: 60_000, metrics: 60_000, visualTest: 30_000, patchLoad: 30_000, samIngest: 30_000 } as const;
+/** Per-call deadlines: render ≤ 8 s warm (§30.1) with headroom for a cold cache; patch load runs a child import.
+ *  SAM ingest parses and decodes every mask of the clip inside PERCEIVING, so its cap is that stage's
+ *  60 s (DESIGN §8.1 ST-3, ST-11); the caller's stage signal ends it sooner. */
+const TIMEOUT_MS = { health: 3_000, render: 60_000, metrics: 60_000, visualTest: 30_000, patchLoad: 30_000, samIngest: 60_000 } as const;
 
 export class TwinClient {
   readonly baseURL: string;
@@ -111,8 +113,8 @@ export class TwinClient {
   /** Parses teed SAM streams (paths relative to DATA_DIR) into masks/<clipId>.csmk (DESIGN §12.4). */
   async samIngest(body: {
     clipId: string; scenarioId: string; sources: { ssePath: string; conceptIdx: number }[]; fps?: number;
-  }): Promise<SamIngestResult> {
-    return this.req("POST", "/sam/ingest", body, TIMEOUT_MS.samIngest);
+  }, signal?: AbortSignal): Promise<SamIngestResult> {
+    return this.req("POST", "/sam/ingest", body, TIMEOUT_MS.samIngest, [], signal);
   }
 
   /** Bounds-checks (dryRun) or stages a patch. Bounds violations and import failures come back as 422 bodies. */
@@ -123,18 +125,20 @@ export class TwinClient {
     return this.req("POST", "/patch/load", body, TIMEOUT_MS.patchLoad, [422]);
   }
 
-  private async req<T>(method: "GET" | "POST", path: string, body: unknown, timeoutMs: number, passStatuses: number[] = []): Promise<T> {
+  private async req<T>(method: "GET" | "POST", path: string, body: unknown, timeoutMs: number, passStatuses: number[] = [], signal?: AbortSignal): Promise<T> {
     let res: Response;
+    const deadline = signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs);
     try {
       res = await fetch(this.baseURL + path, {
         method,
         headers: body === undefined ? {} : { "content-type": "application/json" },
         body: body === undefined ? undefined : JSON.stringify(body),
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: deadline,
       });
     } catch (err) {
       const e = err as Error;
-      const timeout = e.name === "TimeoutError" || e.name === "AbortError";
+      // A caller's signal aborts with its own reason, so the signal, not the error name, says it was a deadline.
+      const timeout = deadline.aborted || e.name === "TimeoutError" || e.name === "AbortError";
       throw new TwinError(timeout ? "TWIN_TIMEOUT" : "TWIN_UNREACHABLE", `${method} ${path}: ${e.message}`, null);
     }
     const text = await res.text();

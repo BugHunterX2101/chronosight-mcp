@@ -24,6 +24,18 @@ export interface PatchCandidate {
   boundsCheck: { ok: boolean; code: string | null; details: unknown[] };
   /** set when the candidate failed before producing a usable diff */
   failure: { code: string; message: string } | null;
+  /**
+   * Model tokens the candidate's Muse Code sessions spent, summed from each session's
+   * `session/tokenUsage` running totals (§22.2), or null when no session reported any.
+   */
+  usage: MuseUsage | null;
+}
+
+/** Counted-once session totals from the SDK: `cachedTokens` is the cache-read part of `promptTokens`. */
+export interface MuseUsage {
+  promptTokens: number;
+  cachedTokens: number;
+  outputTokens: number;
 }
 
 export interface SynthRequest {

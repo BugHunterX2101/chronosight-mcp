@@ -22,7 +22,7 @@ import { paths } from "../paths.ts";
 import { launcherSocketPath } from "./sandbox-attach.ts";
 import { LauncherClient, type Launcher, type TestRun } from "./launcher-client.ts";
 import { allowedSummary, loadPolicy, policyDecide, type ApprovalRequest, type Policy } from "./policy.ts";
-import type { PatchCandidate, PatchSynthesizer, StepMetrics, SynthRequest } from "./types.ts";
+import type { MuseUsage, PatchCandidate, PatchSynthesizer, StepMetrics, SynthRequest } from "./types.ts";
 
 /** §18.11 model pin by data class. */
 export function pinnedModel(dataClass: DataClass): string {
@@ -164,13 +164,28 @@ export function editedWorkspace(it: { kind: unknown; status: unknown; patchSumma
 }
 
 /** What a turn that ended without a usable diff leaves for the next diagnosis (§18.8 item 5, D5). */
-export function failureContext(changed: readonly string[] | null, lastTests: string | null, spec: PatchSpec): string {
+export function failureContext(changed: readonly string[] | null, lastTests: string | null, spec: PatchSpec, harness: string | null = null): string {
   const files = changed === null ? "unknown" : changed.length ? changed.join(", ") : "none";
   const bounds = Object.entries(spec.bounds).map(([k, [lo, hi]]) => `${k} [${lo}, ${hi}]`).join(", ") || "none";
   const o = spec.objectives;
   return `Files the agent changed: ${files}. Last test run inside the sandbox: ${lastTests ?? "none"}. ` +
     `The candidate was held to bounds ${bounds} and objectives overshoot <= ${o.overshootPctMax} %, ` +
-    `settling <= ${o.settleSecMax} s, steady-state error <= ${o.sseMax} rad.`;
+    `settling <= ${o.settleSecMax} s, steady-state error <= ${o.sseMax} rad.${harness ? ` ${harness}` : ""}`;
+}
+
+/**
+ * The independent harness's numbers for a workspace, in words (§18.8 item 5: the next attempt
+ * learns why from numeric results). `changed` says whether the files differ from the baseline.
+ */
+export function harnessSummary(run: Pick<TestRun, "junitXml" | "metrics">, spec: PatchSpec, changed: boolean): string {
+  const { passed, total } = junitCounts(run.junitXml);
+  const what = changed ? "the workspace as the agent left it" : "the unchanged baseline";
+  const m = stepMetrics(run.metrics);
+  const head = `Independent step test of ${what}: ${passed}/${total} tests passed`;
+  if (!m) return `${head}; no step metrics (${run.metrics?.error ?? "none reported"}).`;
+  const o = spec.objectives;
+  return `${head}; worst case over the test seeds: overshoot ${m.overshootPct.toFixed(2)} % (limit ${o.overshootPctMax}), ` +
+    `settling ${m.settleSec.toFixed(3)} s (limit ${o.settleSecMax}), steady-state error ${m.sse.toPrecision(3)} rad (limit ${o.sseMax}).`;
 }
 
 /** passed/total from the junit report's <testsuite> counters. */
@@ -206,6 +221,29 @@ interface Live {
   closed: boolean;
   /** the agent's most recent pytest summary, read from its shell output */
   lastTests: string | null;
+  /** each session's latest `session/tokenUsage` running totals, by session ID (§22.2) */
+  usage: Map<string, MuseUsage>;
+}
+
+/** The session's counted-once running totals, from its latest `session/tokenUsage`, if any arrived. */
+function sessionUsage(s: Session): MuseUsage | null {
+  const u = s.fold.sessionState.get("session/tokenUsage");
+  if (!u) return null;
+  const c = u.cumulative;
+  return { promptTokens: c.promptTokens, cachedTokens: Math.min(c.cacheReadTokens ?? 0, c.promptTokens), outputTokens: c.outputTokens };
+}
+
+/** Sums the sessions' totals; null when none reported usage. */
+export function sumUsage(all: Iterable<MuseUsage>): MuseUsage | null {
+  const sum: MuseUsage = { promptTokens: 0, cachedTokens: 0, outputTokens: 0 };
+  let n = 0;
+  for (const u of all) {
+    sum.promptTokens += u.promptTokens;
+    sum.cachedTokens += u.cachedTokens;
+    sum.outputTokens += u.outputTokens;
+    n++;
+  }
+  return n ? sum : null;
 }
 
 export class MuseSynthesizer implements PatchSynthesizer {
@@ -238,9 +276,9 @@ export class MuseSynthesizer implements PatchSynthesizer {
     const model = pinnedModel(req.dataClass);
     const c: PatchCandidate = {
       patchId: `pat_${ulid()}`, candidate: index, model, files: {}, unifiedDiff: "", diffHash: "",
-      tests: { passed: 0, total: 0, metrics: null }, boundsCheck: { ok: false, code: null, details: [] }, failure: null,
+      tests: { passed: 0, total: 0, metrics: null }, boundsCheck: { ok: false, code: null, details: [] }, failure: null, usage: null,
     };
-    const live: Live = { client: null, connection: null, containers: new Set(), closed: false, lastTests: null };
+    const live: Live = { client: null, connection: null, containers: new Set(), closed: false, lastTests: null, usage: new Map() };
     let synId: string | null = null;
     const touched = new Set<string>();
     let testsRun = 0;
@@ -299,7 +337,7 @@ export class MuseSynthesizer implements PatchSynthesizer {
       audit("patch.harness", { exitCode: run.exitCode, ...counts, metrics: run.metrics, stdoutTail: run.stdoutTail });
       progress(`tests ${counts.passed}/${counts.total}`);
       if (run.exitCode !== 0 || counts.total === 0 || counts.passed !== counts.total) {
-        c.failure = { code: "PATCH_TESTS_FAILED", message: `${counts.passed}/${counts.total} tests passed\n${run.stdoutTail.slice(-800)}` };
+        c.failure = { code: "PATCH_TESTS_FAILED", message: `${harnessSummary(run, spec, true)}\n${run.stdoutTail.slice(-800)}` };
       } else if (!c.tests.metrics) {
         c.failure = { code: "PATCH_TESTS_FAILED", message: `the harness reported no step metrics: ${run.metrics?.error ?? "none"}` };
       }
@@ -309,19 +347,45 @@ export class MuseSynthesizer implements PatchSynthesizer {
       else c.failure = { code: "MUSE_TURN_FAILED", message: e instanceof Error ? e.message : String(e) };
       if (!req.signal.aborted && (c.failure.code === "SANDBOX_TIMEOUT" || c.failure.code === "MUSE_TURN_FAILED")) {
         // The workspace as the turn left it; after the 120 s kill the container is gone and this is unknown.
+        // While it exists, the independent harness measures it, so the next attempt gets numbers
+        // rather than a pass count (§18.8 item 5). The candidate still fails (§18.5).
         let changed: string[] | null = null;
+        let harness: string | null = null;
         if (synId && live.containers.has(synId)) {
-          changed = await this.d.launcher.collect(synId).then((col) => col.changedPaths, () => null);
+          const col = await this.d.launcher.collect(synId).catch(() => null);
+          changed = col?.changedPaths ?? null;
+          if (col && !req.signal.aborted) {
+            progress("measuring the workspace for the next attempt");
+            harness = await this.measure(live, base, col.files, spec, col.diff.trim() !== "", audit).catch(() => null);
+          }
         }
-        c.failure.message += `\n${failureContext(changed, live.lastTests, spec)}`;
+        c.failure.message += `\n${failureContext(changed, live.lastTests, spec, harness)}`;
       }
       audit("patch.failure", c.failure);
       progress(`failed: ${c.failure.code}`);
     } finally {
       req.signal.removeEventListener("abort", cleanup);
       await this.teardown(live);
+      c.usage = sumUsage(live.usage.values());
+      audit("muse.usage", { model, usage: c.usage, sessions: live.usage.size });
     }
     return c;
+  }
+
+  /** The §18.9 harness on files from a failed turn, for feedback only: a fresh no-key, no-network container. */
+  private async measure(
+    live: Live, base: Omit<Parameters<Launcher["launch"]>[0], "kind" | "files">, files: Record<string, string>,
+    spec: PatchSpec, changed: boolean, audit: Audit,
+  ): Promise<string> {
+    const tst = await this.d.launcher.launch({ kind: "test", ...base, files });
+    live.containers.add(tst.containerId);
+    try {
+      const run = await this.d.launcher.runTests(tst.containerId);
+      audit("patch.harness", { forFeedback: true, changed, exitCode: run.exitCode, ...junitCounts(run.junitXml), metrics: run.metrics, stdoutTail: run.stdoutTail });
+      return harnessSummary(run, spec, changed);
+    } finally {
+      await this.drop(live, tst.containerId);
+    }
   }
 
   /** §18.3–18.6 for one candidate. Resolves when the turn completed; throws CandidateFailure otherwise. */
@@ -398,11 +462,18 @@ export class MuseSynthesizer implements PatchSynthesizer {
       return r as T;
     };
 
+    // A retry opens a fresh session, so each session's running totals are kept by ID (§22.2).
+    const noteUsage = () => {
+      const u = session && sessionUsage(session);
+      if (session && u) live.usage.set(session.sessionId, u);
+    };
+
     try {
       let retried = false;
       let recovered = false;
       await raced(this.spawn(containerId, live));
       for (;;) {
+        noteUsage();
         const client = live.client!;
         session = await raced(client.startSession({ workspaceRoot: "/workspace", approvalMode: "promptUnmatched", modelId: model }));
         session.onApproval(onApproval);
@@ -433,6 +504,7 @@ export class MuseSynthesizer implements PatchSynthesizer {
       }
     } finally {
       for (const t of timers) clearTimeout(t);
+      noteUsage();
     }
   }
 

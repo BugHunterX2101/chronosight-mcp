@@ -111,7 +111,7 @@ export function buildPrefix(scenarioId: string): Prefix {
   const { manifest, pages, p2 } = loadCorpus();
   const p1 = `<<manifest>>\n${jcs({ documents: [{ docId: manifest.docId, title: manifest.title, version: manifest.version, pages: manifest.pages }] })}\n`;
   const parts: Prefix["parts"] = [
-    { id: "P0", text: readText(join(paths.prompts, "p0.v1.txt")) },
+    { id: "P0", text: readText(join(paths.prompts, "p0.v2.txt")) },
     { id: "P1", text: p1 },
     { id: "P2", text: p2 },
     { id: "P3", text: controllerSource(scenarioId) },

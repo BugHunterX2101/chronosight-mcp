@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { PatchSpec } from "@chronosight/run-model";
-import { editedWorkspace, failureContext, pytestTally } from "../src/muse/synthesizer.ts";
+import { editedWorkspace, failureContext, harnessSummary, pytestTally } from "../src/muse/synthesizer.ts";
 
 // A bash tool result as muse serve 1.4.14 reports it: a JSON chunk whose output is escaped.
 const chunk = (output: string) =>
@@ -51,6 +51,32 @@ describe("failureContext", () => {
     expect(s).toContain("Files the agent changed: unknown.");
     expect(s).toContain("Last test run inside the sandbox: none.");
     expect(failureContext(["params.py"], null, spec)).toContain("Files the agent changed: params.py.");
+  });
+
+  it("ends with the harness numbers when the workspace was measured", () => {
+    expect(failureContext(["params.py"], null, spec, "Independent step test of x.")).toMatch(/rad\. Independent step test of x\.$/);
+  });
+});
+
+describe("harnessSummary", () => {
+  const spec = { objectives: { overshootPctMax: 10, settleSecMax: 1.5, sseMax: 0.01 } } as unknown as PatchSpec;
+  const junit = '<testsuites><testsuite name="pytest" errors="0" failures="9" skipped="0" tests="12"></testsuite></testsuites>';
+
+  // S1 with FILT restored at the baseline gains, as the real harness measures it.
+  it("states the pass count and the worst-case step metrics against their limits", () => {
+    const run = { junitXml: junit, metrics: { overshootPct: 204.6512, settleSec: 13, sse: 0.675884, error: null } };
+    expect(harnessSummary(run, spec, true)).toBe(
+      "Independent step test of the workspace as the agent left it: 3/12 tests passed; worst case over the test seeds: " +
+      "overshoot 204.65 % (limit 10), settling 13.000 s (limit 1.5), steady-state error 0.676 rad (limit 0.01).",
+    );
+  });
+
+  it("names the baseline when nothing changed, and the harness error when there are no metrics", () => {
+    const run = { junitXml: junit, metrics: { overshootPct: null, settleSec: null, sse: null, error: "ImportError: abi" } };
+    expect(harnessSummary(run, spec, false)).toBe(
+      "Independent step test of the unchanged baseline: 3/12 tests passed; no step metrics (ImportError: abi).",
+    );
+    expect(harnessSummary({ junitXml: "", metrics: null }, spec, false)).toContain("0/0 tests passed; no step metrics (none reported).");
   });
 });
 

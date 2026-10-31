@@ -9,14 +9,14 @@ import { existsSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import { ulid } from "ulid";
 import {
-  MAX_ATTEMPTS, canTransition, taintOf, transition,
+  MAX_ATTEMPTS, canTransition, isTerminal, taintOf, transition,
   type DataClass, type Diagnosis, type EventType, type RunCursor, type RunState, type VisualTestResult,
 } from "@chronosight/run-model";
 import { GateError, type ApprovalGate, type Binding, type TokenPayload } from "../gate/approval.ts";
 import type { RiskInput, RiskResult } from "../gate/risk.ts";
 import type { DiagnoseInput, DiagnoseResult } from "../diagnosis.ts";
 import type { Prefix } from "../prefix.ts";
-import type { Prices } from "../budget.ts";
+import { costOf, type Prices } from "../budget.ts";
 import type { PerceiveInput, PerceiveResult } from "../sam/client.ts";
 import { telemetrySummary } from "../telemetry.ts";
 import { isPatchFailure, type BoundsResult, type MetricsResult, type TwinClient } from "../twin.ts";
@@ -53,10 +53,10 @@ export const DEFAULT_TIMEOUTS: Timeouts = {
 export type Channel = "click" | "voice" | "hud";
 
 export type RunMessage =
-  | { kind: "ask"; request: string }
+  | { kind: "ask"; request: string; diagnosisId?: string; escalate?: boolean }
   | { kind: "approve"; step: 1 | 2; token: string; channel?: Channel; approver?: string; note?: string | null }
   | { kind: "reject"; note?: string | null }
-  | { kind: "retry" }
+  | { kind: "retry"; diagnosisId?: string; escalate?: boolean }
   | { kind: "stop"; note?: string | null };
 
 export interface RunDeps {
@@ -77,8 +77,11 @@ export interface RunDeps {
   emit: (type: EventType, data: object) => number;
   /** Appends to the run's audit log and returns the entry's sequence number. */
   audit: (kind: string, data: object) => number;
-  /** Adds spend to the session; returns the session totals for `cost.update`. */
-  charge: (usd: number) => { sessionUsd: number; budgetRemainingUsd: number };
+  /**
+   * Adds spend to the session; returns the session totals for `cost.update`. `overReserve` says the
+   * live run has spent past its reservation, so it aborts at the next state boundary (DESIGN §22.3).
+   */
+  charge: (usd: number) => { sessionUsd: number; budgetRemainingUsd: number; overReserve?: boolean };
   timeouts?: Partial<Timeouts>;
   /** Patch candidates per attempt (§18.10: 1–3). */
   candidates?: number;
@@ -102,7 +105,14 @@ export class RunError extends Error {
   }
 }
 
-class Stopped extends Error {}
+/** Ends the run through its AbortController: a user stop, or a budget overrun (TECHNICAL §5 cancellation). */
+class Stopped extends Error {
+  readonly code: string;
+  constructor(message = "stopped", code = "STOPPED") {
+    super(message);
+    this.code = code;
+  }
+}
 
 export interface RunOutcome {
   state: RunState;
@@ -195,6 +205,14 @@ export class RunDriver {
   private patchId: string | null = null;
   private verdict: VisualTestResult | null = null;
   private runUsd = 0;
+  private overrun = false;
+  /** From the last `charge`; null until something is billed. */
+  private budgetRemaining: number | null = null;
+  /** §21.3 spill counter: consecutive Contributor failures across this run's diagnoses. */
+  private readonly contribFailures = { n: 0 };
+  /** The id the caller was promised for the next diagnosis (POST /diagnose returns it). */
+  private nextDiagnosisId: string | null = null;
+  private nextEscalate = false;
   private running = false;
 
   constructor(deps: RunDeps) {
@@ -209,6 +227,11 @@ export class RunDriver {
 
   get attempt(): number {
     return this.cursor.attempt;
+  }
+
+  /** The selected candidate of the current attempt, once patching has picked one. */
+  get currentPatchId(): string | null {
+    return this.patchId;
   }
 
   /** Which messages the driver will take right now ("stop" is always taken until the run ends). */
@@ -262,15 +285,29 @@ export class RunDriver {
     this.cursor = transition(this.cursor, to);
     this.d.emit("run.state", { from, to, reason, attempt: this.cursor.attempt });
     this.d.log?.(`${from} -> ${to} (${reason})`);
+    // DESIGN §22.3: a run that spent past its reservation aborts at the next state boundary.
+    if (this.overrun && !isTerminal(to)) this.overrunStop();
+  }
+
+  private overrunStop(): Stopped {
+    if (!this.ac.signal.aborted) {
+      this.ac.abort(new Stopped(`the run spent $${round6(this.runUsd)}, past its reservation`, "BUDGET_OVERRUN"));
+    }
+    return this.ac.signal.reason instanceof Stopped ? this.ac.signal.reason : new Stopped();
+  }
+
+  /** The §22.3 hard stop: no billed call starts once the run has spent past its reservation. */
+  private billed(): void {
+    if (this.overrun) throw this.overrunStop();
   }
 
   private fail(err: unknown): void {
     const from = this.cursor.state;
     if (!canTransition(from, "ABORTED")) return; // already terminal (invariant 5)
     if (err instanceof Stopped || this.ac.signal.aborted) {
-      const why = this.ac.signal.reason instanceof Stopped ? this.ac.signal.reason.message : "stopped";
-      this.d.emit("error", { code: "STOPPED", message: why, retryable: false, stage: from });
-      this.go("ABORTED", why);
+      const r = this.ac.signal.reason instanceof Stopped ? this.ac.signal.reason : new Stopped();
+      this.d.emit("error", { code: r.code, message: r.message, retryable: false, stage: from });
+      this.go("ABORTED", r.code === "STOPPED" ? r.message : r.code);
       return;
     }
     const code = (err as { code?: unknown })?.code;
@@ -290,6 +327,8 @@ export class RunDriver {
     if (!(usd > 0)) return;
     this.runUsd += usd;
     const s = this.d.charge(usd);
+    this.budgetRemaining = s.budgetRemainingUsd;
+    if (s.overReserve) this.overrun = true;
     this.d.emit("cost.update", { runUsd: round6(this.runUsd), sessionUsd: round6(s.sessionUsd), budgetRemainingUsd: round6(s.budgetRemainingUsd) });
   }
 
@@ -389,6 +428,7 @@ export class RunDriver {
       this.d.log?.(`baseline masks cached: ${pre.csmkPath}`);
       return;
     }
+    this.billed();
     const res = await this.within(this.t.perceiving, "SAM_TIMEOUT", "ABORTED", (signal) =>
       this.d.sam.perceive({ clipId: pre.clipId, scenarioId: this.d.scenarioId, clipPath: pre.absPath, concepts: this.concepts(), signal }));
     pre.csmkPath = res.csmkPath;
@@ -433,6 +473,8 @@ export class RunDriver {
         p.nack(e as Error);
         continue;
       }
+      this.nextDiagnosisId = p.msg.diagnosisId ?? null;
+      this.nextEscalate = p.msg.escalate === true;
       p.ack();
       return;
     }
@@ -482,6 +524,10 @@ export class RunDriver {
         this.go("FAILED", "no retry requested");
         return;
       }
+      if (p.msg.kind === "retry") {
+        this.nextDiagnosisId = p.msg.diagnosisId ?? null;
+        this.nextEscalate = p.msg.escalate === true;
+      }
       p.ack();
     }
   }
@@ -499,13 +545,24 @@ export class RunDriver {
     this.current = null;
     this.patchId = null;
     this.go("DIAGNOSING", prior ? "retry with feedback" : "question received");
-    const diagnosisId = `dia_${ulid()}`;
+    const diagnosisId = this.nextDiagnosisId ?? `dia_${ulid()}`;
+    this.nextDiagnosisId = null;
+    const escalate = this.nextEscalate;
+    this.nextEscalate = false;
     const m = this.preMetrics!;
     // D2 names the clip by its stable label, never the per-render ID, so replays match (§16.3).
     const telemetry = telemetrySummary({ ...m, clipId: `${this.d.scenarioId}-baseline-${this.d.seed}` }, this.d.prefix.scenario);
+    this.billed();
     const res = await this.within(null, "DIAGNOSIS_TIMEOUT", "FAILED", () =>
       this.d.diagnose(
-        { prefix: this.d.prefix, dataClass: this.dataClass, telemetry, request: this.request!, priorAttempt: prior, diagnosisId },
+        {
+          prefix: this.d.prefix, dataClass: this.dataClass, telemetry, request: this.request!, priorAttempt: prior, diagnosisId, escalate,
+          run: {
+            contribFailures: this.contribFailures,
+            budgetRemainingUsd: () => this.budgetRemaining,
+            rateLimited: (model, retryInS) => this.d.emit("ratelimit", { model, retryInS }),
+          },
+        },
         (kind, text) => this.d.emit("diagnosis.delta", { diagnosisId, kind, text }),
       ));
     this.current = { diagnosisId, diagnosis: res.diagnosis };
@@ -520,6 +577,7 @@ export class RunDriver {
 
   private async runRiskReview(diff: { unifiedDiff: string; diffHash: string } | null): Promise<RiskResult | null> {
     const cur = this.current!;
+    this.billed();
     try {
       const r = await this.d.reviewRisk({ scenario: this.d.prefix.scenario, dataClass: this.dataClass, diagnosis: cur.diagnosis, diff });
       this.charge(r.costUsd);
@@ -647,6 +705,7 @@ export class RunDriver {
     // The 120 s per candidate is the Muse turn (§18.5); the harness allowance covers the
     // sandbox launches and the independent tests around it (§18.9).
     const budget = (this.t.patchingPerCandidate + this.t.patchingHarness) * n;
+    this.billed();
     const cands = await this.within(budget, "PATCH_TIMEOUT", null, (signal) =>
       this.d.synth.synthesize({
         runId: this.d.runId, scenario: this.d.prefix.scenario, diagnosis: cur.diagnosis, attempt: this.cursor.attempt,
@@ -654,6 +713,14 @@ export class RunDriver {
         onProgress: (p) => this.d.emit("patch.progress", p),
         audit: (kind, data) => void this.d.audit(kind, data),
       }));
+    // §22.2: Muse Code is metered from each candidate's SDK session totals at its pinned model's prices.
+    for (const c of cands) {
+      if (c.usage) {
+        this.charge(costOf(this.d.prices, c.model, {
+          input_tokens: c.usage.promptTokens, input_tokens_details: { cached_tokens: c.usage.cachedTokens }, output_tokens: c.usage.outputTokens,
+        }));
+      }
+    }
     for (const c of cands) {
       if (!c.failure) {
         // The twin's static check (§17.4) is the authority, whatever the synthesizer reported.
@@ -723,6 +790,7 @@ export class RunDriver {
 
   private async perceivePost(post: ClipState): Promise<void> {
     this.go("PERCEIVING_POST", "post clip ready");
+    this.billed();
     const res = await this.within(this.t.perceiving, "SAM_TIMEOUT", "ABORTED", (signal) =>
       this.d.sam.perceive({ clipId: post.clipId, scenarioId: this.d.scenarioId, clipPath: post.absPath, concepts: this.concepts(), signal }));
     post.csmkPath = res.csmkPath;

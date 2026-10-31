@@ -45,6 +45,16 @@ describe("runReducer", () => {
     expect(s.violation).toMatchObject({ seq: 9, type: "run.state" });
   });
 
+  it("lets a run whose last attempt found no candidate fail from PATCHING (§16.8)", () => {
+    seq = 0;
+    const s = fold([
+      ...toApproval1(), go("AWAITING_APPROVAL_1", "AWAITING_APPROVAL_2", 1), go("AWAITING_APPROVAL_2", "PATCHING", 1),
+      go("PATCHING", "FAILED", 1),
+    ]);
+    expect(s.runs[RUN]!.state).toBe("FAILED");
+    expect(s.violation).toBeNull();
+  });
+
   it("keeps terminal states absorbing (invariant 5)", () => {
     seq = 0;
     const s = fold([go("IDLE", "CAPTURING"), go("CAPTURING", "ABORTED"), go("ABORTED", "CAPTURING")]);

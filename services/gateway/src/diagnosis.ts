@@ -25,6 +25,20 @@ export interface DiagnoseInput {
   priorAttempt?: string | null;
   /** Caller-chosen ID so progress events can name the diagnosis; never sent to the model. */
   diagnosisId?: string;
+  /** The operator asked for the Standard · max lane (POST /diagnose `{escalate: true}`). */
+  escalate?: boolean;
+  /** Routing state the run keeps across its diagnoses; without it each diagnosis starts fresh. */
+  run?: RunRouting;
+}
+
+/** Per-run routing state (§21.3); the orchestrator owns it so the spill counter spans attempts. */
+export interface RunRouting {
+  /** consecutive Contributor failures in this run; a Contributor success resets it */
+  contribFailures: { n: number };
+  /** what is left of the run's reservation (§22.3), or null when nothing has been charged yet */
+  budgetRemainingUsd: () => number | null;
+  /** a 429 backoff: the `ratelimit` event (§9) */
+  rateLimited: (model: string, retryInS: number) => void;
 }
 
 export interface DiagnoseDeps {
@@ -68,7 +82,7 @@ function breakerFor(deps: DiagnoseDeps, model: string): Breaker {
 }
 
 function openBreakers(deps: DiagnoseDeps): Set<string> {
-  return new Set([...deps.breakers].filter(([, b]) => b.state() === "open").map(([m]) => m));
+  return new Set([...deps.breakers].filter(([, b]) => b.blocked()).map(([m]) => m));
 }
 
 export function buildRequest(input: DiagnoseInput, r: Route, routing: RoutingConfig, feedback: string[]): Record<string, unknown> {
@@ -97,46 +111,62 @@ interface CallResult {
   model: string;
 }
 
-/** One model call with backoff on 429/5xx/timeouts (§16.8). */
-async function call(deps: DiagnoseDeps, body: Record<string, unknown>, onFailure: () => void): Promise<CallResult> {
+/** One model call, one try. Failures come back as a MetaError; `runLane` decides on retries (§16.8). */
+async function call(deps: DiagnoseDeps, body: Record<string, unknown>): Promise<CallResult> {
   const model = String(body.model);
   const breaker = breakerFor(deps, model);
-  const sleep = deps.sleep ?? defaultSleep;
-  let last: MetaError | null = null;
-  for (let n = 0; n < NETWORK_ATTEMPTS; n++) {
-    if (!breaker.allow()) throw new DiagnosisError("DIAGNOSIS_UPSTREAM", `${model} breaker open`, true);
-    try {
-      let raw = "";
-      let done: CallResult | null = null;
-      for await (const e of deps.meta.streamResponse(body, AbortSignal.timeout(deps.attemptTimeoutMs ?? ATTEMPT_TIMEOUT_MS))) {
-        if (e.type === "response.reasoning_summary_text.delta") deps.emit("summary", e.delta);
-        else if (e.type === "response.output_text.delta") raw += e.delta;
-        else if (e.type === "response.completed") {
-          done = { raw: raw || e.response.output_text || "", usage: e.response.usage, model: e.response.model || model };
-        } else {
-          throw new MetaError("RESPONSE_FAILED", `response ${e.type.split(".")[1]}: ${JSON.stringify(e.response).slice(0, 300)}`, 502);
-        }
+  if (!breaker.allow()) throw new DiagnosisError("DIAGNOSIS_UPSTREAM", `${model} breaker open`, true);
+  try {
+    let raw = "";
+    let done: CallResult | null = null;
+    for await (const e of deps.meta.streamResponse(body, AbortSignal.timeout(deps.attemptTimeoutMs ?? ATTEMPT_TIMEOUT_MS))) {
+      if (e.type === "response.reasoning_summary_text.delta") deps.emit("summary", e.delta);
+      else if (e.type === "response.output_text.delta") raw += e.delta;
+      else if (e.type === "response.completed") {
+        done = { raw: raw || e.response.output_text || "", usage: e.response.usage, model: e.response.model || model };
+      } else {
+        throw new MetaError("RESPONSE_FAILED", `response ${e.type.split(".")[1]}: ${JSON.stringify(e.response).slice(0, 300)}`, 502);
       }
-      if (!done) throw new MetaError("STREAM_TRUNCATED", "stream ended without response.completed", 502);
-      breaker.success();
-      return done;
-    } catch (err) {
-      const me = err instanceof MetaError ? err : new MetaError("NETWORK", String(err));
-      if (me.code === "FIXTURE_MISSING") throw new DiagnosisError("FIXTURE_MISSING", me.message);
-      if (me.status !== null && me.status >= 500) breaker.serverError();
-      onFailure();
-      last = me;
-      if (!me.retryable || n === NETWORK_ATTEMPTS - 1) break;
-      deps.log?.(`diagnosis ${model} attempt ${n + 1} failed: ${me.code}`);
-      await sleep(backoffDelayMs(n, me.retryAfterS));
     }
+    if (!done) throw new MetaError("STREAM_TRUNCATED", "stream ended without response.completed", 502);
+    breaker.success();
+    return done;
+  } catch (err) {
+    const me = err instanceof MetaError ? err : new MetaError("NETWORK", String(err));
+    if (me.code === "FIXTURE_MISSING") throw new DiagnosisError("FIXTURE_MISSING", me.message);
+    if (me.status !== null && me.status >= 500) breaker.serverError();
+    else breaker.release();
+    throw me;
   }
-  if (last?.status === 429) throw new DiagnosisError("DIAGNOSIS_RATE_LIMITED", last.message, true);
-  if (last?.code === "TIMEOUT") throw new DiagnosisError("DIAGNOSIS_TIMEOUT", last.message, true);
-  if (last && last.status !== null && last.status < 500 && last.status !== 429) {
-    throw new DiagnosisError("DIAGNOSIS_REJECTED", `${last.code}: ${last.message}`);
-  }
-  throw new DiagnosisError("DIAGNOSIS_UPSTREAM", last?.message ?? "upstream failure", true);
+}
+
+function failureOf(me: MetaError): DiagnosisError {
+  if (me.status === 429) return new DiagnosisError("DIAGNOSIS_RATE_LIMITED", me.message, true);
+  if (me.code === "TIMEOUT") return new DiagnosisError("DIAGNOSIS_TIMEOUT", me.message, true);
+  if (me.status !== null && me.status < 500) return new DiagnosisError("DIAGNOSIS_REJECTED", `${me.code}: ${me.message}`);
+  return new DiagnosisError("DIAGNOSIS_UPSTREAM", me.message, true);
+}
+
+/** State shared by the lanes of one diagnosis. */
+interface LaneCtx {
+  run: RunRouting;
+  /** spent by this diagnosis so far; not yet charged to the run */
+  spentUsd: number;
+}
+
+/**
+ * §16.8/§21.3 "if the budget allows": a spill may go ahead when what is left of the run's
+ * reservation covers the Standard call's input at the uncached price. Tokens are estimated at
+ * 4 characters each; `cost.update` corrects the books from `usage` afterwards.
+ */
+function spillAllowed(deps: DiagnoseDeps, input: DiagnoseInput, task: string, ctx: LaneCtx): boolean {
+  const left = ctx.run.budgetRemainingUsd();
+  if (left === null) return true;
+  const fallback = deps.routing.tasks[task]?.fallback;
+  const price = fallback ? deps.prices.models[fallback.model] : undefined;
+  if (!price) return true;
+  const chars = input.prefix.parts.reduce((s, p) => s + p.text.length, 0) + jcs(input.telemetry).length + input.request.length;
+  return left - ctx.spentUsd >= (Math.ceil(chars / 4) * price.inputPerM) / 1e6;
 }
 
 interface LaneOutcome {
@@ -145,17 +175,51 @@ interface LaneOutcome {
   calls: CallResult[];
 }
 
-/** One lane: call, validate, verify, with one feedback retry per failure kind (§16.7). */
-async function runLane(deps: DiagnoseDeps, input: DiagnoseInput, task: string, diagnosisId: string, contribFailures: { n: number }): Promise<LaneOutcome> {
+/**
+ * One lane: call, validate, verify, with one feedback retry per failure kind (§16.7). Each try is
+ * routed afresh, so after 3 consecutive Contributor failures a PUBLIC request spills to Standard
+ * (§21.3). Per §16.8, 429 and 5xx get up to 3 tries per model and a timeout gets 1 retry.
+ */
+async function runLane(deps: DiagnoseDeps, input: DiagnoseInput, task: string, diagnosisId: string, ctx: LaneCtx): Promise<LaneOutcome> {
   const calls: CallResult[] = [];
   const retried = new Set<string>();
+  const tries = new Map<string, number>();
+  const sleep = deps.sleep ?? defaultSleep;
+  let timeouts = 0;
   let feedback: string[] = [];
+  const routeNow = () => route(deps.routing, task, input.dataClass, {
+    contribFailures: ctx.run.contribFailures.n,
+    openBreakers: openBreakers(deps),
+    spillAllowed: spillAllowed(deps, input, task, ctx),
+  }, deps.log);
 
   for (;;) {
-    const r = route(deps.routing, task, input.dataClass, { contribFailures: contribFailures.n, openBreakers: openBreakers(deps) }, deps.log);
+    const r = routeNow();
     if (!r.lane) throw new DiagnosisError("DIAGNOSIS_ROUTE", `no diagnosis lane for ${r.model}`);
     const body = buildRequest(input, r, deps.routing, feedback);
-    const res = await call(deps, body, () => { if (r.cacheLane === "contrib") contribFailures.n++; });
+    let res: CallResult;
+    try {
+      res = await call(deps, body);
+    } catch (err) {
+      if (!(err instanceof MetaError)) throw err;
+      if (r.cacheLane === "contrib") ctx.run.contribFailures.n++;
+      const n = (tries.get(r.model) ?? 0) + 1;
+      tries.set(r.model, n);
+      if (err.code === "TIMEOUT") timeouts++;
+      deps.log?.(`diagnosis ${r.model} try ${n} failed: ${err.code}`);
+      if (!err.retryable || timeouts > 1) throw failureOf(err);
+      if (n >= NETWORK_ATTEMPTS) {
+        // This model's tries are spent; go on only if the router now picks another one.
+        if (routeNow().model === r.model) throw failureOf(err);
+        continue;
+      }
+      const wait = backoffDelayMs(n - 1, err.retryAfterS);
+      if (err.status === 429) ctx.run.rateLimited(r.model, Math.ceil(wait / 1000));
+      await sleep(wait);
+      continue;
+    }
+    if (r.cacheLane === "contrib") ctx.run.contribFailures.n = 0;
+    ctx.spentUsd += costOf(deps.prices, res.model, res.usage);
     calls.push(res);
 
     // 1. schema
@@ -251,17 +315,21 @@ export function escalationReason(d: Diagnosis): string | null {
 
 export async function diagnose(deps: DiagnoseDeps, input: DiagnoseInput): Promise<DiagnoseResult> {
   const diagnosisId = input.diagnosisId ?? `dia_${ulid()}`;
-  const contribFailures = { n: 0 };
+  const ctx: LaneCtx = {
+    run: input.run ?? { contribFailures: { n: 0 }, budgetRemainingUsd: () => null, rateLimited: () => {} },
+    spentUsd: 0,
+  };
   deps.emit("progress", `Reading ${input.prefix.manifest.title} (${input.prefix.manifest.pages} pp)…`);
 
-  let out = await runLane(deps, input, "diagnosis.routine", diagnosisId, contribFailures);
+  if (input.escalate) deps.emit("progress", "Escalating to Standard · max (operator asked)…");
+  let out = await runLane(deps, input, input.escalate ? "diagnosis.escalated" : "diagnosis.routine", diagnosisId, ctx);
   const calls = [...out.calls];
-  const why = escalationReason(out.diagnosis);
-  let laneReason = out.diagnosis.laneReason;
+  const why = input.escalate ? null : escalationReason(out.diagnosis);
+  let laneReason = input.escalate ? "escalated: operator asked" : out.diagnosis.laneReason;
   if (why && out.route.lane !== "standard-max") {
     deps.emit("progress", `Escalating to Standard · max (${why.replace("escalated: ", "")})…`);
     try {
-      const esc = await runLane(deps, input, "diagnosis.escalated", diagnosisId, contribFailures);
+      const esc = await runLane(deps, input, "diagnosis.escalated", diagnosisId, ctx);
       calls.push(...esc.calls);
       out = esc;
       laneReason = why;
