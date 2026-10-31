@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { Demuxer } from "../src/docker.ts";
-import { hostConfig, LaunchError, Launcher, type LauncherConfig } from "../src/launcher.ts";
+import { BWRAP_SYSCALLS, hostConfig, LaunchError, Launcher, synthesisSeccomp, type LauncherConfig } from "../src/launcher.ts";
 import { configFromEnv, museServeArgv, redactor } from "../src/server.ts";
 import { tar } from "../src/tar.ts";
 
@@ -89,7 +89,7 @@ describe("Demuxer", () => {
 
 describe("hostConfig (DESIGN §19)", () => {
   it("fixes every flag and gives test containers no network", () => {
-    const t = hostConfig("test", "vol", "sbx");
+    const t = hostConfig("test", "vol", "sbx", "{}");
     expect(t).toMatchObject({
       ReadonlyRootfs: true,
       Tmpfs: { "/tmp": "rw,noexec,nosuid,nodev,size=64m" },
@@ -105,7 +105,19 @@ describe("hostConfig (DESIGN §19)", () => {
     expect(t.Mounts).toEqual([{ Type: "volume", Source: "vol", Target: "/workspace" }]);
     expect(t).not.toHaveProperty("Binds");
     expect(t).not.toHaveProperty("Privileged");
-    expect(hostConfig("synthesis", "vol", "sbx").NetworkMode).toBe("sbx");
+    expect(hostConfig("synthesis", "vol", "sbx", "{}").NetworkMode).toBe("sbx");
+  });
+
+  it("adds the bubblewrap seccomp profile to synthesis containers only", () => {
+    expect(hostConfig("synthesis", "vol", "sbx", "P").SecurityOpt).toEqual(["no-new-privileges:true", "seccomp=P"]);
+    expect(hostConfig("test", "vol", "sbx", "P").SecurityOpt).toEqual(["no-new-privileges:true"]);
+  });
+
+  it("extends the default profile by exactly the bubblewrap syscalls", () => {
+    const base = { defaultAction: "SCMP_ACT_ERRNO", syscalls: [{ names: ["read"], action: "SCMP_ACT_ALLOW" }] };
+    const p = JSON.parse(synthesisSeccomp(JSON.stringify(base)));
+    expect(p.defaultAction).toBe("SCMP_ACT_ERRNO");
+    expect(p.syscalls).toEqual([...base.syscalls, { names: [...BWRAP_SYSCALLS], action: "SCMP_ACT_ALLOW" }]);
   });
 });
 

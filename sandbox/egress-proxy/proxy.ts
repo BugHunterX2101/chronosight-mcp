@@ -30,19 +30,33 @@ server.on("connect", (req, client, head) => {
     return;
   }
   const upstream = connect(ALLOWED_PORT, ALLOWED_HOST);
+  const opened = Date.now();
+  let established = false;
+  let ended: string | null = null;
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     upstream.destroy();
     client.destroy();
+    // One line per tunnel with its life and byte counts, so a stalled or cut model stream is visible.
+    log({ target, ms: Date.now() - opened, up: upstream.bytesWritten, down: upstream.bytesRead, ended });
   };
   upstream.once("connect", () => {
+    established = true;
     client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
     if (head.length > 0) upstream.write(head);
     upstream.pipe(client);
     client.pipe(upstream);
   });
+  upstream.once("end", () => { ended ??= "upstream"; });
+  client.once("end", () => { ended ??= "client"; });
+  upstream.on("close", close);
+  client.on("close", close);
   upstream.on("error", (e) => {
     log({ target, error: e.message });
-    if (!client.destroyed) client.end("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
+    // Once the tunnel is up the bytes are the client's TLS stream; an HTTP status there would corrupt it.
+    if (!established && !client.destroyed) client.end("HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n");
     close();
   });
   client.on("error", close);

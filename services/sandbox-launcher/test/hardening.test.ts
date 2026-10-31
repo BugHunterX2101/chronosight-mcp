@@ -85,13 +85,24 @@ describe.skipIf(!live)("sandbox hardening (§15.2)", () => {
     for (const id of [syn, tst]) {
       const h = (await inspect(id)).HostConfig;
       expect(h.CapDrop).toEqual(["ALL"]);
-      expect(h.SecurityOpt).toEqual(["no-new-privileges:true"]);
+      expect((h.SecurityOpt as string[])[0]).toBe("no-new-privileges:true");
       expect(h.Privileged).toBe(false);
       const s = (await sh(id, "grep -E '^(CapEff|CapBnd|NoNewPrivs)' /proc/self/status")).out;
       expect(s).toMatch(/CapEff:\s+0{16}/);
       expect(s).toMatch(/CapBnd:\s+0{16}/);
       expect(s).toMatch(/NoNewPrivs:\s+1/);
     }
+  });
+
+  it("#3b seccomp filters both; only synthesis may make the namespaces bubblewrap needs", async () => {
+    expect((await inspect(tst)).HostConfig.SecurityOpt).toEqual(["no-new-privileges:true"]);
+    expect(((await inspect(syn)).HostConfig.SecurityOpt as string[])[1]).toMatch(/^seccomp={/);
+    for (const id of [syn, tst]) expect((await sh(id, "grep ^Seccomp: /proc/self/status")).out).toMatch(/Seccomp:\s+2/);
+    expect((await sh(syn, "unshare -Urnm true")).code).toBe(0);
+    expect((await sh(tst, "unshare -Urnm true")).code).not.toBe(0);
+    // Outside a user namespace the extra syscalls still need capabilities the container lacks.
+    expect((await sh(syn, "mount -t tmpfs t /tmp")).code).not.toBe(0);
+    expect((await sh(syn, "chroot / true")).code).not.toBe(0);
   });
 
   it("#4 /tmp is a 64 MB noexec tmpfs", async () => {

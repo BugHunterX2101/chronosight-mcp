@@ -31,6 +31,8 @@ export interface Timeouts {
   approval1: number;
   approval2: number;
   patchingPerCandidate: number;
+  /** per candidate, on top of the turn: sandbox launches, collect and the independent tests */
+  patchingHarness: number;
   simulating: number;
   verdictRetry: number;
 }
@@ -43,6 +45,7 @@ export const DEFAULT_TIMEOUTS: Timeouts = {
   approval1: 15 * 60_000,
   approval2: 30_000,
   patchingPerCandidate: 120_000,
+  patchingHarness: 45_000,
   simulating: 30_000,
   verdictRetry: 15 * 60_000,
 };
@@ -641,11 +644,15 @@ export class RunDriver {
     const cur = this.current!;
     const n = Math.min(3, Math.max(1, this.d.candidates ?? 1));
     const spec = cur.diagnosis.patchSpec;
-    const cands = await this.within(this.t.patchingPerCandidate * n, "PATCH_TIMEOUT", null, (signal) =>
+    // The 120 s per candidate is the Muse turn (§18.5); the harness allowance covers the
+    // sandbox launches and the independent tests around it (§18.9).
+    const budget = (this.t.patchingPerCandidate + this.t.patchingHarness) * n;
+    const cands = await this.within(budget, "PATCH_TIMEOUT", null, (signal) =>
       this.d.synth.synthesize({
         runId: this.d.runId, scenario: this.d.prefix.scenario, diagnosis: cur.diagnosis, attempt: this.cursor.attempt,
-        priorFailure: prior, candidates: n, signal,
+        dataClass: taintOf(this.dataClass, cur.diagnosis.dataClass), priorFailure: prior, candidates: n, signal,
         onProgress: (p) => this.d.emit("patch.progress", p),
+        audit: (kind, data) => void this.d.audit(kind, data),
       }));
     for (const c of cands) {
       if (!c.failure) {

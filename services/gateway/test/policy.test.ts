@@ -90,6 +90,18 @@ describe("choice selection", () => {
     expect(d).toMatchObject({ allow: false, choiceId: "c-reject", rule: "NO_ALLOW_ONCE" });
   });
 
+  it("denies with the once-scoped abort when no denied choice is offered (muse serve 1.4.14 shell approvals)", () => {
+    const shell: Choice[] = [
+      { choiceId: "allow_once", decision: "approved", scope: "once" },
+      { choiceId: "allow_local_prefix", decision: "approvedPolicyAmendment", scope: "localPersistent" },
+      { choiceId: "abort", decision: "abort", scope: "once" },
+    ];
+    expect(policyDecide(req("ls -la /workspace", shell), policy, TARGETS))
+      .toEqual({ allow: false, choiceId: "abort", feedback: null, rule: "DEFAULT_DENY" });
+    expect(policyDecide(req("pytest -q tests", shell), policy, TARGETS))
+      .toEqual({ allow: true, choiceId: "allow_once", feedback: null, rule: "ALLOWLIST" });
+  });
+
   it("returns no choice when only broad grants are offered, so the turn is cancelled", () => {
     const d = policyDecide(req("curl x", choices.slice(0, 2)), policy, TARGETS);
     expect(d).toEqual({ allow: false, choiceId: null, feedback: null, rule: "DEFAULT_DENY" });

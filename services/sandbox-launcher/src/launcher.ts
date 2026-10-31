@@ -10,6 +10,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Duplex } from "node:stream";
+import { fileURLToPath } from "node:url";
 import { PatchSpec } from "@chronosight/run-model";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
@@ -97,13 +98,31 @@ interface Sandbox {
   attached: boolean;
 }
 
+/** Docker's default seccomp profile, verbatim from moby/profiles seccomp/default.json @ 6fe7deb. */
+export const SECCOMP_DEFAULT_PATH = fileURLToPath(new URL("../../../sandbox/policies/seccomp-default.json", import.meta.url));
+
+/**
+ * Muse Code runs every agent shell command in bubblewrap, which needs user, network and
+ * mount namespaces and pivot_root. Docker's default profile allows those only with
+ * CAP_SYS_ADMIN, which §19 drops, so the agent's `pytest` could never start (SP-5, D-10).
+ * Synthesis containers get the default plus exactly these syscalls; test containers keep
+ * the default, since their pytest runs through `docker exec` without bubblewrap.
+ */
+export const BWRAP_SYSCALLS = ["clone", "mount", "pivot_root", "setns", "umount2", "unshare"] as const;
+
+export function synthesisSeccomp(defaultProfile: string): string {
+  const p = JSON.parse(defaultProfile) as { syscalls: object[] };
+  p.syscalls.push({ names: [...BWRAP_SYSCALLS], action: "SCMP_ACT_ALLOW" });
+  return JSON.stringify(p);
+}
+
 /** The fixed host config (DESIGN §19). Exported for the hardening suite. */
-export function hostConfig(kind: LaunchRequest["kind"], volume: string, network: string) {
+export function hostConfig(kind: LaunchRequest["kind"], volume: string, network: string, seccomp: string) {
   return {
     ReadonlyRootfs: true,
     Tmpfs: { "/tmp": "rw,noexec,nosuid,nodev,size=64m" },
     CapDrop: ["ALL"],
-    SecurityOpt: ["no-new-privileges:true"],
+    SecurityOpt: kind === "synthesis" ? ["no-new-privileges:true", `seccomp=${seccomp}`] : ["no-new-privileges:true"],
     NanoCpus: 2_000_000_000,
     Memory: 2 * 1024 ** 3,
     MemorySwap: 2 * 1024 ** 3,
@@ -125,10 +144,12 @@ export class Launcher {
 
   private readonly cfg: LauncherConfig;
   private readonly docker: Docker;
+  private readonly seccomp: string;
 
   constructor(cfg: LauncherConfig, docker = new Docker()) {
     this.cfg = cfg;
     this.docker = docker;
+    this.seccomp = synthesisSeccomp(readFileSync(SECCOMP_DEFAULT_PATH, "utf8"));
   }
 
   private get hardLimitMs(): number {
@@ -193,7 +214,7 @@ export class Launcher {
         // PID 1 only keeps the container alive; test containers also end themselves.
         Cmd: req.kind === "test" ? ["sleep", String(Math.ceil(this.hardLimitMs / 1000))] : ["sleep", "infinity"],
         Labels: labels,
-        HostConfig: hostConfig(req.kind, volume, this.cfg.network),
+        HostConfig: hostConfig(req.kind, volume, this.cfg.network, this.seccomp),
       });
       containerId = body.Id;
     } catch (e) {

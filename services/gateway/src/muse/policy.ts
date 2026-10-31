@@ -161,7 +161,10 @@ export function policyDecide(req: ApprovalRequest, policy: Policy, targetFiles: 
     if (allow) return { allow: true, choiceId: allow.choiceId, feedback: null, rule: verdict.rule };
   }
   const rule: Rule = verdict.allow ? "NO_ALLOW_ONCE" : verdict.rule;
-  const deny = req.availableChoices.find((c) => once(c) && c.decision === "denied");
+  // Shell approvals from muse serve 1.4.14 offer no "denied" choice; their once-scoped
+  // reject is "abort", which refuses this one tool call and lets the turn go on (SP-4, D-11).
+  const deny = req.availableChoices.find((c) => once(c) && c.decision === "denied")
+    ?? req.availableChoices.find((c) => once(c) && c.decision === "abort");
   if (!deny) return { allow: false, choiceId: null, feedback: null, rule };
   const feedback = deny.acceptsFeedback ? `Denied (${rule}). ${allowedSummary(policy, targetFiles)}` : null;
   return { allow: false, choiceId: deny.choiceId, feedback, rule };

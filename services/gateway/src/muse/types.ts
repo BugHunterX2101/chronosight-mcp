@@ -1,7 +1,7 @@
 // Patch synthesis port (DESIGN §18). The orchestrator depends on this interface only;
 // the Muse Code SDK implementation lives beside it in src/muse/.
 
-import type { Diagnosis } from "@chronosight/run-model";
+import type { DataClass, Diagnosis } from "@chronosight/run-model";
 import type { Scenario } from "../prefix.ts";
 
 export interface StepMetrics {
@@ -31,11 +31,15 @@ export interface SynthRequest {
   scenario: Scenario;
   diagnosis: Diagnosis;
   attempt: number;
+  /** the run's current taint: picks the model pin and contributor mode (§18.11, §21.2) */
+  dataClass: DataClass;
   /** D5 for later attempts: why the previous candidate failed (§18.8 item 5) */
   priorFailure: string | null;
   candidates: number;
   signal: AbortSignal;
   onProgress: (p: { patchId: string; candidate: number; filesTouched: string[]; testsRun: number; message: string }) => void;
+  /** the run's audit log: approvals, decisions, resolutions and turn terminals (§18.4, §18.12) */
+  audit?: (kind: string, data: object) => void;
 }
 
 export interface PatchSynthesizer {
