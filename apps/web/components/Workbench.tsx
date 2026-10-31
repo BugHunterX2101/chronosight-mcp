@@ -36,7 +36,7 @@ function describe(err: unknown): string {
 }
 
 export function Workbench({ sessionId }: { sessionId: string }) {
-  const { load, state, link, scenarioId } = useSession(sessionId);
+  const { load, state, link, scenarioId, mode } = useSession(sessionId);
   const [scenario, setScenario] = useState<ScenarioInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -220,7 +220,8 @@ export function Workbench({ sessionId }: { sessionId: string }) {
     <>
       <div className="banner" role="note">
         <p>
-          <strong>Live inspection</strong> of a synthetic scenario rendered by the digital twin, not a camera.{" "}
+          <strong>{mode === "replay" ? "Recorded session" : mode === "byo" ? "Your clip" : "Live inspection"}</strong>{" "}
+          {mode === "byo" ? "analysed by the same pipeline; nothing you upload is published." : "of a synthetic scenario rendered by the digital twin, not a camera."}{" "}
           <span className="muted" aria-live="polite">
             {LINK_TEXT[link]}
           </span>
@@ -231,11 +232,12 @@ export function Workbench({ sessionId }: { sessionId: string }) {
       <LoopStepper state={state_} live />
 
       <div className="controls">
-        {run === undefined ? (
+        {run === undefined && mode === "live" ? (
           <button type="button" className="primary" disabled={busy} onClick={() => void act(() => startPerceive(sessionId))}>
             Start inspection
           </button>
         ) : null}
+        {run === undefined && mode === "replay" ? <a href="/#runs">Watch a recorded run</a> : null}
         {active ? (
           <button type="button" disabled={busy} onClick={() => void act(() => cancelRun(run.runId))}>
             Cancel run

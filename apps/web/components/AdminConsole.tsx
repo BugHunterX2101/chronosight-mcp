@@ -27,6 +27,16 @@ interface AdminSession {
   dataClass: string | null;
 }
 
+interface Health {
+  live: { enabled: boolean; activeRuns: number; sessions: number };
+  breakers: Record<string, string>;
+  warmPool: { scenarios: number; lastWarm: Record<string, { at: string; cachedTokens: number; inputTokens: number }> };
+  replayFirstMask: Record<string, { count: number; meanS: number }>;
+  cache: Record<string, { calls: number; hitRatio: number | null }>;
+  modelRequests: Record<string, Record<string, number>>;
+}
+
+const pct = (r: number | null) => (r === null ? "n/a" : `${(r * 100).toFixed(1)}%`);
 const usd = (n: number) => `$${n.toFixed(3)}`;
 
 async function admin<T>(token: string, method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
@@ -46,15 +56,21 @@ export function AdminConsole() {
   const [signedIn, setSignedIn] = useState(false);
   const [spend, setSpend] = useState<Spend | null>(null);
   const [sessions, setSessions] = useState<AdminSession[]>([]);
+  const [health, setHealth] = useState<Health | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     const t = token.current;
     if (t === null) return;
-    const [s, l] = await Promise.all([admin<Spend>(t, "GET", "/admin/spend"), admin<{ sessions: AdminSession[] }>(t, "GET", "/admin/sessions")]);
+    const [s, l, h] = await Promise.all([
+      admin<Spend>(t, "GET", "/admin/spend"),
+      admin<{ sessions: AdminSession[] }>(t, "GET", "/admin/sessions"),
+      admin<Health>(t, "GET", "/admin/health"),
+    ]);
     setSpend(s);
     setSessions(l.sessions);
+    setHealth(h);
   }, []);
 
   const fail = (err: unknown) => {
@@ -113,6 +129,17 @@ export function AdminConsole() {
       .finally(() => setBusy(false));
   };
 
+  const warm = () => {
+    const t = token.current;
+    if (t === null) return;
+    setBusy(true);
+    setProblem(null);
+    admin(t, "POST", "/admin/warm", {})
+      .then(refresh)
+      .catch(fail)
+      .finally(() => setBusy(false));
+  };
+
   return (
     <>
       {problem !== null ? <p role="alert" className="alert">{problem}</p> : null}
@@ -131,6 +158,39 @@ export function AdminConsole() {
               <button type="button" disabled={busy} onClick={() => setLive(!spend.liveEnabled)}>
                 {spend.liveEnabled ? "Pause live runs" : "Resume live runs"}
               </button>
+            </p>
+          </>
+        )}
+      </section>
+      <section className="panel" aria-labelledby="hl-h">
+        <h2 id="hl-h">Health</h2>
+        {health === null ? (
+          <p role="status">Loading…</p>
+        ) : (
+          <>
+            <p>
+              Active runs <strong>{health.live.activeRuns}</strong> · open sessions {health.live.sessions} · breakers{" "}
+              {Object.keys(health.breakers).length === 0
+                ? "all closed (no calls yet)"
+                : Object.entries(health.breakers).map(([m, st]) => `${m}: ${st}`).join(", ")}
+            </p>
+            <p>
+              Prompt cache{" "}
+              {Object.keys(health.cache).length === 0
+                ? "has seen no calls yet"
+                : Object.entries(health.cache).map(([lane, c]) => `${lane} ${pct(c.hitRatio)} over ${c.calls} calls`).join(" · ")}
+              {Object.entries(health.warmPool.lastWarm).map(([id, w]) => (
+                <span key={id} className="muted"> · {id} warmed {w.at.slice(11, 19)} UTC</span>
+              ))}{" "}
+              <button type="button" disabled={busy} onClick={warm}>
+                Warm the cache
+              </button>
+            </p>
+            <p className="muted">
+              Replay first mask:{" "}
+              {Object.keys(health.replayFirstMask).length === 0
+                ? "no reports yet"
+                : Object.entries(health.replayFirstMask).map(([id, h]) => `${id} ${h.meanS.toFixed(2)} s mean over ${h.count}`).join(" · ")}
             </p>
           </>
         )}
@@ -175,6 +235,7 @@ export function AdminConsole() {
           setSignedIn(false);
           setSpend(null);
           setSessions([]);
+          setHealth(null);
         }}
       >
         Sign out

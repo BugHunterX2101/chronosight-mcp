@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { bundleBase } from "../lib/config.ts";
 import { IntegrityError, openBundle, type Bundle, type Manifest, type Scenario } from "../lib/replay/bundle.ts";
 import { ReplayClock, countAt, foldEvents, offsetsMs, type Speed } from "../lib/replay/clock.ts";
+import { reportFirstMask } from "../lib/beacon.ts";
 import { parseMasks, type MaskFile } from "../lib/replay/csmk.ts";
 import { CostMeter, DiagnosisPane, LoopStepper, ProvenanceFooter, RepairPane, VerdictPanel } from "./panels.tsx";
 import { VideoStage } from "./VideoStage.tsx";
@@ -120,6 +121,10 @@ export function ReplayPlayer({ runId }: { runId: string }) {
 
   const folded = useMemo(() => (ready === null ? null : foldEvents(ready.events, count)), [ready, count]);
   const run = folded?.runs[runId];
+  const scenarioForBeacon = ready?.manifest.scenarioId ?? null;
+  useEffect(() => {
+    if (firstMaskMs !== null && scenarioForBeacon !== null) reportFirstMask(scenarioForBeacon, firstMaskMs);
+  }, [firstMaskMs, scenarioForBeacon]);
   const onFirstMask = useCallback((at: number) => setFirstMaskMs((prev) => prev ?? Math.round(at - t0.current)), []);
 
   if (load.kind === "loading") return <p role="status">Loading replay and checking its checksums…</p>;

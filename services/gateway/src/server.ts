@@ -14,6 +14,8 @@ import { MetaClient, type MockMode } from "./meta.ts";
 import { loadRouting } from "./router.ts";
 import { loadPrices } from "./budget.ts";
 import { diagnose } from "./diagnosis.ts";
+import { Stats } from "./stats.ts";
+import { warmPrefix } from "./warmer.ts";
 import { reviewRisk } from "./gate/risk.ts";
 import { ApprovalGate, hmacKeyFromEnv } from "./gate/approval.ts";
 import { TwinClient } from "./twin.ts";
@@ -59,9 +61,18 @@ const twin = new TwinClient(env.TWIN_URL?.trim() || "http://127.0.0.1:8090");
 const meta = new MetaClient({ mode, apiKey, baseURL: metaBase });
 const launcher = new LauncherClient(launcherSocketPath(env), 5_000);
 const breakers = new Map();
+const stats = new Stats();
+const warmLog = (m: string) => app.log.info(m);
 
 const ledger = new BudgetLedger(ledgerOptionsFromEnv(paths.data, env));
 ledger.boot();
+
+const lastWarm = new Map<string, { at: string; cachedTokens: number; inputTokens: number }>();
+const warmOne = async (id: string) => {
+  const r = await warmPrefix({ meta, routing, prices, stats, log: warmLog }, prefixes.get(id)!);
+  lastWarm.set(id, { at: new Date().toISOString(), cachedTokens: r.cachedTokens, inputTokens: r.inputTokens });
+  return r;
+};
 
 const app = await buildApp({
   ledger,
@@ -75,6 +86,16 @@ const app = await buildApp({
   conceptPlan: (id) => prefixes.get(id)!.scenario.concepts,
   scenarioTitle: (id) => prefixes.get(id)!.scenario.title,
   logger: true,
+  stats,
+  health: () => ({
+    breakers: Object.fromEntries([...breakers].map(([model, b]) => [model, b.state()])),
+    warmPool: { scenarios: scenarios.length, lastWarm: Object.fromEntries(lastWarm) },
+  }),
+  warm: async (only) => {
+    const out = [];
+    for (const id of only === null ? scenarios : [only]) out.push(await warmOne(id));
+    return out;
+  },
   // Voice (§15) needs the real upstream; with MOCK_META=true there is none, so the route stays off.
   ...(apiKey && mode !== "true" ? { asr: { apiKey, base: metaBase, onAlert: (m: string) => app.log.warn(m) } } : {}),
   runDeps: (c) => {
@@ -89,7 +110,7 @@ const app = await buildApp({
       prices,
       twin,
       sam: new SamClient({ mode, apiKey, baseURL: metaBase, dataDir: paths.data, fixturesDir: paths.fixtures, twin, log }),
-      diagnose: (input, emit) => diagnose({ meta, routing, prices, breakers, emit, log }, input),
+      diagnose: (input, emit) => diagnose({ meta, routing, prices, breakers, stats, emit, log }, input),
       reviewRisk: (input) => reviewRisk({ meta, routing, prices, log }, input),
       synth: museSynthesizerFromEnv(env, log),
       // FR-PAT-5 / §18.10: 2–3 independent candidates; the synthesizer caps how many run at once.
@@ -116,11 +137,23 @@ const app = await buildApp({
   },
 });
 
+// CACHE_WARMER_INTERVAL_H (TECHNICAL §7.5): unset or 0 leaves the warmer to POST /admin/warm. It never runs
+// with MOCK_META=true, which has no upstream to warm.
+const warmEveryH = Number(env.CACHE_WARMER_INTERVAL_H?.trim() || 0);
+let warmTimer: NodeJS.Timeout | null = null;
+if (warmEveryH > 0 && mode !== "true") {
+  warmTimer = setInterval(() => {
+    for (const id of scenarios) warmOne(id).catch((e: unknown) => app.log.warn({ err: e instanceof Error ? e.message : String(e), scenario: id }, "cache warm failed"));
+  }, warmEveryH * 3_600_000);
+  warmTimer.unref();
+}
+
 let closing = false;
 const shutdown = async (signal: string) => {
   if (closing) return;
   closing = true;
   app.log.info({ signal }, "shutting down");
+  if (warmTimer) clearInterval(warmTimer);
   try {
     await app.close();
   } finally {

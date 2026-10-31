@@ -24,6 +24,7 @@ import { CsmkError, parseTrack, readMaskRange } from "./csmk.ts";
 import { sendFile } from "./http/static.ts";
 import { buildReport, renderReportHtml } from "./report.ts";
 import { ApiError, toApiError } from "./http/errors.ts";
+import { Stats } from "./stats.ts";
 
 const BODY_LIMIT = 64 * 1024;
 const RATE_PER_MIN = 60;
@@ -77,6 +78,12 @@ export interface AppOptions {
   ready?: () => Promise<string[]>;
   /** Voice relay (DESIGN §15): the upstream key and base. Unset turns /ws/asr/:id off (the route is not registered). */
   asr?: { apiKey: string; base: string; connect?: (url: string) => WebSocket; onAlert?: (message: string) => void };
+  /** In-process counters shared with the diagnosis engine; a fresh one when unset. */
+  stats?: Stats;
+  /** What /admin/health reports beyond the counters: breaker states, warm-pool state. */
+  health?: () => Record<string, unknown>;
+  /** Warms the Contributor prefix once (POST /admin/warm); unset turns the route into 404. */
+  warm?: (scenarioId: string | null) => Promise<unknown[]>;
   /** Fastify trustProxy: which hops may set X-Forwarded-For (Caddy). */
   trustProxy?: string | boolean;
   logger?: boolean;
@@ -114,6 +121,12 @@ const MaskQuery = z.object({
 });
 const CLIP_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const LiveBody = z.strictObject({ enabled: z.boolean() });
+const BeaconBody = z.strictObject({
+  metric: z.literal("replay_first_mask"),
+  scenarioId: z.string().regex(/^[a-z0-9]{1,16}$/),
+  seconds: z.number().min(0).max(120),
+});
+const WarmBody = z.strictObject({ scenarioId: z.string().regex(/^[a-z0-9]{1,16}$/).optional() });
 
 function parse<T>(schema: z.ZodType<T>, v: unknown): T {
   const r = schema.safeParse(v ?? {});
@@ -151,6 +164,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
   const minute = new Map<string, { window: number; n: number }>();
   const adminFails = new Map<string, { at: number[]; lockedUntil: number }>();
   const wantToken = o.adminToken || null;
+  const stats = o.stats ?? new Stats();
 
   const app = Fastify({
     logger: o.logger ?? false,
@@ -463,6 +477,25 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     return report;
   });
 
+  // ---------------------------------------------------------------- beacons (DESIGN §29.2)
+
+  // Aggregate only: the body is counted into a histogram and dropped, so nothing here ties a number to a
+  // visitor. navigator.sendBeacon sends text/plain, which Fastify hands over as a string.
+  app.post("/api/beacons", async (req, reply) => {
+    let body = req.body;
+    if (typeof body === "string") {
+      try {
+        body = JSON.parse(body);
+      } catch {
+        throw new ApiError("BAD_REQUEST", "the beacon is not JSON");
+      }
+    }
+    const b = parse(BeaconBody, body);
+    if (!o.scenarios.includes(b.scenarioId)) throw new ApiError("BAD_REQUEST", "unknown scenario");
+    stats.replayFirstMask(b.scenarioId, b.seconds);
+    return reply.code(204).send();
+  });
+
   // ---------------------------------------------------------------- health
 
   app.get("/api/healthz", async () => ({ ok: true }));
@@ -532,6 +565,25 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
         };
       }),
     };
+  });
+
+  app.get("/admin/health", async (req) => {
+    admin(req);
+    const t = o.ledger.totals();
+    const all = [...sessions.values()];
+    return {
+      live: { enabled: t.liveEnabled, activeRuns: all.filter((s) => s.busy).length, sessions: all.length },
+      ...(o.health?.() ?? {}),
+      ...stats.snapshot(),
+    };
+  });
+
+  app.post("/admin/warm", async (req) => {
+    admin(req);
+    if (!o.warm) throw new ApiError("NOT_FOUND", "the cache warmer is not available here");
+    const b = parse(WarmBody, req.body);
+    if (b.scenarioId !== undefined && !o.scenarios.includes(b.scenarioId)) throw new ApiError("BAD_REQUEST", "unknown scenario");
+    return { sent: await o.warm(b.scenarioId ?? null) };
   });
 
   // ---------------------------------------------------------------- WebSocket (§7.2, §6.1)

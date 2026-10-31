@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { isTerminal, type Envelope, type RunState } from "@chronosight/run-model";
-import { buildApp, type RunContext } from "../src/app.ts";
+import { buildApp, type AppOptions, type RunContext } from "../src/app.ts";
 import { BudgetLedger } from "../src/ledger.ts";
 import { verifyChain } from "../src/audit.ts";
 import { buildPrefix } from "../src/prefix.ts";
@@ -57,13 +57,13 @@ interface Made {
   dataDir: string;
 }
 
-async function make(o: { live?: boolean; cap?: number; perHour?: number; admin?: string | null; now?: () => number; replaysDir?: string } = {}): Promise<Made> {
+async function make(o: { live?: boolean; cap?: number; perHour?: number; admin?: string | null; now?: () => number; replaysDir?: string; extra?: Partial<AppOptions> } = {}): Promise<Made> {
   const dataDir = mkdtempSync(join(tmpdir(), "cs-app-"));
   const ledger = new BudgetLedger({ dataDir, dailyCapUsd: o.cap ?? 3, visitorRunsPerHour: o.perHour ?? 2, liveDefault: o.live ?? true });
   ledger.boot();
   const app = await buildApp({
     ledger, dataDir, replaysDir: o.replaysDir, signingKey: "s".repeat(40), adminToken: o.admin === undefined ? ADMIN : o.admin,
-    publicOrigins: [ORIGIN], sessionTtlMs: 3_600_000, scenarios: ["s1"], conceptPlan: () => buildPrefix("s1").scenario.concepts, runDeps: runDeps(dataDir), now: o.now,
+    publicOrigins: [ORIGIN], sessionTtlMs: 3_600_000, scenarios: ["s1"], conceptPlan: () => buildPrefix("s1").scenario.concepts, runDeps: runDeps(dataDir), now: o.now, ...o.extra,
   });
   cleanups.push(async () => {
     await app.close();
@@ -499,5 +499,59 @@ describe("admin API (§7.3)", () => {
   it("is absent when no admin token is configured", async () => {
     const { app } = await make({ admin: null });
     expect((await app.inject({ method: "GET", url: "/admin/spend", headers: bearer("anything") })).statusCode).toBe(404);
+  });
+});
+
+describe("beacons and health (§7.1, §7.3, §14.1)", () => {
+  const bearer = (t: string) => ({ authorization: `Bearer ${t}` });
+  const beacon = { metric: "replay_first_mask", scenarioId: "s1", seconds: 1.4 };
+
+  it("counts a first-mask beacon into an aggregate histogram and answers 204", async () => {
+    const { app } = await make();
+    for (const seconds of [0.3, 1.4, 1.9, 7]) {
+      const r = await app.inject({ method: "POST", url: "/api/beacons", headers: json, payload: { ...beacon, seconds } });
+      expect(r.statusCode).toBe(204);
+    }
+    const h = (await app.inject({ method: "GET", url: "/admin/health", headers: bearer(ADMIN) })).json();
+    expect(h.replayFirstMask.s1).toMatchObject({ count: 4, buckets: { "le_0.5": 1, le_1: 0, le_2: 2, le_5: 0, le_10: 1, gt: 0 } });
+    expect(JSON.stringify(h)).not.toMatch(/visitor|cs_sid/i);
+  });
+
+  it("accepts the text/plain body navigator.sendBeacon sends", async () => {
+    const { app } = await make();
+    const r = await app.inject({ method: "POST", url: "/api/beacons", headers: { "content-type": "text/plain;charset=UTF-8", origin: ORIGIN }, payload: JSON.stringify(beacon) });
+    expect(r.statusCode).toBe(204);
+  });
+
+  it("refuses an unknown metric, scenario, negative or absurd time, extra fields, and a foreign origin", async () => {
+    const { app } = await make();
+    const post = (payload: unknown, headers: Record<string, string> = json) => app.inject({ method: "POST", url: "/api/beacons", headers, payload: payload as object });
+    expect((await post({ ...beacon, metric: "other" })).statusCode).toBe(400);
+    expect((await post({ ...beacon, scenarioId: "zz" })).statusCode).toBe(400);
+    expect((await post({ ...beacon, seconds: -1 })).statusCode).toBe(400);
+    expect((await post({ ...beacon, seconds: 9999 })).statusCode).toBe(400);
+    expect((await post({ ...beacon, visitor: "x" })).statusCode).toBe(400);
+    expect((await post(beacon, { "content-type": "application/json", origin: "https://evil.test" })).statusCode).toBe(403);
+  });
+
+  it("reports live state, caller-supplied health and counters to the admin only", async () => {
+    const { app } = await make({ extra: { health: () => ({ breakers: { "muse-spark-1.3": "closed" } }) } });
+    await session(app);
+    expect((await app.inject({ method: "GET", url: "/admin/health" })).statusCode).toBe(401);
+    const h = (await app.inject({ method: "GET", url: "/admin/health", headers: bearer(ADMIN) })).json();
+    expect(h).toMatchObject({ live: { enabled: true, activeRuns: 0, sessions: 1 }, breakers: { "muse-spark-1.3": "closed" }, cache: {}, modelRequests: {} });
+  });
+
+  it("warms through the supplied warmer, scenario-checked, and is absent without one", async () => {
+    const seen: (string | null)[] = [];
+    const { app } = await make({ extra: { warm: async (id) => { seen.push(id); return [{ scenarioId: id ?? "s1" }]; } } });
+    const post = (payload: unknown, auth = bearer(ADMIN)) => app.inject({ method: "POST", url: "/admin/warm", headers: { ...auth, "content-type": "application/json" }, payload: payload as object });
+    expect((await post({})).json()).toEqual({ sent: [{ scenarioId: "s1" }] });
+    expect((await post({ scenarioId: "s1" })).statusCode).toBe(200);
+    expect(seen).toEqual([null, "s1"]);
+    expect((await post({ scenarioId: "nope" })).statusCode).toBe(400);
+    expect((await post({}, bearer("wrong"))).statusCode).toBe(401);
+    const bare = await make();
+    expect((await bare.app.inject({ method: "POST", url: "/admin/warm", headers: { ...bearer(ADMIN), "content-type": "application/json" }, payload: {} })).statusCode).toBe(404);
   });
 });

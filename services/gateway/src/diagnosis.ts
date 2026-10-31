@@ -7,7 +7,8 @@ import {
 } from "@chronosight/run-model";
 import { MetaError, type MetaClient, type Usage } from "./meta.ts";
 import { type Prefix, promptCacheKey } from "./prefix.ts";
-import { Breaker, backoffDelayMs, cacheRetention, route, type Route, type RoutingConfig } from "./router.ts";
+import type { Stats } from "./stats.ts";
+import { Breaker, backoffDelayMs, cacheRetention, isContributor, route, type Route, type RoutingConfig } from "./router.ts";
 import { intersectBounds, sanitizeHints, verifyCitation } from "./citations.ts";
 import { costOf, type Prices } from "./budget.ts";
 import type { KeyFrame } from "./twin.ts";
@@ -58,6 +59,8 @@ export interface DiagnoseDeps {
   emit: (kind: "summary" | "progress", text: string) => void;
   log?: (msg: string) => void;
   sleep?: (ms: number) => Promise<void>;
+  /** Counts each call for /admin/health (cache hit ratio, request outcomes). */
+  stats?: Stats;
   /** Per-attempt deadline; defaults to ATTEMPT_TIMEOUT_MS. */
   attemptTimeoutMs?: number;
 }
@@ -154,6 +157,8 @@ async function call(deps: DiagnoseDeps, body: Record<string, unknown>, run?: Run
     }
     if (!done) throw new MetaError("STREAM_TRUNCATED", "stream ended without response.completed", 502);
     breaker.success();
+    deps.stats?.modelRequest(model, "ok");
+    deps.stats?.modelUsage(isContributor(model) ? "contrib" : "std", done.usage.input_tokens, done.usage.input_tokens_details?.cached_tokens ?? 0);
     return done;
   } catch (err) {
     let me = err instanceof MetaError ? err : new MetaError("NETWORK", String(err));
@@ -172,6 +177,7 @@ async function call(deps: DiagnoseDeps, body: Record<string, unknown>, run?: Run
         run.chargeEstimate((inputTokens * price.inputPerM + outputTokens * price.outputPerM) / 1e6, { model, inputTokens, outputTokens });
       }
     }
+    deps.stats?.modelRequest(model, me.code === "TIMEOUT" ? "timeout" : me.status === null ? "network" : me.status >= 500 ? "5xx" : "4xx");
     if (me.status !== null && me.status >= 500) breaker.serverError();
     else breaker.release();
     throw me;

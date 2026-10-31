@@ -12,6 +12,8 @@ export interface SessionView {
   state: SessionState;
   link: LinkStatus;
   scenarioId: string | null;
+  /** How the gateway created the session; null until the snapshot has loaded. */
+  mode: "live" | "replay" | "byo" | null;
 }
 
 // The per-session store (DESIGN §25.2): the state is only ever the reducer's output over events, the
@@ -22,6 +24,7 @@ export function useSession(sessionId: string): SessionView {
   const [state, setState] = useState<SessionState>(initialSession);
   const [link, setLink] = useState<LinkStatus>("connecting");
   const [scenarioId, setScenarioId] = useState<string | null>(null);
+  const [mode, setMode] = useState<SessionView["mode"]>(null);
   const head = useRef(0);
   const working = useRef(false);
 
@@ -50,6 +53,7 @@ export function useSession(sessionId: string): SessionView {
       queue = [];
       head.current = snap.headSeq;
       setScenarioId(snap.scenarioId);
+      setMode(snap.mode);
       setState(snap.state);
     };
 
@@ -93,5 +97,5 @@ export function useSession(sessionId: string): SessionView {
     };
   }, [sessionId]);
 
-  return { load, state, link, scenarioId };
+  return { load, state, link, scenarioId, mode };
 }
