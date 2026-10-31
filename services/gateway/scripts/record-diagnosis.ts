@@ -36,7 +36,7 @@ const res = await diagnose(
       else summaryChars += text.length;
     },
     log: (m) => console.error(`[log] ${m}`),
-    attemptTimeoutMs: Number(process.env.DIAGNOSIS_ATTEMPT_TIMEOUT_MS ?? 90_000),
+    attemptTimeoutMs: Number(process.env.DIAGNOSIS_ATTEMPT_TIMEOUT_MS ?? 240_000),
   },
   { prefix, dataClass: "PUBLIC", telemetry: telemetrySummary(metrics, prefix.scenario), request: "intent=explain_fault" },
 );

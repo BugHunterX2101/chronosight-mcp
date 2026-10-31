@@ -229,6 +229,8 @@ export class RunDriver {
   private dataClass: DataClass = "PUBLIC";
   private request: string | null = null;
   private pre: ClipState | null = null;
+  /** Every clip this run rendered, by id; GET .../masks serves only these. */
+  private readonly clips = new Map<string, ClipState>();
   private preMetrics: MetricsResult | null = null;
   /** D3 for every diagnosis of this run: built once from the pre clip (§16.1). */
   private keyFrames: KeyFrame[] | null = null;
@@ -266,6 +268,16 @@ export class RunDriver {
 
   get attempt(): number {
     return this.cursor.attempt;
+  }
+
+  /** PUBLIC until a CONFIDENTIAL request taints the run (DESIGN §14.3). */
+  get taint(): DataClass {
+    return this.dataClass;
+  }
+
+  /** The mask file of one of this run's clips (data-dir relative), or null for a clip the run never made. */
+  maskPath(clipId: string): string | null {
+    return this.clips.get(clipId)?.csmkPath ?? null;
   }
 
   /**
@@ -462,6 +474,7 @@ export class RunDriver {
       clipId, absPath: this.abs(r.clipPath), groundTruthPath: this.abs(r.groundTruthPath),
       csmkPath: `masks/${clipId}.csmk`, frames: r.frames, fps: r.fps,
     };
+    this.clips.set(clipId, this.pre);
     this.d.emit("twin.render", { clipId, phase: "pre", url: this.url(this.pre.absPath), frames: r.frames, fps: r.fps });
   }
 
@@ -871,6 +884,7 @@ export class RunDriver {
       this.d.emit("test.result", v);
       return `The previous patch failed in the twin. ${failure ?? ""}`.slice(0, 4000);
     }
+    this.clips.set(clip.clipId, clip);
     this.d.emit("twin.render", { clipId: clip.clipId, phase: "post", url: this.url(clip.absPath), frames: clip.frames, fps: clip.fps });
     return clip;
   }

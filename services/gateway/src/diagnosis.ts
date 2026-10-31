@@ -12,7 +12,9 @@ import { intersectBounds, sanitizeHints, verifyCitation } from "./citations.ts";
 import { costOf, type Prices } from "./budget.ts";
 import type { KeyFrame } from "./twin.ts";
 
-export const ATTEMPT_TIMEOUT_MS = 90_000;
+// DESIGN ST-6 and §16.8 say 90 s, but real xhigh runs take 120–160 s end to end with the first summary at 6–7 s and
+// 14–19k reasoning tokens, cached or not (measured), so a 90 s deadline can never finish. The user set 240 s.
+export const ATTEMPT_TIMEOUT_MS = 240_000;
 const NETWORK_ATTEMPTS = 3;
 
 export interface DiagnoseInput {
@@ -56,7 +58,7 @@ export interface DiagnoseDeps {
   emit: (kind: "summary" | "progress", text: string) => void;
   log?: (msg: string) => void;
   sleep?: (ms: number) => Promise<void>;
-  /** Per-attempt deadline; DESIGN ST-6 says 90 s. Recording tools may raise it. */
+  /** Per-attempt deadline; defaults to ATTEMPT_TIMEOUT_MS. */
   attemptTimeoutMs?: number;
 }
 

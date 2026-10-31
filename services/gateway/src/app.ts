@@ -6,7 +6,9 @@
 // 60 requests a minute per visitorKey; bodies over 64 KB are refused; path ids are checked before
 // any lookup. Every response carries `x-cs-request-id`, every refusal the §7.7 error body.
 
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import websocket from "@fastify/websocket";
 import type { WebSocket } from "ws";
@@ -16,6 +18,8 @@ import { coalesceKey, isTerminal, type Envelope, type RunState } from "@chronosi
 import { RESERVE_USD, type BudgetLedger } from "./ledger.ts";
 import { RunDriver, selectConcepts, type RunDeps } from "./orchestrator/run.ts";
 import { Session, type SessionMode } from "./session.ts";
+import { CsmkError, parseTrack, readMaskRange } from "./csmk.ts";
+import { buildReport, renderReportHtml } from "./report.ts";
 import { ApiError, toApiError } from "./http/errors.ts";
 
 const BODY_LIMIT = 64 * 1024;
@@ -91,6 +95,12 @@ const EventsQuery = z.object({
   since: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().min(1).max(1000).default(50),
 });
+const MaskQuery = z.object({
+  track: z.string().max(12).optional(),
+  from: z.coerce.number().int().min(0).optional(),
+  to: z.coerce.number().int().min(0).optional(),
+});
+const CLIP_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const LiveBody = z.strictObject({ enabled: z.boolean() });
 
 function parse<T>(schema: z.ZodType<T>, v: unknown): T {
@@ -365,6 +375,50 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     const end = stateOf(d); // re-read after the await; the narrowing above no longer holds
     if (end !== "ABORTED") throw new ApiError("STATE_CONFLICT", `the run ended in ${end}`);
     return { state: "ABORTED" };
+  });
+
+  // DESIGN §10: masks are binary and cacheable, never inside JSON events. A PUBLIC run's clips need no
+  // cookie and are immutable; anything the run was tainted by stays behind the owning session's cookie.
+  app.get("/api/runs/:runId/clips/:clipId/masks", async (req, reply) => {
+    const { runId, clipId } = req.params as { runId: string; clipId: string };
+    if (!ID_RE.test(runId) || !runId.startsWith("run_")) throw new ApiError("BAD_REQUEST", "malformed run id");
+    if (!CLIP_RE.test(clipId)) throw new ApiError("BAD_REQUEST", "malformed clip id");
+    const q = parse(MaskQuery, req.query);
+    if (q.track !== undefined && !parseTrack(q.track)) throw new ApiError("BAD_REQUEST", "track must be <conceptIdx>:<objectId>");
+    if (q.from !== undefined && q.to !== undefined && q.to < q.from) throw new ApiError("BAD_REQUEST", "to is before from");
+    const owner = [...sessions.values()].find((x) => x.run?.runId === runId);
+    const rel = owner?.run?.driver.maskPath(clipId) ?? null;
+    if (!owner || !rel) throw new ApiError("NOT_FOUND", "no such clip in this run");
+    const isPublic = owner.run!.driver.taint === "PUBLIC";
+    if (!isPublic && cookieSession(req) !== owner.id) throw new ApiError("SESSION_NOT_FOUND", "no such run");
+    const file = join(o.dataDir, rel);
+    if (!existsSync(file) || !existsSync(`${file}.idx`)) throw new ApiError("NOT_FOUND", "the clip has no masks yet");
+    let body: Buffer;
+    try {
+      body = readMaskRange(file, `${file}.idx`, q);
+    } catch (e) {
+      if (e instanceof CsmkError) throw new ApiError("INTERNAL", `unreadable mask file: ${e.message}`);
+      throw e;
+    }
+    return reply
+      .header("cache-control", isPublic ? "public, max-age=31536000, immutable" : "private, no-store")
+      .type("application/octet-stream")
+      .send(body);
+  });
+
+  // PRD §15.1: the audit report, from the hash-chained log. HTML for people, JSON for tools.
+  app.get("/api/sessions/:id/report", async (req, reply) => {
+    const s = owned(req);
+    const report = buildReport({ auditPath: join(o.dataDir, "audit", `${s.id}.jsonl`), sessionId: s.id, scenarioId: s.scenarioId, now: now() });
+    reply.header("cache-control", "no-store");
+    if (typeof req.headers.accept === "string" && req.headers.accept.includes("text/html")) {
+      const nonce = randomBytes(16).toString("base64url");
+      return reply
+        .header("content-security-policy", `default-src 'none'; style-src 'nonce-${nonce}'; base-uri 'none'; frame-ancestors 'none'`)
+        .type("text/html; charset=utf-8")
+        .send(renderReportHtml(report, nonce));
+    }
+    return report;
   });
 
   // ---------------------------------------------------------------- health

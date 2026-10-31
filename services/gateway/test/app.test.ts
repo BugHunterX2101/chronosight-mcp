@@ -325,6 +325,58 @@ describe("WebSocket (§7.2, §6.1)", () => {
   });
 });
 
+describe("masks and report (§7.1)", () => {
+  it("serves nothing for a clip the run never made, and rejects malformed ids and queries", async () => {
+    const { app } = await make();
+    const { id, cookie } = await session(app);
+    const started = await app.inject({ method: "POST", url: `/api/sessions/${id}/perceive`, headers: { ...json, cookie }, payload: {} });
+    const runId = started.json().runId as string;
+    const get = (url: string) => app.inject({ method: "GET", url, headers: { cookie } });
+    expect((await get(`/api/runs/${runId}/clips/bl-nope/masks`)).json()).toMatchObject({ code: "NOT_FOUND" });
+    expect((await get(`/api/runs/run_BAD/clips/bl-nope/masks`)).json()).toMatchObject({ code: "BAD_REQUEST" });
+    expect((await get(`/api/runs/${runId}/clips/..%2Fetc/masks`)).json()).toMatchObject({ code: "BAD_REQUEST" });
+    expect((await get(`/api/runs/${runId}/clips/bl-nope/masks?track=x`)).json()).toMatchObject({ code: "BAD_REQUEST" });
+    expect((await get(`/api/runs/${runId}/clips/bl-nope/masks?from=5&to=2`)).json()).toMatchObject({ code: "BAD_REQUEST" });
+    expect((await get(`/api/runs/run_01J9ZQ4V6W8X0Y2Z3A4B5C6D7E/clips/bl-nope/masks`)).json()).toMatchObject({ code: "NOT_FOUND" });
+  });
+
+  it("reports a session as JSON and as HTML, with the chain verified and the run's spans", async () => {
+    const { app } = await make();
+    const { id, cookie } = await session(app);
+    await app.inject({ method: "POST", url: `/api/sessions/${id}/perceive`, headers: { ...json, cookie }, payload: {} });
+    await until(app, id, cookie, isTerminal);
+
+    const j = await app.inject({ method: "GET", url: `/api/sessions/${id}/report`, headers: { cookie } });
+    expect(j.statusCode).toBe(200);
+    expect(j.headers["cache-control"]).toBe("no-store");
+    const rep = j.json();
+    expect(rep).toMatchObject({ v: 1, sessionId: id, scenarioId: "s1", audit: { chainOk: true } });
+    expect(rep.audit.headHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(rep.runs).toHaveLength(1);
+    const run = rep.runs[0];
+    expect(isTerminal(run.state)).toBe(true);
+    expect(run.spans.map((s: { name: string }) => s.name)).toEqual(["CAPTURING", run.state]);
+    expect(run.errors[0]).toMatchObject({ stage: "CAPTURING" });
+    expect(run.totalMs).toBeGreaterThanOrEqual(0);
+
+    const h = await app.inject({ method: "GET", url: `/api/sessions/${id}/report`, headers: { cookie, accept: "text/html" } });
+    expect(h.headers["content-type"]).toContain("text/html");
+    expect(h.body).toContain(rep.audit.headHash);
+    expect(h.body).not.toContain("<script");
+    const nonce = /style nonce="([^"]+)"/.exec(h.body)![1];
+    expect(h.headers["content-security-policy"]).toContain(`style-src 'nonce-${nonce}'`);
+  });
+
+  it("gives the report only to the session's own cookie", async () => {
+    const { app } = await make();
+    const a = await session(app);
+    const b = await session(app);
+    const r = await app.inject({ method: "GET", url: `/api/sessions/${a.id}/report`, headers: { cookie: b.cookie } });
+    expect(r.statusCode).toBe(404);
+    expect((await app.inject({ method: "GET", url: `/api/sessions/${a.id}/report` })).statusCode).toBe(404);
+  });
+});
+
 describe("admin API (§7.3)", () => {
   const bearer = (t: string) => ({ authorization: `Bearer ${t}` });
 

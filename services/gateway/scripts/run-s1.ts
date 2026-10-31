@@ -54,7 +54,7 @@ const driver: RunDriver = new RunDriver({
   sam: new SamClient({ mode, apiKey, baseURL: metaBase, dataDir: paths.data, fixturesDir: paths.fixtures, twin, log }),
   diagnose: (input, emit) => diagnose({
     meta, routing, prices, breakers, emit, log,
-    attemptTimeoutMs: Number(process.env.DIAGNOSIS_ATTEMPT_TIMEOUT_MS ?? 90_000),
+    attemptTimeoutMs: Number(process.env.DIAGNOSIS_ATTEMPT_TIMEOUT_MS ?? 240_000),
   }, input),
   reviewRisk: (input) => reviewRisk({ meta: riskMeta, routing, prices, log }, input),
   synth: museSynthesizerFromEnv(process.env, log),
