@@ -21,6 +21,7 @@ import { SamClient } from "./sam/client.ts";
 import { museSynthesizerFromEnv } from "./muse/synthesizer.ts";
 import { LauncherClient } from "./muse/launcher-client.ts";
 import { launcherSocketPath } from "./muse/sandbox-attach.ts";
+import { join } from "node:path";
 import { paths } from "./paths.ts";
 
 const env = process.env;
@@ -65,6 +66,7 @@ ledger.boot();
 const app = await buildApp({
   ledger,
   dataDir: paths.data,
+  replaysDir: join(paths.root, "replays"),
   signingKey,
   adminToken: env.ADMIN_TOKEN?.trim() || null,
   publicOrigins,

@@ -3,7 +3,7 @@
 // Runs use the real collaborators. The twin URL points at a closed port, so a started run fails at
 // CAPTURING without any model call; that is enough to exercise the run's HTTP and event surface.
 
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -57,12 +57,12 @@ interface Made {
   dataDir: string;
 }
 
-async function make(o: { live?: boolean; cap?: number; perHour?: number; admin?: string | null; now?: () => number } = {}): Promise<Made> {
+async function make(o: { live?: boolean; cap?: number; perHour?: number; admin?: string | null; now?: () => number; replaysDir?: string } = {}): Promise<Made> {
   const dataDir = mkdtempSync(join(tmpdir(), "cs-app-"));
   const ledger = new BudgetLedger({ dataDir, dailyCapUsd: o.cap ?? 3, visitorRunsPerHour: o.perHour ?? 2, liveDefault: o.live ?? true });
   ledger.boot();
   const app = await buildApp({
-    ledger, dataDir, signingKey: "s".repeat(40), adminToken: o.admin === undefined ? ADMIN : o.admin,
+    ledger, dataDir, replaysDir: o.replaysDir, signingKey: "s".repeat(40), adminToken: o.admin === undefined ? ADMIN : o.admin,
     publicOrigins: [ORIGIN], sessionTtlMs: 3_600_000, scenarios: ["s1"], conceptPlan: () => buildPrefix("s1").scenario.concepts, runDeps: runDeps(dataDir), now: o.now,
   });
   cleanups.push(async () => {
@@ -374,6 +374,89 @@ describe("masks and report (§7.1)", () => {
     const r = await app.inject({ method: "GET", url: `/api/sessions/${a.id}/report`, headers: { cookie: b.cookie } });
     expect(r.statusCode).toBe(404);
     expect((await app.inject({ method: "GET", url: `/api/sessions/${a.id}/report` })).statusCode).toBe(404);
+  });
+});
+
+describe("static clips and replays (§24)", () => {
+  const BUNDLE = "run_01J9ZQ4V6W8X0Y2Z3A4B5C6D7E";
+  function volume(): string {
+    const replaysDir = mkdtempSync(join(tmpdir(), "cs-replays-"));
+    mkdirSync(join(replaysDir, BUNDLE, "clips"), { recursive: true });
+    writeFileSync(join(replaysDir, "index.json"), '{"v":1}');
+    writeFileSync(join(replaysDir, BUNDLE, "events.jsonl"), "{}\n");
+    writeFileSync(join(replaysDir, BUNDLE, "clips", "pre.mp4"), Buffer.from("0123456789"));
+    cleanups.push(async () => rmSync(replaysDir, { recursive: true, force: true }));
+    return replaysDir;
+  }
+
+  it("serves a bundle file whole, by range, and by suffix range, with immutable caching", async () => {
+    const { app } = await make({ replaysDir: volume() });
+    const url = `/replays/${BUNDLE}/clips/pre.mp4`;
+    const whole = await app.inject({ method: "GET", url });
+    expect(whole.statusCode).toBe(200);
+    expect(whole.headers["content-type"]).toBe("video/mp4");
+    expect(whole.headers["cache-control"]).toBe("public, max-age=31536000, immutable");
+    expect(whole.headers["accept-ranges"]).toBe("bytes");
+    expect(whole.body).toBe("0123456789");
+
+    const part = await app.inject({ method: "GET", url, headers: { range: "bytes=2-4" } });
+    expect(part.statusCode).toBe(206);
+    expect(part.headers["content-range"]).toBe("bytes 2-4/10");
+    expect(part.body).toBe("234");
+    expect((await app.inject({ method: "GET", url, headers: { range: "bytes=-3" } })).body).toBe("789");
+    expect((await app.inject({ method: "GET", url, headers: { range: "bytes=7-" } })).body).toBe("789");
+    const bad = await app.inject({ method: "GET", url, headers: { range: "bytes=50-60" } });
+    expect(bad.statusCode).toBe(416);
+    expect(bad.headers["content-range"]).toBe("bytes */10");
+  });
+
+  it("serves index.json with a short cache, and answers a Range preflight for the allowed origin", async () => {
+    const { app } = await make({ replaysDir: volume() });
+    const idx = await app.inject({ method: "GET", url: "/replays/index.json", headers: { origin: ORIGIN } });
+    expect(idx.json()).toEqual({ v: 1 });
+    expect(idx.headers["cache-control"]).toBe("public, max-age=60");
+    expect(idx.headers["access-control-allow-origin"]).toBe(ORIGIN);
+    const pre = await app.inject({ method: "OPTIONS", url: "/replays/index.json", headers: { origin: ORIGIN, "access-control-request-headers": "range" } });
+    expect(pre.statusCode).toBe(204);
+    expect(String(pre.headers["access-control-allow-headers"])).toContain("range");
+  });
+
+  it("refuses traversal, odd segments, unknown files and a missing replays directory", async () => {
+    const { app } = await make({ replaysDir: volume() });
+    const get = (url: string) => app.inject({ method: "GET", url });
+    // The router folds dot segments (even encoded ones) before the handler, so these resolve to index.json or fail.
+    for (const u of [`/replays/${BUNDLE}/../index.json`, `/replays/${BUNDLE}/%2e%2e/index.json`, `/replays/${BUNDLE}/%2e%2e%2f%2e%2e/index.json`, `/replays/${BUNDLE}/clips/..%2f..%2findex.json`]) {
+      const r = await get(u);
+      if (r.statusCode === 200) expect(r.body, u).toBe('{"v":1}');
+      else expect([400, 404], u).toContain(r.statusCode);
+    }
+    for (const u of [`/replays/${BUNDLE}/clips/a%20b`, "/replays/notarun/events.jsonl", `/replays/${BUNDLE}`, `/replays/${BUNDLE}/a/b/c/d`]) {
+      expect([400, 404], u).toContain((await get(u)).statusCode);
+    }
+    expect((await get(`/replays/${BUNDLE}/clips/missing.mp4`)).json()).toMatchObject({ code: "NOT_FOUND" });
+    expect((await get(`/replays/${BUNDLE}/clips`)).statusCode).toBe(404);
+    const { app: off } = await make();
+    expect((await off.inject({ method: "GET", url: "/replays/index.json" })).statusCode).toBe(404);
+  });
+
+  it("serves a rendered clip from data/clips and refuses names outside the pattern", async () => {
+    const { app, dataDir } = await make();
+    mkdirSync(join(dataDir, "clips"), { recursive: true });
+    writeFileSync(join(dataDir, "clips", "s1-baseline-7-abc.mp4"), Buffer.from("clip"));
+    const ok = await app.inject({ method: "GET", url: "/media/clips/s1-baseline-7-abc.mp4" });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.body).toBe("clip");
+    expect((await app.inject({ method: "GET", url: "/media/clips/s1-baseline-7-abc.gt.json" })).json()).toMatchObject({ code: "BAD_REQUEST" });
+    expect((await app.inject({ method: "GET", url: "/media/clips/..%2Fledger.mp4" })).statusCode).toBe(400);
+    expect((await app.inject({ method: "GET", url: "/media/clips/none.mp4" })).statusCode).toBe(404);
+  });
+
+  it("does not count static media against the per-minute API limit", async () => {
+    const { app, dataDir } = await make();
+    mkdirSync(join(dataDir, "clips"), { recursive: true });
+    writeFileSync(join(dataDir, "clips", "s1-x.mp4"), "x");
+    for (let i = 0; i < 150; i += 1) expect((await app.inject({ method: "GET", url: "/media/clips/s1-x.mp4" })).statusCode).toBe(200);
+    expect((await app.inject({ method: "POST", url: "/api/sessions", headers: json, payload: { mode: "live" } })).statusCode).toBe(201);
   });
 });
 

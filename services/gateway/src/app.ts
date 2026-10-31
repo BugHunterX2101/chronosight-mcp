@@ -7,7 +7,7 @@
 // any lookup. Every response carries `x-cs-request-id`, every refusal the §7.7 error body.
 
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import websocket from "@fastify/websocket";
@@ -19,6 +19,7 @@ import { RESERVE_USD, type BudgetLedger } from "./ledger.ts";
 import { RunDriver, selectConcepts, type RunDeps } from "./orchestrator/run.ts";
 import { Session, type SessionMode } from "./session.ts";
 import { CsmkError, parseTrack, readMaskRange } from "./csmk.ts";
+import { sendFile } from "./http/static.ts";
 import { buildReport, renderReportHtml } from "./report.ts";
 import { ApiError, toApiError } from "./http/errors.ts";
 
@@ -35,6 +36,9 @@ const SWEEP_MS = 60_000;
 const CANCEL_WAIT_MS = 10_000;
 const DEFAULT_INTENT = "intent=explain_fault";
 const COOKIE = "cs_sid";
+const CLIP_FILE_RE = /^[A-Za-z0-9._-]{1,128}\.mp4$/;
+const BUNDLE_RE = /^run_[A-Za-z0-9]{1,40}$/;
+const SEGMENT_RE = /^[A-Za-z0-9._-]{1,128}$/;
 const ID_RE = /^(ses|run|clp)_[0-9A-HJKMNP-TV-Z]{26}$/;
 
 /** What the app hands the run factory; the factory adds the scenario, twin, models and gate. */
@@ -52,6 +56,8 @@ export interface RunContext {
 export interface AppOptions {
   ledger: BudgetLedger;
   dataDir: string;
+  /** Recorded replay bundles (replays/index.json and replays/{runId}/…), served read-only at /replays/. Unset turns the route off. */
+  replaysDir?: string;
   /** SESSION_SIGNING_KEY: signs `cs_sid` and salts the daily visitor key. */
   signingKey: string;
   /** ADMIN_TOKEN; null turns the admin API off (404). */
@@ -202,13 +208,14 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     if (req.method === "OPTIONS") {
       if (!allowed) throw new ApiError("ORIGIN_DENIED", "origin is not allowed");
       reply.header("access-control-allow-methods", "GET, POST");
-      reply.header("access-control-allow-headers", "content-type, authorization");
+      reply.header("access-control-allow-headers", "content-type, authorization, range");
       reply.header("access-control-max-age", "600");
       return reply.code(204).send();
     }
 
     const path = req.url.split("?")[0] ?? "";
-    if (path === "/api/healthz" || path === "/api/readyz") return;
+    // Health checks and static media are not API calls; the CDN serves the latter in production.
+    if (path === "/api/healthz" || path === "/api/readyz" || path.startsWith("/media/") || path.startsWith("/replays/")) return;
 
     const vk = visitorKey(req);
     const w = Math.floor(now() / 60_000);
@@ -375,6 +382,28 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     const end = stateOf(d); // re-read after the await; the narrowing above no longer holds
     if (end !== "ABORTED") throw new ApiError("STATE_CONFLICT", `the run ended in ${end}`);
     return { state: "ABORTED" };
+  });
+
+  // Rendered clips: twin.render.url points here. A scenario clip holds no upload, so it needs no cookie.
+  app.get("/media/clips/:file", async (req, reply) => {
+    const { file } = req.params as { file: string };
+    if (!CLIP_FILE_RE.test(file)) throw new ApiError("BAD_REQUEST", "malformed clip name");
+    const path = join(o.dataDir, "clips", file);
+    if (!existsSync(path)) throw new ApiError("NOT_FOUND", "no such clip");
+    return sendFile(req, reply, path, { cache: "public, max-age=31536000, immutable" });
+  });
+
+  // DESIGN §24: recorded bundles are immutable static files. In production a CDN serves them; this route is the
+  // same tree for local runs (TQ-3), with Range for seeking and the index fetch of masks.
+  app.get("/replays/*", async (req, reply) => {
+    if (!o.replaysDir) throw new ApiError("NOT_FOUND", "replays are not served here");
+    const parts = ((req.params as Record<string, string>)["*"] ?? "").split("/");
+    const index = parts.length === 1 && parts[0] === "index.json";
+    const ok = index || (parts.length >= 2 && parts.length <= 4 && BUNDLE_RE.test(parts[0]!) && parts.slice(1).every((x) => SEGMENT_RE.test(x) && !/^\.+$/.test(x)));
+    if (!ok) throw new ApiError("BAD_REQUEST", "malformed replay path");
+    const path = join(o.replaysDir, ...parts);
+    if (!existsSync(path) || !statSync(path).isFile()) throw new ApiError("NOT_FOUND", "no such replay file");
+    return sendFile(req, reply, path, { cache: index ? "public, max-age=60" : "public, max-age=31536000, immutable" });
   });
 
   // DESIGN §10: masks are binary and cacheable, never inside JSON events. A PUBLIC run's clips need no
