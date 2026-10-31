@@ -73,6 +73,7 @@ const app = await buildApp({
   sessionTtlMs: ttlHours * 3_600_000,
   scenarios,
   conceptPlan: (id) => prefixes.get(id)!.scenario.concepts,
+  scenarioTitle: (id) => prefixes.get(id)!.scenario.title,
   logger: true,
   runDeps: (c) => {
     const prefix = prefixes.get(c.scenarioId)!;

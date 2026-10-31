@@ -68,6 +68,8 @@ export interface AppOptions {
   scenarios: readonly string[];
   /** Each scenario's concept plan (DESIGN §12.1), which POST /perceive `concepts` is checked against. */
   conceptPlan: (scenarioId: string) => readonly { slug: string; role: string }[];
+  /** A scenario's display title for GET /api/scenarios; the id when unset. */
+  scenarioTitle?: (scenarioId: string) => string;
   runDeps: (c: RunContext) => RunDeps;
   /** Readiness of the gateway's dependencies (twin, launcher): the problems found, none when ready. */
   ready?: () => Promise<string[]>;
@@ -242,6 +244,13 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     void reply.code(404).send({ code: "NOT_FOUND", message: "no such route", retryable: false, stage: "http", requestId: req.id });
   });
 
+  // ---------------------------------------------------------------- scenarios
+
+  // What the start screen offers: ids, titles and concept plans. No session or key is involved.
+  app.get("/api/scenarios", async () => ({
+    scenarios: o.scenarios.map((id) => ({ id, title: o.scenarioTitle?.(id) ?? id, concepts: o.conceptPlan(id).map((c) => ({ slug: c.slug, role: c.role })) })),
+  }));
+
   // ---------------------------------------------------------------- sessions
 
   const sessionUsd = (s: Session) => Math.round(s.usd * 1e6) / 1e6;
@@ -260,7 +269,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
 
   app.get("/api/sessions/:id/snapshot", async (req) => {
     const s = owned(req);
-    return { headSeq: s.headSeq, state: s.state };
+    return { headSeq: s.headSeq, scenarioId: s.scenarioId, mode: s.mode, state: s.state };
   });
 
   app.get("/api/sessions/:id/events", async (req) => {

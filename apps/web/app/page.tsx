@@ -1,4 +1,5 @@
 import { FeaturedReplays } from "../components/FeaturedReplays.tsx";
+import { StartLive } from "../components/StartLive.tsx";
 
 export default function Home() {
   return (
@@ -10,6 +11,11 @@ export default function Home() {
       </p>
       <h2>Recorded runs</h2>
       <FeaturedReplays />
+      <h2>Run it live</h2>
+      <StartLive />
+      <p className="muted">
+        <a href="/about">About Chronosight</a>
+      </p>
     </main>
   );
 }

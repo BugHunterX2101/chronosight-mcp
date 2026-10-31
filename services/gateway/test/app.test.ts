@@ -145,6 +145,14 @@ describe("sessions and request rules (§7.1)", () => {
     expect(snap.json()).toMatchObject({ headSeq: 0, state: { headSeq: 0, runs: {} } });
   });
 
+  it("lists the scenarios and their concept plans without a session", async () => {
+    const { app } = await make();
+    const r = await app.inject({ method: "GET", url: "/api/scenarios" });
+    expect(r.statusCode).toBe(200);
+    const plan = buildPrefix("s1").scenario.concepts.map((c) => ({ slug: c.slug, role: c.role }));
+    expect(r.json()).toEqual({ scenarios: [{ id: "s1", title: "s1", concepts: plan }] });
+  });
+
   it("validates bodies and refuses unknown scenarios and fields", async () => {
     const { app } = await make();
     const bad = [{ mode: "bogus" }, { mode: "live", scenarioId: "s9" }, { mode: "live", extra: 1 }];

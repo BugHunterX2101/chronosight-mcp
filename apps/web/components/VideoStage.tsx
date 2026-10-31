@@ -122,7 +122,7 @@ export function VideoStage({ src, masks, concepts, playing, onFirstMask }: Props
 
   return (
     <div className="stage">
-      {src !== null ? <video ref={video} className="stage-video" src={src} muted loop playsInline preload="auto" aria-label="Rendered clip" /> : <div className="stage-video stage-empty">Loading verified clip…</div>}
+      {src !== null ? <video ref={video} className="stage-video" src={src} muted loop playsInline preload="auto" aria-label="Rendered clip" /> : <div className="stage-video stage-empty">Waiting for the clip…</div>}
       <canvas ref={canvas} className="stage-overlay" width={masks?.frameW ?? 1280} height={masks?.frameH ?? 720} aria-hidden="true" />
     </div>
   );
