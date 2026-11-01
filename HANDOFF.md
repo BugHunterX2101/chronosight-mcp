@@ -1,6 +1,6 @@
 # Hand-off
 
-State of ChronoSight as of 2026-11-01, branch `build/wip` (remote `BugHunterX2101/chronosight-mcp`). Read [README.md](README.md) first for architecture, env names and commands; this file is what you need to continue.
+State of ChronoSight as of 2026-11-01, branch `deploy/render` (remote `BugHunterX2101/chronosight-mcp`, promotion commit `6e93a39`). Read [README.md](README.md) first for architecture, env names and commands; this file is what you need to continue.
 
 ## 1. Where things stand
 
@@ -9,18 +9,17 @@ State of ChronoSight as of 2026-11-01, branch `build/wip` (remote `BugHunterX210
 - Live Meta Model API smoke check: one PUBLIC S1 diagnosis completed with the configured server-side key, 172.4 s elapsed, observed model cost `$0.0069`, exit code 0. No key or raw credential material was logged or stored.
 - Baseten and Modal were not invoked: this codebase currently exposes only their configuration names and documentation, not a provider client or executable partner lane. They remain acceptance-blocked rather than being represented as validated.
 - After the check, `.env.local` remained `LIVE_RUNS_ENABLED=false`, `PARTNER_ENDPOINTS_ENABLED=false`, and `MOCK_META=false`; no live run, BYO verification, placebo, HUD acceptance, or real-hardware check was performed.
-- Hosted demo: https://chronosight.onrender.com (Render service `srv-dbjmjas9v7es73ai13i0`, team `chronosight-mcp` = `tea-dbjm7dnf3r2c73cgjk10`, branch `deploy/render`, deploy `dep-dbjmkilg1s2s7386ddf0` is live). Probed: `/api/healthz` 200, `/api/scenarios` 200 (`uploads:false`), `/`, `/about`, `/hud`, `/admin` 200, `/replays/index.json` 200, `/replay/run_01M68V2MKCFX6SQ14ZNWPSSWXD` plays in a browser (manifest, events, clip and masks all 200, sha256 check passes, no console errors apart from one CSP `eval` informational issue), `POST /api/sessions` 201 with an `HttpOnly; Secure; SameSite=Strict` cookie, `/admin/health` without a token 401, a POST from a foreign Origin 403. `/api/readyz` returns 503 there by design (no twin or launcher).
+- Hosted demo: https://chronosight.onrender.com (Render service `srv-dbjmjas9v7es73ai13i0`, branch `deploy/render`, promotion commit `6e93a39`). The branch push succeeded and the service currently responds with `/api/healthz` 200, `/api/scenarios` 200, and `/` 200; `/api/readyz` returns 503 by design because this replay-only service has no twin or launcher. Render auto-deploy is disabled, so the service must be manually deployed through the Render API or dashboard before the new branch content is served.
 
 **Built**: twin and deterministic S1/S2/S3 scenario packages; gateway (orchestrator, approvals, diagnosis, SAM client, ledger, audit chain, replay recorder, HUD pairing and transports, ASR relay, beacons, admin health and warm); sandbox launcher and egress proxy; media worker; web (home, workbench, replay, report, about, admin, `/hud`, PsdChart, PlaceboButton, GlassesPreview, WebMCP, voice, bring-your-own-clip panel).
 
 **Not done** (in priority order)
-1. **Replay publisher** (DESIGN/TECHNICAL CDN publish step): `STORAGE_BUCKET_URL` / `STORAGE_KEY` are not wired. The recorder (`services/gateway/src/replay/record.ts`) writes `replays/<runId>/` locally; the gateway serves it. Nothing uploads to a bucket.
+1. **Render promotion activation**: the verified `deploy/render` branch is pushed, but auto-deploy is disabled and no Render API token is available in this environment to trigger the deployment.
 2. **Whole-product sweep and video readiness**: a pass over every route, navigation, error and empty state, mobile widths, performance, and a rehearsed demo script. Not finished.
-3. **HUD wording for a BYO run**: `services/gateway/src/hud/project.ts` strips `RunView.reason`, so the glasses cannot say "analysed, no patch". `apps/web/lib/voice/narration.ts` has no ABORTED case (returns null), so the voice agent is silent at the BYO end state.
-4. **Live checks that cost money** (all need explicit approval, see section 4): HUD states H4/H5/HE from a real run; a real placebo run; a real BYO run.
-5. Audio extraction from uploads (FR-DIA-6), D1 logs, and real browser validation of webcam capture.
-6. Diagnosis latency: the spec target is <= 30 s; measured xhigh latency forced a 240 s per-attempt cap. Unmet.
-7. `graphify-out/` was refreshed after the bring-your-own-clip commits; run `graphify update .` after code changes.
+3. **Live checks that cost money** (all need explicit approval, see section 4): HUD states H4/H5/HE from a real run; a real placebo run; a real BYO run.
+4. Audio extraction from uploads (FR-DIA-6), D1 logs, and real browser validation of webcam capture.
+5. Diagnosis latency: the spec target is <= 30 s; measured xhigh latency forced a 240 s per-attempt cap. Unmet.
+6. `graphify-out/` was refreshed after the bring-your-own-clip commits; run `graphify update .` after code changes.
 
 ## 2. Resume locally
 
