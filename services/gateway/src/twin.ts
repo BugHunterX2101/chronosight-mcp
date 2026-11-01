@@ -111,12 +111,14 @@ export class TwinClient {
   async metrics(body: {
     clipId: string; csmkPath: string; scenarioId: string; phase: "pre" | "post";
     nFrames?: number; groundTruthPath?: string; includeSpectrum?: boolean;
+    /** A person's clip: the scenario camera does not apply, so this is its scale (FR-MEA-2). */
+    byo?: { mmPerPx?: number; markerSizeMm?: number };
   }): Promise<MetricsResult> {
     return this.req("POST", "/metrics", body, TIMEOUT_MS.metrics);
   }
 
   /** D3 key frames of a clip whose masks are ingested (DESIGN §16.1). */
-  async keyFrames(body: { clipId: string; scenarioId: string; clipPath: string; csmkPath: string; nFrames?: number }): Promise<{ clipId: string; frames: KeyFrame[] }> {
+  async keyFrames(body: { clipId: string; scenarioId: string; clipPath: string; csmkPath: string; nFrames?: number; byo?: { mmPerPx?: number; markerSizeMm?: number } }): Promise<{ clipId: string; frames: KeyFrame[] }> {
     return this.req("POST", "/keyframes", body, TIMEOUT_MS.keyFrames);
   }
 
@@ -130,6 +132,8 @@ export class TwinClient {
   /** Parses teed SAM streams (paths relative to DATA_DIR) into masks/<clipId>.csmk (DESIGN §12.4). */
   async samIngest(body: {
     clipId: string; scenarioId: string; sources: { ssePath: string; conceptIdx: number }[]; fps?: number;
+    /** A person's clip has its own frame size; a render takes the scenario camera's. */
+    width?: number; height?: number;
   }, signal?: AbortSignal): Promise<SamIngestResult> {
     return this.req("POST", "/sam/ingest", body, TIMEOUT_MS.samIngest, [], signal);
   }

@@ -18,7 +18,9 @@ export interface MetricsResponse {
   noiseFloorPx: number | null;
   fps: number;
   frames: number;
-  mmPerPx: number;
+  /** null when the clip has no scale (a person's clip, FR-MEA-2): every mm figure is then null too. */
+  mmPerPx: number | null;
+  scaleSource?: "camera" | "marker" | "user" | "uncalibrated";
   warnings: string[];
   spectrum?: { f: number[]; s: (number | null)[]; n0: (number | null)[] };
   precheck: { ok: boolean; failures: { check: string; message: string; value: number | null }[] };
@@ -38,7 +40,11 @@ export function spectralPeaks(sp: MetricsResponse["spectrum"], max = 5): { hz: n
   return peaks.sort((a, b) => b.dbAboveFloor - a.dbAboveFloor).slice(0, max);
 }
 
-export function telemetrySummary(m: MetricsResponse, sc: Scenario): Record<string, unknown> {
+/**
+ * `source` is "uploaded" for a person's clip. Its summary says so, and says what unit the figures are in, because the
+ * model must not describe pixels as millimetres. A twin clip's summary is unchanged byte for byte: replays match on it.
+ */
+export function telemetrySummary(m: MetricsResponse, sc: Scenario, source?: "uploaded"): Record<string, unknown> {
   return {
     scenarioId: m.scenarioId,
     clipId: m.clipId,
@@ -53,6 +59,9 @@ export function telemetrySummary(m: MetricsResponse, sc: Scenario): Record<strin
     noiseFloorPx: m.noiseFloorPx,
     spectralPeaks: spectralPeaks(m.spectrum),
     clip: { fps: m.fps, frames: m.frames, mmPerPx: m.mmPerPx },
+    ...(source === "uploaded"
+      ? { source: "a clip the user uploaded, not a simulation", units: m.mmPerPx == null ? "px (uncalibrated): no scale is known, so there are no millimetre figures" : `mm, from a ${m.scaleSource ?? "given"} scale` }
+      : {}),
     warnings: m.warnings,
     precheck: m.precheck,
   };

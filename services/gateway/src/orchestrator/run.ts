@@ -18,6 +18,7 @@ import type { DiagnoseInput, DiagnoseResult } from "../diagnosis.ts";
 import type { Prefix } from "../prefix.ts";
 import { costOf, type Prices } from "../budget.ts";
 import type { PerceiveInput, PerceiveResult } from "../sam/client.ts";
+import { tooLongToAfford, type ByoRun } from "../byo.ts";
 import { telemetrySummary } from "../telemetry.ts";
 import { isPatchFailure, type BoundsResult, type KeyFrame, type MetricsResult, type TwinClient } from "../twin.ts";
 import { scoreJ, type PatchCandidate, type PatchSynthesizer } from "../muse/types.ts";
@@ -100,6 +101,11 @@ export interface RunDeps {
   mediaUrl?: (absPath: string) => string;
   /** Set on a placebo child run (§8.3, FR-VUT-3): it starts in SIMULATING_POST and never diagnoses. */
   placebo?: { parentRunId: string; basis: PlaceboBasis };
+  /**
+   * A person's clip (PRD L2): it is perceived, measured and diagnosed, and the run ends there with no patch loop.
+   * The run is CONFIDENTIAL from its first state, so nothing of it reaches a Contributor lane or a public replay.
+   */
+  byo?: ByoRun;
   now?: () => number;
   log?: (msg: string) => void;
 }
@@ -161,6 +167,8 @@ export interface ClipState {
   fps: number;
 }
 
+/** The reason a bring-your-own run ends after its diagnosis (run.state `reason`). */
+export const BYO_DIAGNOSED = "BYO_DIAGNOSED";
 const INTENT_RE = /^intent=[a-z_]{1,32}$/;
 const iso = (ms: number) => new Date(ms).toISOString();
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -267,6 +275,7 @@ export class RunDriver {
     this.d = deps;
     this.t = { ...DEFAULT_TIMEOUTS, ...deps.timeouts };
     this.now = deps.now ?? Date.now;
+    if (deps.byo) this.dataClass = "CONFIDENTIAL";
     const plan = deps.prefix.scenario.concepts;
     this.conceptSet = selectConcepts(plan, deps.concepts).map(({ idx, slug, prompt }) => ({ idx, slug, prompt }));
     this.conceptTag = this.conceptSet.length === plan.length ? "" : `-c${this.conceptSet.map((c) => c.idx).join("")}`;
@@ -339,7 +348,8 @@ export class RunDriver {
         await this.placeboRun(this.d.placebo.parentRunId, this.d.placebo.basis);
         return this.outcome();
       }
-      await this.capture();
+      if (this.d.byo) this.captureByo();
+      else await this.capture();
       await this.perceivePre();
       if (await this.measurePre()) {
         await this.awaitQuestion();
@@ -484,6 +494,8 @@ export class RunDriver {
       coverage: m.coverage, final: true,
       // The Lomb-Scargle spectrum (amplitude, px); each clip has its own grid, the plot puts both on one dB axis.
       ...(m.spectrum ? { spectrum: { f: m.spectrum.f, s: m.spectrum.s } } : {}),
+      // A person's clip may have no scale: the px figure is then the measurement, and rmsMm is null (FR-MEA-2).
+      ...(this.d.byo ? { rmsPx: m.rmsPx, mmPerPx: m.mmPerPx, scaleSource: m.scaleSource ?? "uncalibrated" } : {}),
     });
   }
 
@@ -508,6 +520,17 @@ export class RunDriver {
     this.d.emit("twin.render", { clipId, phase: "pre", url: this.url(this.pre.absPath), frames: r.frames, fps: r.fps });
   }
 
+  /** A person's clip is already normalized and stored (POST /clips); there is nothing to render. */
+  private captureByo(): void {
+    this.go("CAPTURING", "upload");
+    const { clip, clipUrl } = this.d.byo!;
+    this.pre = { clipId: clip.clipId, absPath: clip.path, groundTruthPath: "", csmkPath: `masks/${clip.clipId}.csmk`, frames: clip.frames, fps: clip.fps };
+    this.clips.set(clip.clipId, this.pre);
+    // By reference only: the hash names the normalized clip; the upload's file name was never kept.
+    this.d.audit("clip.used", { clipId: clip.clipId, sha256: clip.sha256, frames: clip.frames, fps: clip.fps, scale: this.d.byo!.scale });
+    this.d.emit("twin.render", { clipId: clip.clipId, phase: "pre", url: clipUrl, frames: clip.frames, fps: clip.fps });
+  }
+
   private async perceivePre(): Promise<void> {
     this.go("PERCEIVING_PRE", "clip ready");
     const pre = this.pre!;
@@ -515,9 +538,18 @@ export class RunDriver {
       this.d.log?.(`baseline masks cached: ${pre.csmkPath}`);
       return;
     }
+    const byo = this.d.byo;
+    if (byo) {
+      // The gateway refuses an unaffordable clip before it reserves a slot; this is the same check where the money is spent.
+      const refusal = tooLongToAfford(this.d.prices, this.conceptSet.length, byo.clip.frames);
+      if (refusal) throw new RunError("MEDIA_DURATION", refusal, "ABORTED");
+    }
     this.billed();
     const res = await this.within(this.t.perceiving, "SAM_TIMEOUT", "ABORTED", (signal) =>
-      this.d.sam.perceive({ clipId: pre.clipId, scenarioId: this.d.scenarioId, clipPath: pre.absPath, concepts: this.concepts(), signal }));
+      this.d.sam.perceive({
+        clipId: pre.clipId, scenarioId: this.d.scenarioId, clipPath: pre.absPath, concepts: this.concepts(), signal,
+        ...(byo ? { byo: { width: byo.clip.width, height: byo.clip.height, fps: byo.clip.fps } } : {}),
+      }));
     pre.csmkPath = res.csmkPath;
     for (const w of res.warnings) this.d.log?.(`SAM warning: ${w}`);
     this.charge(this.samCost(res, pre.frames));
@@ -530,7 +562,8 @@ export class RunDriver {
     const m = await this.within(this.t.measuring, "MEASURE_TIMEOUT", "ABORTED", () =>
       this.d.twin.metrics({
         clipId: pre.clipId, csmkPath: pre.csmkPath, scenarioId: this.d.scenarioId, phase: "pre",
-        nFrames: pre.frames, groundTruthPath: pre.groundTruthPath,
+        nFrames: pre.frames,
+        ...(this.d.byo ? { byo: this.d.byo.scale } : { groundTruthPath: pre.groundTruthPath }),
       }));
     this.preMetrics = m;
     this.emitMetrics(m, "pre");
@@ -641,7 +674,9 @@ export class RunDriver {
     this.nextEscalate = false;
     const m = this.preMetrics!;
     // D2 names the clip by its stable label, never the per-render ID, so replays match (§16.3).
-    const telemetry = telemetrySummary({ ...m, clipId: `${this.d.scenarioId}-baseline-${this.d.seed}` }, this.d.prefix.scenario);
+    const telemetry = telemetrySummary(
+      { ...m, clipId: this.d.byo ? "uploaded-clip" : `${this.d.scenarioId}-baseline-${this.d.seed}` }, this.d.prefix.scenario, this.d.byo ? "uploaded" : undefined,
+    );
     const keyFrames = await this.preKeyFrames(diagnosisId);
     this.billed();
     const res = await this.within(null, "DIAGNOSIS_TIMEOUT", "FAILED", () =>
@@ -671,6 +706,12 @@ export class RunDriver {
     });
     this.d.audit("diagnosis", { diagnosisId, patchSpecHash: res.diagnosis.patchSpecHash, lane: res.lane, usage: res.usage, costUsd: res.costUsd });
     this.charge(res.costUsd);
+    if (this.d.byo) {
+      // PRD L2: a person's clip gets perception, measurement and a diagnosis. There is no controller to patch, so
+      // there is no approval to ask for; the run ends here with a reason code the pages read as a finished analysis.
+      this.go("ABORTED", BYO_DIAGNOSED);
+      return false;
+    }
     this.go("AWAITING_APPROVAL_1", "diagnosis ready");
     return true;
   }
@@ -686,6 +727,7 @@ export class RunDriver {
     try {
       const r = await this.d.twin.keyFrames({
         clipId: pre.clipId, scenarioId: this.d.scenarioId, clipPath: pre.absPath, csmkPath: pre.csmkPath, nFrames: pre.frames,
+        ...(this.d.byo ? { byo: this.d.byo.scale } : {}),
       });
       this.keyFrames = r.frames;
       this.d.emit("diagnosis.delta", {

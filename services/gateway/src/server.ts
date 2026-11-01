@@ -25,6 +25,7 @@ import { LauncherClient } from "./muse/launcher-client.ts";
 import { launcherSocketPath } from "./muse/sandbox-attach.ts";
 import { join, resolve } from "node:path";
 import { paths } from "./paths.ts";
+import { tooLongToAfford } from "./byo.ts";
 
 const env = process.env;
 
@@ -90,6 +91,7 @@ const app = await buildApp({
     : {}),
   scenarios,
   conceptPlan: (id) => prefixes.get(id)!.scenario.concepts,
+  byoRefusal: (concepts, frames) => tooLongToAfford(prices, concepts, frames),
   scenarioTitle: (id) => prefixes.get(id)!.scenario.title,
   logger: true,
   stats,

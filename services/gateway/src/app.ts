@@ -63,6 +63,8 @@ export interface RunContext {
   charge: RunDeps["charge"];
   /** Set for a placebo child run (POST /verify). */
   placebo?: RunDeps["placebo"];
+  /** Set when the session's uploaded clip is the subject of the run (mode byo). */
+  byo?: RunDeps["byo"];
 }
 
 export interface AppOptions {
@@ -97,8 +99,10 @@ export interface AppOptions {
   hudUrl?: string;
   /** HUD_PAIRING_TTL_S in ms (default 10 min). */
   hudPairingTtlMs?: number;
-  /** Bring-your-own uploads (DESIGN ง11): the media worker's URL and the scratch directory both share. Unset turns POST /clips into MEDIA_UNAVAILABLE. */
+  /** Bring-your-own uploads (DESIGN ยง11): the media worker's URL and the scratch directory both share. Unset turns POST /clips into MEDIA_UNAVAILABLE. */
   media?: { url: string; scratchDir: string; fetch?: typeof fetch };
+  /** Why a clip of `frames` frames cannot be analysed with `concepts` prompts within a run's reservation; null when it can (src/byo.ts). */
+  byoRefusal?: (concepts: number, frames: number) => string | null;
   /** Fastify trustProxy: which hops may set X-Forwarded-For (Caddy). */
   trustProxy?: string | boolean;
   logger?: boolean;
@@ -112,6 +116,9 @@ const SessionBody = z.strictObject({
 const PerceiveBody = z.strictObject({
   clipId: z.string().regex(ID_RE).optional(),
   concepts: z.array(z.string().regex(/^[a-z0-9_-]{1,32}$/)).min(1).max(8).optional(),
+  // A person's clip has no camera model: its scale is the real size of reference marker A, or mm per px, if they know it (FR-MEA-2).
+  markerSizeMm: z.number().gt(0).max(1000).optional(),
+  mmPerPx: z.number().gt(0).max(1000).optional(),
 });
 const DiagnoseBody = z.strictObject({
   transcript: z.string().min(1).max(2000).optional(),
@@ -364,18 +371,39 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     return s.run.driver;
   };
 
+  /** What a bring-your-own run takes from the session: its normalized clip and the scale the person gave, if any. */
+  const byoRun = (s: Session, b: z.infer<typeof PerceiveBody>): NonNullable<RunDeps["byo"]> => {
+    const c = s.clip!;
+    return {
+      clip: { clipId: c.clipId, path: c.path, sha256: c.sha256, frames: c.frames, fps: c.fps, width: c.width, height: c.height, durationS: c.durationS },
+      scale: { ...(b.mmPerPx !== undefined ? { mmPerPx: b.mmPerPx } : {}), ...(b.markerSizeMm !== undefined ? { markerSizeMm: b.markerSizeMm } : {}) },
+      clipUrl: `/api/sessions/${s.id}/clip`,
+    };
+  };
+
   app.post("/api/sessions/:id/perceive", async (req, reply) => {
     const s = owned(req);
     const b = parse(PerceiveBody, req.body);
     if (s.mode === "replay") throw new ApiError("STATE_CONFLICT", "a replay session plays a recorded run; it starts no live run");
-    if (s.mode === "byo") throw new ApiError("STATE_CONFLICT", "upload a clip first (POST /clips)");
+    if (s.mode !== "byo" && (b.markerSizeMm !== undefined || b.mmPerPx !== undefined)) {
+      throw new ApiError("BAD_REQUEST", "a scale belongs to a clip you uploaded; a live run uses the scenario's camera");
+    }
+    if (s.mode === "byo" && !s.clip) throw new ApiError("STATE_CONFLICT", "upload a clip first (POST /clips)");
+    if (s.mode === "byo" && s.uploading) throw new ApiError("STATE_CONFLICT", "an upload is still in progress");
     if (s.run) throw new ApiError("STATE_CONFLICT", s.busy ? "a run is already active" : "this session's run has ended; start a new session");
     // A live run renders its own baseline after the run exists, so there is no clip to name yet;
     // clipId names an uploaded clip, which only a byo session has (POST /clips).
-    if (b.clipId) throw new ApiError("BAD_REQUEST", "a live run renders the scenario baseline itself; clipId names a clip uploaded to a byo session");
+    if (b.clipId && b.clipId !== s.clip?.clipId) {
+      throw new ApiError("BAD_REQUEST", s.mode === "byo" ? "clipId is not this session's clip" : "a live run renders the scenario baseline itself; clipId names a clip uploaded to a byo session");
+    }
     // Checked before reserve() so a bad selection never spends a live-run slot.
     const concepts = b.concepts ?? null;
-    selectConcepts(o.conceptPlan(s.scenarioId), concepts);
+    const planned = selectConcepts(o.conceptPlan(s.scenarioId), concepts);
+    // A person's clip bills per frame per concept, so one the reservation cannot cover is refused before a slot is spent.
+    if (s.mode === "byo") {
+      const refusal = o.byoRefusal?.(planned.length, s.clip!.frames) ?? null;
+      if (refusal) throw new ApiError("MEDIA_DURATION", refusal, { stage: "budget" });
+    }
 
     const runId = `run_${ulid()}`;
     const r = o.ledger.reserve(s.visitorKey, runId);
@@ -387,6 +415,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     try {
       driver = new RunDriver(o.runDeps({
         sessionId: s.id, runId, scenarioId: s.scenarioId, concepts,
+        ...(s.mode === "byo" && s.clip ? { byo: byoRun(s, b) } : {}),
         emit: (type, data) => s.emit(runId, type, data),
         audit: (kind, data) => s.audit.append(runId, kind, data, now()).seq,
         charge: (usd) => {
@@ -407,7 +436,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     return reply.code(202).send({ runId });
   });
 
-  // Bring-your-own upload (PRD FR-CAP-4, TECHNICAL ง7.1). The privacy acknowledgement is the first field and the file
+  // Bring-your-own upload (PRD FR-CAP-4, TECHNICAL ยง7.1). The privacy acknowledgement is the first field and the file
   // the second; see upload.ts for what happens to the bytes.
   app.post("/api/sessions/:id/clips", { bodyLimit: MAX_UPLOAD_BYTES + 1_048_576 }, async (req, reply) => {
     const s = owned(req);
@@ -430,7 +459,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
       });
       const previous = s.clip;
       s.clip = clip;
-      if (previous) await removeClip(media.scratchDir, previous.clipId);
+      if (previous) await removeClip(media.scratchDir, previous.clipId, o.dataDir);
       return reply.code(201).send({ clipId: clip.clipId, frames: clip.frames, fps: clip.fps, width: clip.width, height: clip.height, durationS: clip.durationS });
     } catch (err) {
       // The multipart parser's own limits arrive as FST_* errors; say what they mean in the catalogue's terms.
@@ -441,6 +470,14 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     } finally {
       s.uploading = false;
     }
+  });
+
+  // The session's own clip, for its page to play. Unlike a rendered clip it is a person's video: behind the cookie,
+  // never cached by anything shared, and gone with the session.
+  app.get("/api/sessions/:id/clip", async (req, reply) => {
+    const s = owned(req);
+    if (!s.clip || !existsSync(s.clip.path)) throw new ApiError("NOT_FOUND", "this session has no clip");
+    return sendFile(req, reply, s.clip.path, { cache: "private, no-store" });
   });
 
   app.post("/api/sessions/:id/diagnose", async (req, reply) => {
@@ -991,7 +1028,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     hudLogs.get(s.id)?.close();
     hudLogs.delete(s.id);
     pairing.forget(s.id);
-    if (s.clip && o.media) void removeClip(o.media.scratchDir, s.clip.clipId);
+    if (s.clip && o.media) void removeClip(o.media.scratchDir, s.clip.clipId, o.dataDir);
     s.close();
   };
 

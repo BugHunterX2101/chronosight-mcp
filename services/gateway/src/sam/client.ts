@@ -42,6 +42,8 @@ export interface PerceiveInput {
   clipPath: string;
   concepts: SamConcept[];
   signal?: AbortSignal;
+  /** A person's clip: its frame size and rate, which the twin cannot take from a scenario camera. */
+  byo?: { width: number; height: number; fps: number };
 }
 
 export interface PerceiveResult {
@@ -78,6 +80,8 @@ export function fileSha256(path: string): string {
   return sha256Hex(readFileSync(path));
 }
 
+/** The documented inline limit is 50,000,000 bytes and does not say whether it counts the base64 text; 3/4 of it is safe either way. */
+const INLINE_MAX_BYO_BYTES = 37_500_000;
 const slugOk = (s: string) => /^[a-z0-9-]{1,32}$/.test(s);
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -137,7 +141,7 @@ export class SamClient {
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, input.concepts.length) }, worker));
 
     tees.sort((a, b) => a.conceptIdx - b.conceptIdx);
-    const ing = await this.d.twin.samIngest({ clipId: input.clipId, scenarioId: input.scenarioId, sources: tees }, input.signal);
+    const ing = await this.d.twin.samIngest({ clipId: input.clipId, scenarioId: input.scenarioId, sources: tees, ...(input.byo ?? {}) }, input.signal);
     for (const w of ing.warnings) this.d.log?.(w);
     return { clipId: input.clipId, csmkPath: ing.csmkPath, records: ing.records, objects: ing.objects, warnings: ing.warnings, marks, fromFixture };
   }
@@ -169,9 +173,11 @@ export class SamClient {
   }
 
   private async streamOnce(input: PerceiveInput, c: SamConcept, tee: string): Promise<LatencyMarks> {
-    // Inline data URL (FR-CAP-5: clips under 5 MB); the Files API path replaces this for larger clips.
+    // Inline data URL. A twin clip stays under 5 MB (FR-CAP-5). A person's clip may be larger, up to what the provider
+    // documents for inline video; it goes inline too, so no copy of it is ever held on the provider's side (DESIGN §11.4).
     const bytes = readFileSync(input.clipPath);
-    if (bytes.length > 5 * 1024 * 1024) throw new SamError("SAM_BAD_REQUEST", `clip is ${bytes.length} bytes; inline video is limited to 5 MB`);
+    const limit = input.byo ? INLINE_MAX_BYO_BYTES : 5 * 1024 * 1024;
+    if (bytes.length > limit) throw new SamError("SAM_BAD_REQUEST", `clip is ${bytes.length} bytes; inline video is limited to ${Math.floor(limit / 1_000_000)} MB`);
     const body = {
       model: SAM_MODEL,
       stream: true,

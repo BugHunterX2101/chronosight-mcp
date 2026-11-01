@@ -191,9 +191,16 @@ export async function ingestUpload(parts: AsyncIterable<Multipart>, d: IngestDep
   throw new ApiError("BAD_REQUEST", "the upload had no file", { stage: "upload" });
 }
 
-/** Removes a clip's directory; the id is checked so only a clip directory can ever be named. */
-export async function removeClip(scratchDir: string, clipId: string): Promise<void> {
-  if (CLIP_DIR.test(clipId)) await rm(join(scratchDir, clipId), { recursive: true, force: true });
+/**
+ * Removes a clip's directory; the id is checked so only a clip directory can ever be named. With `dataDir`, what a run
+ * made from the clip goes too: its SAM streams and its masks (the shared data directory the twin reads).
+ */
+export async function removeClip(scratchDir: string, clipId: string, dataDir?: string): Promise<void> {
+  if (!CLIP_DIR.test(clipId)) return;
+  await rm(join(scratchDir, clipId), { recursive: true, force: true });
+  if (!dataDir) return;
+  await rm(join(dataDir, "sam", clipId), { recursive: true, force: true });
+  for (const suffix of ["", ".idx", ".dec.npz"]) await rm(join(dataDir, "masks", `${clipId}.csmk${suffix}`), { force: true });
 }
 
 /** Removes clip directories older than `maxAgeMs`: what a crashed gateway left behind. Returns how many. */

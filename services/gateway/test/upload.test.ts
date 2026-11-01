@@ -333,3 +333,129 @@ describe("sweeping what a crash leaves behind", () => {
     expect(await sweepScratch(join(dir, "missing"), 1, Date.now())).toBe(0);
   });
 });
+
+// ---- running on the clip ------------------------------------------------------------------------------------------
+
+const PLAN = [{ slug: "forearm", role: "fault" }, { slug: "elbow", role: "context" }, { slug: "marker", role: "refs" }];
+
+async function perceive(app: FastifyInstance, s: { id: string; cookie: string }, payload: object = {}) {
+  return app.inject({
+    method: "POST", url: `/api/sessions/${s.id}/perceive`, payload,
+    headers: { origin: ORIGIN, cookie: s.cookie, "content-type": "application/json" },
+  });
+}
+
+describe("POST /api/sessions/:id/perceive on a bring-your-own session", () => {
+  it("asks for a clip first", async () => {
+    const { app } = await make({ conceptPlan: () => PLAN });
+    const s = await session(app);
+    const r = await perceive(app, s);
+    expect(r.statusCode).toBe(409);
+    expect(r.json().message).toContain("upload a clip first");
+  });
+
+  it("takes a scale only for a clip you uploaded", async () => {
+    const { app } = await make({ conceptPlan: () => PLAN });
+    const live = await session(app, "live");
+    const r = await perceive(app, live, { markerSizeMm: 40 });
+    expect(r.statusCode).toBe(400);
+  });
+
+  it("refuses a clip that is not this session's", async () => {
+    const { app } = await make({ conceptPlan: () => PLAN });
+    const s = await session(app);
+    await upload(app, s, [consent(), file(clips.good!)]);
+    const r = await perceive(app, s, { clipId: "clp_01HZZZZZZZZZZZZZZZZZZZZZZZ" });
+    expect(r.statusCode).toBe(400);
+  }, 60_000);
+
+  it("refuses a clip the reservation cannot cover without spending a live-run slot", async () => {
+    const asked: [number, number][] = [];
+    let refuse = true;
+    let started = 0;
+    const { app } = await make({
+      conceptPlan: () => PLAN,
+      byoRefusal: (c, f) => (asked.push([c, f]), refuse ? "This clip is about 60 s. One run can analyse at most 25 s of video within its $0.60 budget; trim the clip and upload it again." : null),
+      runDeps: () => { started += 1; throw new Error("no run in this test"); },
+    });
+    const s = await session(app);
+    await upload(app, s, [consent(), file(clips.good!)]);
+    // The visitor allows two live runs an hour; three refusals must not use them up.
+    for (let i = 0; i < 3; i += 1) {
+      const r = await perceive(app, s);
+      expect(r.statusCode).toBe(422);
+      expect(r.json().code).toBe("MEDIA_DURATION");
+    }
+    expect(asked.every(([concepts, frames]) => concepts === 3 && frames >= 118 && frames <= 122)).toBe(true);
+    expect(started).toBe(0);
+    refuse = false;
+    const r = await perceive(app, s);
+    expect(started).toBe(1);
+    expect(r.json().code).not.toBe("VISITOR_CAP");
+  }, 60_000);
+
+  it("hands the run the session's own normalized clip and the scale it was given", async () => {
+    let ctx: Parameters<AppOptions["runDeps"]>[0] | undefined;
+    const { app } = await make({ conceptPlan: () => PLAN, runDeps: (c) => { ctx = c; throw new Error("stop here"); } });
+    const s = await session(app);
+    const { clipId } = (await upload(app, s, [consent(), file(clips.good!)])).json() as { clipId: string };
+    await perceive(app, s, { markerSizeMm: 40 });
+    expect(ctx?.byo).toMatchObject({
+      clip: { clipId, width: 1280, height: 720, fps: 30 }, scale: { markerSizeMm: 40 }, clipUrl: `/api/sessions/${s.id}/clip`,
+    });
+    expect(ctx?.byo?.clip.path.startsWith(scratch)).toBe(true);
+    expect(ctx?.byo?.scale).not.toHaveProperty("mmPerPx");
+  }, 60_000);
+});
+
+describe("GET /api/sessions/:id/clip", () => {
+  const get = (app: FastifyInstance, id: string, headers: Record<string, string>) =>
+    app.inject({ method: "GET", url: `/api/sessions/${id}/clip`, headers: { origin: ORIGIN, ...headers } });
+
+  it("plays the owner's clip with Range, and lets nothing share it", async () => {
+    const { app } = await make();
+    const s = await session(app);
+    await upload(app, s, [consent(), file(clips.good!)]);
+    const whole = await get(app, s.id, { cookie: s.cookie });
+    expect(whole.statusCode).toBe(200);
+    expect(whole.headers["content-type"]).toBe("video/mp4");
+    expect(whole.headers["cache-control"]).toBe("private, no-store");
+    const size = whole.rawPayload.length;
+    expect(size).toBeGreaterThan(1_000);
+    const part = await get(app, s.id, { cookie: s.cookie, range: "bytes=0-99" });
+    expect(part.statusCode).toBe(206);
+    expect(part.headers["content-range"]).toBe(`bytes 0-99/${size}`);
+    expect(part.rawPayload.length).toBe(100);
+  }, 60_000);
+
+  it("is the owner's alone", async () => {
+    const { app } = await make();
+    const a = await session(app);
+    const b = await session(app);
+    await upload(app, a, [consent(), file(clips.good!)]);
+    expect((await get(app, a.id, {})).statusCode).toBe(404);
+    expect((await get(app, a.id, { cookie: b.cookie })).statusCode).toBe(404);
+  }, 60_000);
+
+  it("is not there before an upload", async () => {
+    const { app } = await make();
+    const s = await session(app);
+    expect((await get(app, s.id, { cookie: s.cookie })).statusCode).toBe(404);
+  });
+
+  it("goes with the session, and so does what a run made from it", async () => {
+    const { app, dataDir } = await make();
+    const s = await session(app);
+    const { clipId } = (await upload(app, s, [consent(), file(clips.good!)])).json() as { clipId: string };
+    mkdirSync(join(dataDir, "masks"), { recursive: true });
+    mkdirSync(join(dataDir, "sam", clipId), { recursive: true });
+    for (const f of [`${clipId}.csmk`, `${clipId}.csmk.idx`, `${clipId}.csmk.dec.npz`]) writeFileSync(join(dataDir, "masks", f), "x");
+    writeFileSync(join(dataDir, "sam", clipId, "forearm.sse"), "x");
+    writeFileSync(join(dataDir, "masks", "bl-someone-else.csmk"), "x");
+    await app.close();
+    const gone = () => [join(scratch, clipId), join(dataDir, "sam", clipId), join(dataDir, "masks", `${clipId}.csmk`), join(dataDir, "masks", `${clipId}.csmk.idx`), join(dataDir, "masks", `${clipId}.csmk.dec.npz`)];
+    for (let i = 0; i < 50 && gone().some(existsSync); i += 1) await new Promise((r) => setTimeout(r, 50));
+    expect(gone().filter(existsSync)).toEqual([]);
+    expect(existsSync(join(dataDir, "masks", "bl-someone-else.csmk"))).toBe(true);
+  }, 60_000);
+});

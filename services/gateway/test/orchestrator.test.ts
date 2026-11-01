@@ -12,7 +12,7 @@ import type { DiagnoseInput, DiagnoseResult } from "../src/diagnosis.ts";
 import type { Prefix } from "../src/prefix.ts";
 import type { Prices } from "../src/budget.ts";
 import type { PatchCandidate, PatchSynthesizer } from "../src/muse/types.ts";
-import { RunDriver, assertPatchAuthorized, selectCandidate, type RunDeps } from "../src/orchestrator/run.ts";
+import { BYO_DIAGNOSED, RunDriver, assertPatchAuthorized, selectCandidate, type RunDeps } from "../src/orchestrator/run.ts";
 
 const KEY = Buffer.alloc(32, 7);
 const OBJECTIVES = { overshootPctMax: 10, settleSecMax: 1, sseMax: 0.5 };
@@ -111,6 +111,8 @@ interface Harness {
   leadAtPatching: () => (string | null)[];
   leadDuringPatching: () => (string | null)[];
   samCalls: { clipId: string; concepts: { idx: number; slug: string }[] }[];
+  /** What the driver sent each collaborator, in order. */
+  calls: { render: Record<string, unknown>[]; metrics: Record<string, unknown>[]; keyFrames: Record<string, unknown>[]; perceive: Record<string, unknown>[] };
 }
 
 interface HarnessOpts {
@@ -127,6 +129,11 @@ interface HarnessOpts {
   placeboOf?: Harness;
   /** The twin refuses the placebo because its AST differs from the baseline's. */
   placeboRefused?: boolean;
+  /** A person's clip (PRD L2): the run perceives, measures and diagnoses it, then ends. */
+  byo?: RunDeps["byo"];
+  prices?: Prices;
+  /** Fields the twin's metrics answer adds to or overrides. */
+  metrics?: Record<string, unknown>;
 }
 
 function harness(opts: HarnessOpts = {}): Harness {
@@ -139,6 +146,7 @@ function harness(opts: HarnessOpts = {}): Harness {
   let keyFrameCalls = 0;
   const leadAtPatching: (string | null)[] = [];
   const samCalls: Harness["samCalls"] = [];
+  const calls: Harness["calls"] = { render: [], metrics: [], keyFrames: [], perceive: [] };
   const leadDuringPatching: (string | null)[] = [];
   const gate = new ApprovalGate(KEY, () => clock);
   let n = 0;
@@ -169,19 +177,22 @@ function harness(opts: HarnessOpts = {}): Harness {
       { slug: "marker", prompt: "checkered square", role: "refs" },
     ] } } as unknown as Prefix,
     concepts: opts.concepts,
+    ...(opts.byo ? { byo: opts.byo } : {}),
     ...(opts.placeboOf ? { placebo: { parentRunId: "run_1", basis: opts.placeboOf.driver.placeboBasis! } } : {}),
-    prices: { models: {} } as unknown as Prices,
+    prices: opts.prices ?? ({ models: {} } as unknown as Prices),
     twin: {
-      render: async (b) => ({
+      render: async (b) => (calls.render.push(b as never), {
         clipPath: `clips/${b.controller}.mp4`, groundTruthPath: `clips/${b.controller}.gt.json`, frames: 150, fps: 30,
         rawFramesSha256: "0", cached: false, cacheKey: `k-${b.controller}`,
       }),
-      metrics: async (b) => ({
+      metrics: async (b) => (calls.metrics.push(b as never), {
         clipId: b.clipId, rmsMm: 3.9, fStarHz: 4, coverage: { fault: 1 }, precheck: { ok: true, failures: [] },
         spectrum: { f: [0.5, 1, 1.5], s: [0.1, 2, 0.3], n0: [0.01, 0.01, 0.01] },
+        ...opts.metrics,
       }) as never,
       keyFrames: async (b) => {
         keyFrameCalls += 1;
+        calls.keyFrames.push(b as never);
         const frame = (frameIdx: number, role: "max" | "min") => ({
           frameIdx, role, displacementPx: role === "max" ? 15 : -16, objects: ["forearm"], width: 768, height: 432, mime: "image/jpeg" as const, dataBase64: "AA==",
         });
@@ -198,7 +209,7 @@ function harness(opts: HarnessOpts = {}): Harness {
       visualTest: async () => verdict(verdicts.shift() ?? "FAIL"),
     },
     sam: {
-      perceive: async (i) => (samCalls.push({ clipId: i.clipId, concepts: i.concepts.map(({ idx, slug }) => ({ idx, slug })) }), {
+      perceive: async (i) => (calls.perceive.push(i as never), samCalls.push({ clipId: i.clipId, concepts: i.concepts.map(({ idx, slug }) => ({ idx, slug })) }), {
         clipId: i.clipId, csmkPath: `masks/${i.clipId}.csmk`, records: 150, objects: {}, warnings: [], marks: {}, fromFixture: true,
       }),
     },
@@ -249,7 +260,7 @@ function harness(opts: HarnessOpts = {}): Harness {
   }
 
   const states = () => events.filter((e) => e.type === "run.state").map((e) => String(e.data.to));
-  return { driver, events, audits, diagnoses, states, keyFrameCalls: () => keyFrameCalls, leadAtPatching: () => leadAtPatching, leadDuringPatching: () => leadDuringPatching, samCalls };
+  return { driver, events, audits, diagnoses, states, keyFrameCalls: () => keyFrameCalls, leadAtPatching: () => leadAtPatching, leadDuringPatching: () => leadDuringPatching, samCalls, calls };
 }
 
 describe("run loop", () => {
@@ -476,5 +487,71 @@ describe("placebo child run (§8.3, FR-VUT-3)", () => {
     const child = harness({ placeboOf: h, verdicts: ["FAIL"] });
     await child.driver.drive();
     expect(child.driver.taint).toBe("CONFIDENTIAL");
+  });
+});
+
+describe("bring-your-own run (PRD L2)", () => {
+  const clip = { clipId: "clp_01HZZZZZZZZZZZZZZZZZZZZZZZ", path: join(tmpdir(), "clip.mp4"), sha256: "ab".repeat(32), frames: 150, fps: 30, width: 1920, height: 1080, durationS: 5 };
+  const byo = (scale: { mmPerPx?: number; markerSizeMm?: number } = {}, frames = 150) =>
+    ({ clip: { ...clip, frames }, scale, clipUrl: "/api/sessions/ses_1/clip" });
+  const REAL_SAM = { models: { "sam-3.1": { perFrame: 0.0002, minFramesPerRequest: 50 } } } as unknown as Prices;
+
+  it("perceives, measures and diagnoses the clip, then ends with no render and no approval", async () => {
+    const h = harness({ byo: byo({ markerSizeMm: 40 }), prices: REAL_SAM });
+    const out = await h.driver.drive();
+    expect(out.state).toBe("ABORTED");
+    expect(h.states()).toEqual(["CAPTURING", "PERCEIVING_PRE", "MEASURING_PRE", "AWAITING_QUESTION", "DIAGNOSING", "ABORTED"]);
+    expect(h.events.filter((e) => e.type === "run.state").at(-1)!.data.reason).toBe(BYO_DIAGNOSED);
+    expect(h.events.some((e) => e.type === "approval.required" || e.type === "error")).toBe(false);
+    expect(h.calls.render).toEqual([]);
+    expect(h.events.find((e) => e.type === "twin.render")!.data).toMatchObject({ clipId: clip.clipId, phase: "pre", url: "/api/sessions/ses_1/clip", frames: 150, fps: 30 });
+    // The clip's own frame size goes to SAM's ingest; its scale goes to the twin; no ground truth exists for it.
+    expect(h.calls.perceive[0]).toMatchObject({ clipId: clip.clipId, clipPath: clip.path, byo: { width: 1920, height: 1080, fps: 30 } });
+    expect(h.calls.metrics[0]).toMatchObject({ clipId: clip.clipId, nFrames: 150, byo: { markerSizeMm: 40 } });
+    expect(h.calls.metrics[0]).not.toHaveProperty("groundTruthPath");
+    expect(h.calls.keyFrames[0]).toMatchObject({ clipId: clip.clipId, byo: { markerSizeMm: 40 } });
+    expect(h.audits.find((a) => a.kind === "clip.used")!.data).toMatchObject({ clipId: clip.clipId, sha256: clip.sha256, scale: { markerSizeMm: 40 } });
+  });
+
+  it("is CONFIDENTIAL from its first state and says so to the diagnosis", async () => {
+    const h = harness({ byo: byo(), prices: REAL_SAM });
+    expect(h.driver.taint).toBe("CONFIDENTIAL");
+    const out = await h.driver.drive();
+    expect(out.taint).toBe("CONFIDENTIAL");
+    const d = h.diagnoses[0]!;
+    expect(d.dataClass).toBe("CONFIDENTIAL");
+    expect(d.telemetry).toMatchObject({ source: expect.stringContaining("uploaded"), clipId: "uploaded-clip" });
+  });
+
+  it("reports a clip with no scale in px, never as millimetres", async () => {
+    const h = harness({ byo: byo(), prices: REAL_SAM, metrics: { rmsMm: null, rmsPx: 7.88, mmPerPx: null, scaleSource: "uncalibrated" } });
+    await h.driver.drive();
+    const row = h.events.find((e) => e.type === "perception.metrics")!.data;
+    expect(row).toMatchObject({ rmsMm: null, rmsPx: 7.88, mmPerPx: null, scaleSource: "uncalibrated" });
+    expect((h.diagnoses[0]!.telemetry as { units: string }).units).toMatch(/^px \(uncalibrated\)/);
+  });
+
+  it("keeps a twin run's summary free of the upload fields", async () => {
+    const h = harness();
+    await h.driver.drive();
+    expect(h.diagnoses[0]!.telemetry).not.toHaveProperty("source");
+    expect(h.diagnoses[0]!.telemetry).not.toHaveProperty("units");
+  });
+
+  it("refuses a clip the reservation cannot cover before any SAM call", async () => {
+    const h = harness({ byo: byo({}, 1800), prices: REAL_SAM });
+    const out = await h.driver.drive();
+    expect(out.state).toBe("ABORTED");
+    expect(h.calls.perceive).toEqual([]);
+    const err = h.events.find((e) => e.type === "error")!.data;
+    expect(err.code).toBe("MEDIA_DURATION");
+    expect(String(err.message)).toContain("at most 25 s");
+  });
+
+  it("runs a clip at exactly the longest affordable length", async () => {
+    const h = harness({ byo: byo({}, 750), prices: REAL_SAM });
+    expect((await h.driver.drive()).state).toBe("ABORTED");
+    expect(h.events.filter((e) => e.type === "run.state").at(-1)!.data.reason).toBe(BYO_DIAGNOSED);
+    expect(h.calls.perceive).toHaveLength(1);
   });
 });
