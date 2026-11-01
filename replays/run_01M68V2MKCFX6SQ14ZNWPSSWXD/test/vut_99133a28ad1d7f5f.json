@@ -1,0 +1,52 @@
+{
+  "testId": "vut_99133a28ad1d7f5f",
+  "patchId": "pat_01M68V7CHPEXGC4XX171QXKQN9",
+  "objectId": null,
+  "pre": {
+    "rmsPx": 7.878902,
+    "rmsMm": 3.939451,
+    "fStarHz": 4.027027,
+    "coverage": 0.993333
+  },
+  "post": {
+    "rmsPx": 0.242094,
+    "rmsMm": 0.121047,
+    "bandPowerDropDb": 41.245148,
+    "coverage": 0.96
+  },
+  "noiseFloorPx": 0.17439,
+  "criteria": {
+    "coverage": true,
+    "relative": true,
+    "absolute": true,
+    "spectral": true,
+    "noNewResonance": true,
+    "confidence": true
+  },
+  "assertions": [
+    {
+      "type": "vibration",
+      "role": "fault",
+      "pass": true,
+      "reasons": [],
+      "values": {
+        "aPreMm": 3.939451,
+        "aPostMm": 0.121047,
+        "relRatio": 0.021318,
+        "dropDb": 41.245148,
+        "maxNewPeakDb": null,
+        "newPeakHz": null,
+        "ceilingMm": 0.3
+      }
+    }
+  ],
+  "warnings": [],
+  "verdict": "PASS",
+  "groundTruth": {
+    "rmsMmTrue": 0.010217,
+    "fStarHzTrue": 7.305369,
+    "ampErrorPct": 1084.733158,
+    "freqErrorHz": 2.483691,
+    "errorPct": 1084.733158
+  }
+}

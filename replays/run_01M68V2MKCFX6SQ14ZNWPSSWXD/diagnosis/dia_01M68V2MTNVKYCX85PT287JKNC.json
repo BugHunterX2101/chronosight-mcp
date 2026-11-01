@@ -1,0 +1,219 @@
+{
+  "final": {
+    "diagnosis": {
+      "diagnosisId": "dia_01M68V2MTNVKYCX85PT287JKNC",
+      "lane": "contributor-xhigh",
+      "laneReason": "routine",
+      "dataClass": "PUBLIC",
+      "hypotheses": [
+        {
+          "rank": 1,
+          "title": "Missing encoder noise filter leaves high derivative noise",
+          "faultObjectIds": [
+            0
+          ],
+          "confidence": 0.76,
+          "mechanism": "No CONF2 write leaves FILT=0 with 12 LSB RMS noise; 1 kHz differencing creates 373 deg/s RMS velocity noise driving current and 4 Hz hunting, never restored because STATUS.RST not checked.",
+          "evidence": [
+            {
+              "source": "doc",
+              "doc": "encx14",
+              "page": 44,
+              "quote": "the noise filter is off; output noise 12 LSB RMS (table 31-2)",
+              "detail": "Baseline controller never writes CONF2, so encoder stays at power default with filter off and maximum noise.",
+              "citation": {
+                "verified": true,
+                "foundOnPage": null,
+                "matchRatio": 1
+              }
+            },
+            {
+              "source": "doc",
+              "doc": "encx14",
+              "page": 58,
+              "quote": "Every reset clears CONF2 to 0x00.",
+              "detail": "Any reset including brown-out returns device to same filter-off state, requiring per-cycle restore.",
+              "citation": {
+                "verified": true,
+                "foundOnPage": null,
+                "matchRatio": 1
+              }
+            },
+            {
+              "source": "doc",
+              "doc": "encx14",
+              "page": 58,
+              "quote": "Velocity noise at 1 kHz rises from 78 °/s RMS to 373 °/s RMS",
+              "detail": "Loss of FILT 3 to FILT 0 raises velocity noise almost 5x, explaining motor drive and audible hunting.",
+              "citation": {
+                "verified": true,
+                "foundOnPage": null,
+                "matchRatio": 1
+              }
+            },
+            {
+              "source": "doc",
+              "doc": "encx14",
+              "page": 49,
+              "quote": "FILT = 3 (CONF2 = 0x03) is the recommended starting point. It reduces",
+              "detail": "Manual recommends FILT 3 as starting point for 1 kHz joint loop with 3-10 Hz crossover.",
+              "citation": {
+                "verified": true,
+                "foundOnPage": null,
+                "matchRatio": 1
+              }
+            },
+            {
+              "source": "telemetry",
+              "doc": null,
+              "page": null,
+              "quote": null,
+              "detail": "Clip s1-baseline-7 shows 4.03 Hz peak 27.3 dB above floor, rms 7.88 px and p2p 31 px on forearm object 0, sustained hunting not slow drift.",
+              "citation": null
+            },
+            {
+              "source": "frame",
+              "doc": null,
+              "page": null,
+              "quote": null,
+              "detail": "Frames 144 min -16.1 px, 148 max +15.0 px show same forearm oscillating about elbow while markers stay fixed.",
+              "citation": null
+            }
+          ]
+        },
+        {
+          "rank": 2,
+          "title": "Wide host filtering and PD gains sustain noise hunting",
+          "faultObjectIds": [
+            0
+          ],
+          "confidence": 0.24,
+          "mechanism": "ANGLE_LPF 200 Hz and DERIV_LPF 30 Hz with KP 3.2 pass broadband encoder noise to torque; with 2 ms delay this sustains 4 Hz limit cycle.",
+          "evidence": [
+            {
+              "source": "doc",
+              "doc": "encx14",
+              "page": 48,
+              "quote": "373 °/s RMS of noise into the current command.",
+              "detail": "Even moderate noise is multiplied by derivative gain into current command, heating motor and exciting resonance.",
+              "citation": {
+                "verified": true,
+                "foundOnPage": null,
+                "matchRatio": 1
+              }
+            },
+            {
+              "source": "doc",
+              "doc": "encx14",
+              "page": 47,
+              "quote": "the read latency of 2 ms (page 12) for a host that polls once",
+              "detail": "2 ms read delay plus filter lag must stay small vs phase margin; wide host filters pass noise while adding delay.",
+              "citation": {
+                "verified": true,
+                "foundOnPage": null,
+                "matchRatio": 1
+              }
+            },
+            {
+              "source": "doc",
+              "doc": "encx14",
+              "page": 12,
+              "quote": "FILT = 7 costs about 25° at 4 Hz and can make a",
+              "detail": "Strong filtering is not free: large tau adds lag at hunting frequency and can itself destabilize the loop.",
+              "citation": {
+                "verified": true,
+                "foundOnPage": null,
+                "matchRatio": 1
+              }
+            },
+            {
+              "source": "telemetry",
+              "doc": null,
+              "page": null,
+              "quote": null,
+              "detail": "Spectral peaks at 4.03, 4.31, 3.74 Hz clustered around 4 Hz crossover suggest delay plus gain sensitive limit cycle on elbow.",
+              "citation": null
+            }
+          ]
+        }
+      ],
+      "riskLevel": "medium",
+      "safetyPreconditions": [
+        "Keep hands and tools clear of elbow and forearm travel during live tests",
+        "Stop motion and hold last command if magnet field flags show invalid angle",
+        "Count encoder resets in logs and inspect supply decoupling if count rises"
+      ],
+      "patchSpec": {
+        "targetFiles": [
+          "controller.py",
+          "params.py"
+        ],
+        "interface": "Controller.step(state: State, dt: float) -> Command",
+        "objectives": {
+          "overshootPctMax": 20,
+          "settleSecMax": 2,
+          "sseMax": 0.03
+        },
+        "bounds": {
+          "ANGLE_LPF_HZ": [
+            5,
+            200
+          ],
+          "DERIV_LPF_HZ": [
+            5,
+            200
+          ],
+          "ENC_FILT": [
+            2,
+            4
+          ],
+          "KD": [
+            0,
+            0.6
+          ],
+          "KP": [
+            0.5,
+            15
+          ]
+        },
+        "approachHints": [
+          "Write CONF2 to set encoder filter FILT to 3 and restore it same cycle whenever RST is seen",
+          "Read STATUS together with angle every cycle and hold last command while field flags show invalid",
+          "Keep encoder filter between 2 and 4 to cut noise without adding large phase lag at 4 hertz",
+          "Tune proportional and derivative gains with host low pass filters for quick settle and small steady error"
+        ]
+      },
+      "patchSpecHash": "sha256:d6c78a45492412fb751540c2f28693ba33ee681a29d1bb469202ffa771f1a296",
+      "topCitationVerified": true
+    },
+    "lane": "contributor-xhigh",
+    "laneReason": "routine",
+    "cacheHitPct": 95.6,
+    "citations": {
+      "verified": 7,
+      "total": 7
+    }
+  },
+  "record": {
+    "diagnosisId": "dia_01M68V2MTNVKYCX85PT287JKNC",
+    "patchSpecHash": "sha256:d6c78a45492412fb751540c2f28693ba33ee681a29d1bb469202ffa771f1a296",
+    "lane": "contributor-xhigh",
+    "usage": [
+      {
+        "model": "muse-spark-1.3-contributor",
+        "usage": {
+          "input_tokens": 30236,
+          "input_tokens_details": {
+            "cached_tokens": 28913
+          },
+          "output_tokens": 15185,
+          "output_tokens_details": {
+            "reasoning_tokens": 13793
+          },
+          "total_tokens": 45421
+        }
+      }
+    ],
+    "costUsd": 0.0032271260000000003
+  }
+}
