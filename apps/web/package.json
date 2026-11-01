@@ -7,7 +7,9 @@
     "node": ">=24 <25"
   },
   "scripts": {
+    "predev": "node scripts/build-hud.mjs",
     "dev": "next dev --turbopack -p 3000",
+    "prebuild": "node scripts/build-hud.mjs",
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit"
@@ -21,6 +23,7 @@
   },
   "devDependencies": {
     "@types/react": "^19",
-    "@types/react-dom": "^19"
+    "@types/react-dom": "^19",
+    "rolldown": "1.2.16"
   }
 }

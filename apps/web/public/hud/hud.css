@@ -1,0 +1,95 @@
+/* The glasses' page (DESIGN §26.1). 600x600, black (transparent on the additive display), white type, 88 px
+   targets, 24 px+ primary text, 18 px+ body. No scrolling, no large white areas: a focused target is a thick
+   white border, not a white fill. */
+
+:root { color-scheme: dark; }
+
+* { box-sizing: border-box; margin: 0; }
+
+html, body {
+  width: 600px;
+  height: 600px;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  font: 400 22px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+#hud {
+  width: 600px;
+  height: 600px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  padding: 20px 28px 24px;
+}
+
+.bar {
+  display: flex;
+  justify-content: space-between;
+  font-size: 18px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #b8b8b8;
+}
+
+.link.ws, .link.sse, .link.poll { color: #fff; }
+.link.offline { color: #fff; text-decoration: underline; }
+
+.main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  min-height: 0;
+}
+
+.lead { font-size: 28px; font-weight: 600; line-height: 1.25; }
+.lead.big { font-size: 38px; line-height: 1.15; }
+
+.code, .fig {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.code { font-size: 84px; letter-spacing: 0.04em; }
+.fig { font-size: 76px; }
+
+.body { font-size: 22px; color: #e8e8e8; }
+.body.dim { color: #9a9a9a; }
+
+.row { display: flex; align-items: center; gap: 16px; }
+
+.targets { display: flex; flex-direction: column; gap: 12px; }
+
+.t {
+  min-height: 88px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 24px;
+  background: transparent;
+  color: #fff;
+  border: 2px solid #6a6a6a;
+  border-radius: 16px;
+  font-family: inherit;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1;
+  text-align: left;
+  cursor: pointer;
+}
+.t.on { border: 5px solid #fff; padding: 0 21px; }
+.t.off { color: #767676; border: 2px dashed #444; cursor: default; }
+.t.off .ic { opacity: 0.3; }
+
+.ic { width: 64px; height: 64px; flex: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .t { transition: border-color 0.12s ease-out; }
+}
+
+noscript { display: block; padding: 28px; font-size: 24px; }

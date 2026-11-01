@@ -5,7 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // gateway origin for the HUD stream. Pages carry no inline style attributes, so style-src has no
 // 'unsafe-inline' in production.
 
-function csp(nonce: string): string {
+function csp(nonce: string, framed: boolean): string {
   const gateway = process.env.NEXT_PUBLIC_GATEWAY_ORIGIN ?? "";
   const cdn = process.env.NEXT_PUBLIC_CDN_ORIGIN ?? "";
   const ws = gateway.replace(/^http/, "ws");
@@ -23,13 +23,14 @@ function csp(nonce: string): string {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
+    // Only the glasses page may be framed, by this app (the workbench's GlassesPreview).
+    `frame-ancestors ${framed ? "'self'" : "'none'"}`,
   ].join("; ");
 }
 
 export function proxy(request: NextRequest): NextResponse {
   const nonce = btoa(crypto.randomUUID());
-  const policy = csp(nonce);
+  const policy = csp(nonce, request.nextUrl.pathname === "/hud");
 
   const headers = new Headers(request.headers);
   headers.set("x-nonce", nonce);

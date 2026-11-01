@@ -17,6 +17,8 @@ node_modules/
 .next/
 out/
 *.tsbuildinfo
+# Built by apps/web/scripts/build-hud.mjs on predev/prebuild
+apps/web/public/hud/hud.js
 
 # Runtime data (renders, masks, audit logs live on the data volume)
 data/
