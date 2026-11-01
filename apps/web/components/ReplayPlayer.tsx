@@ -6,6 +6,7 @@ import { IntegrityError, openBundle, type Bundle, type Manifest, type Scenario }
 import { ReplayClock, countAt, foldEvents, offsetsMs, type Speed } from "../lib/replay/clock.ts";
 import { reportFirstMask } from "../lib/beacon.ts";
 import { parseMasks, type MaskFile } from "../lib/replay/csmk.ts";
+import { PsdChart } from "./PsdChart.tsx";
 import { CostMeter, DiagnosisPane, LoopStepper, ProvenanceFooter, RepairPane, VerdictPanel } from "./panels.tsx";
 import { VideoStage } from "./VideoStage.tsx";
 
@@ -227,6 +228,7 @@ export function ReplayPlayer({ runId }: { runId: string }) {
           <DiagnosisPane run={run} />
           <RepairPane run={run} />
           <VerdictPanel verdict={run?.verdict ?? null} />
+          <PsdChart run={run} />
         </div>
       </div>
 

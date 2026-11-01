@@ -176,7 +176,10 @@ function harness(opts: HarnessOpts = {}): Harness {
         clipPath: `clips/${b.controller}.mp4`, groundTruthPath: `clips/${b.controller}.gt.json`, frames: 150, fps: 30,
         rawFramesSha256: "0", cached: false, cacheKey: `k-${b.controller}`,
       }),
-      metrics: async (b) => ({ clipId: b.clipId, rmsMm: 3.9, fStarHz: 4, coverage: { fault: 1 }, precheck: { ok: true, failures: [] } }) as never,
+      metrics: async (b) => ({
+        clipId: b.clipId, rmsMm: 3.9, fStarHz: 4, coverage: { fault: 1 }, precheck: { ok: true, failures: [] },
+        spectrum: { f: [0.5, 1, 1.5], s: [0.1, 2, 0.3], n0: [0.01, 0.01, 0.01] },
+      }) as never,
       keyFrames: async (b) => {
         keyFrameCalls += 1;
         const frame = (frameIdx: number, role: "max" | "min") => ({
@@ -263,6 +266,14 @@ describe("run loop", () => {
     expect(rec.patchSpecHash).toBe(h.audits.find((a) => a.kind === "diagnosis")!.data.patchSpecHash);
     expect(h.audits.find((a) => a.kind === "patch.candidates")!.data.synthesizer).toBe("synthetic");
     expect(out.taint).toBe("PUBLIC");
+  });
+
+  it("carries the spectrum on perception.metrics for the PSD plot, without the noise floor", async () => {
+    const h = harness();
+    await h.driver.drive();
+    const rows = h.events.filter((e) => e.type === "perception.metrics").map((e) => e.data);
+    expect(rows.map((r) => r.phase)).toEqual(["pre", "post"]);
+    for (const r of rows) expect(r.spectrum).toEqual({ f: [0.5, 1, 1.5], s: [0.1, 2, 0.3] });
   });
 
   it("has a patchId from PATCHING entry that stays put when another candidate wins (TECHNICAL §7.1 /patch)", async () => {

@@ -1157,6 +1157,14 @@ select {
 }
 
 /* The verdict: it enters in the failing hue and crosses to its own in 400 ms. */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 8px 0 4px;
+  font: 12px var(--font-num);
+}
+
 .verdict {
   margin: 4px 0 12px;
   padding: 12px 16px;

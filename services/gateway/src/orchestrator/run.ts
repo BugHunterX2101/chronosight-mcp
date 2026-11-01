@@ -482,6 +482,8 @@ export class RunDriver {
     this.d.emit("perception.metrics", {
       clipId: m.clipId, phase, trackKey: `${m.clipId}:fault`, rmsMm: m.rmsMm, fStarHz: m.fStarHz,
       coverage: m.coverage, final: true,
+      // The Lomb-Scargle spectrum (amplitude, px); each clip has its own grid, the plot puts both on one dB axis.
+      ...(m.spectrum ? { spectrum: { f: m.spectrum.f, s: m.spectrum.s } } : {}),
     });
   }
 

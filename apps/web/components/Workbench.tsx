@@ -13,6 +13,7 @@ import type { RelayMessage } from "../lib/voice/messages.ts";
 import { useVoice } from "../lib/voice/useVoice.ts";
 import { ApprovalDialog } from "./ApprovalDialog.tsx";
 import { PlaceboButton } from "./PlaceboButton.tsx";
+import { PsdChart } from "./PsdChart.tsx";
 import { CostMeter, DiagnosisPane, LoopStepper, RepairPane, VerdictPanel } from "./panels.tsx";
 import { VideoStage } from "./VideoStage.tsx";
 import { VoiceBar } from "./VoiceBar.tsx";
@@ -332,6 +333,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
           <DiagnosisPane run={run} />
           <RepairPane run={run} />
           <VerdictPanel verdict={run?.verdict ?? null} />
+          <PsdChart run={run} />
           <PlaceboButton placebo={placebo} ready={placeboReady} busy={busy} onRun={() => void runPlacebo()} />
         </div>
       </div>
