@@ -1,0 +1,27 @@
+# One public origin for the pages and the API (DL-23). Render terminates TLS and hands us plain HTTP on $PORT.
+# Paths the gateway owns go to 127.0.0.1:8080; everything else is the Next app on 127.0.0.1:3000.
+# /admin (the page) is Next's; only the gateway's JSON endpoints under it are proxied.
+{
+	admin off
+	auto_https off
+	log {
+		output stdout
+		format console
+	}
+}
+
+:{$PORT} {
+	header Strict-Transport-Security "max-age=31536000"
+
+	@gateway path /api/* /media/* /replays/* /sse/* /ws/* /admin/health /admin/sessions /admin/spend /admin/live /admin/warm
+	handle @gateway {
+		# flush_interval -1: server-sent events and the run stream must not be buffered.
+		reverse_proxy 127.0.0.1:8080 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}

@@ -1,0 +1,11 @@
+.git
+node_modules
+**/node_modules
+.venv
+.env
+.env.*
+**/.next
+data
+graphify-out
+fixtures/raw
+*.partial
