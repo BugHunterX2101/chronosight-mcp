@@ -143,6 +143,11 @@ describe("recordReplay refusals", () => {
     expect(existsSync(replays) ? readdirSync(replays) : []).toEqual([]);
   });
 
+  it("refuses a run that used a person's own clip, even when its diagnosis is PUBLIC", () => {
+    const extra: [string, unknown] = ["clip.used", { clipId: "clp_x", sha256: "0".repeat(64), frames: 150, fps: 30, scale: "uncalibrated" }];
+    expect(() => record(volume("byo", { extra }))).toThrow(/used an uploaded clip/);
+  });
+
   it("refuses a run that has not finished", () => {
     expect(() => record(volume("open", { finish: false }))).toThrow(/has not finished/);
   });

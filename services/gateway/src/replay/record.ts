@@ -134,6 +134,8 @@ export function recordReplay(o: RecordOptions): { dir: string; manifest: Manifes
     const cls = obj(obj(l.data).diagnosis).dataClass;
     if (cls !== "PUBLIC") throw new ReplayError(`run ${runId} is ${String(cls)}; only PUBLIC runs are recorded`);
   }
+  // A person's own clip (clip.used) never becomes a published bundle, whatever its diagnosis says.
+  if (lines.some((l) => l.type === "clip.used")) throw new ReplayError(`run ${runId} used an uploaded clip; only PUBLIC runs are recorded`);
 
   const renders = lines.filter((l) => l.type === "twin.render").map((l) => obj(l.data));
   const clip = (phase: string) => renders.find((r) => r.phase === phase);
