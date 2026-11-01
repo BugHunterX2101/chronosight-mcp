@@ -6,6 +6,7 @@ import { STAGES, type Stage } from "../lib/scene/stages.ts";
 import { CountUp } from "./CountUp.tsx";
 import { FeaturedReplays } from "./FeaturedReplays.tsx";
 import { StartLive } from "./StartLive.tsx";
+import { HomeWebMcp } from "./WebMcpTools.tsx";
 import { TwinScene } from "./TwinScene.tsx";
 
 // The home page: the product loop as a scroll-narrated story beside a live-rendered schematic of the
@@ -241,6 +242,7 @@ export function HomeStory() {
         <h2 id="live-h">Run it live</h2>
         <p className="muted">A live run calls the models for real, so it is limited by a daily budget and an hourly cap per visitor. When it is off, the recorded runs above still play.</p>
         <StartLive />
+        <HomeWebMcp />
       </section>
     </div>
   );

@@ -14,11 +14,13 @@ interface Props {
   busy: boolean;
   onApprove: (step: 1 | 2) => void;
   onReject: () => void;
+  /** Bumped when something other than the person asks for the dialog (a WebMCP `request_approval`): it re-opens. */
+  reviewTick?: number;
 }
 
 const asStrings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 
-export function ApprovalDialog({ run, busy, onApprove, onReject }: Props) {
+export function ApprovalDialog({ run, busy, onApprove, onReject, reviewTick = 0 }: Props) {
   const ref = useRef<HTMLDialogElement>(null);
   const required = run.approval.required;
   const key = required === null ? "" : `${required.approvalId}:${required.step}`;
@@ -28,6 +30,10 @@ export function ApprovalDialog({ run, busy, onApprove, onReject }: Props) {
   const [armedKey, setArmedKey] = useState("");
   const dismissed = dismissedKey === key;
   const armed = armedKey === key;
+
+  useEffect(() => {
+    if (reviewTick > 0) setDismissedKey("");
+  }, [reviewTick]);
 
   useEffect(() => {
     if (key === "") return;

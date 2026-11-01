@@ -1,9 +1,10 @@
 "use client";
 
 import { isTerminal, type RunView } from "@chronosight/run-model/browser";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseMasks, type MaskFile } from "../lib/replay/csmk.ts";
-import { ApiError, cancelRun, clipUrl, diagnose, fetchMasks, listScenarios, sendApproval, startPerceive, verifyPlacebo, type ScenarioInfo } from "../lib/session/api.ts";
+import { ApiError, cancelRun, clipUrl, createSession, diagnose, fetchMasks, getReport, listScenarios, sendApproval, startPerceive, verifyPlacebo, type ScenarioInfo } from "../lib/session/api.ts";
 import { canRunPlacebo, pickRuns } from "../lib/session/runs.ts";
 import { stageForRunState } from "../lib/scene/stages.ts";
 import { useSession } from "../lib/session/useSession.ts";
@@ -11,6 +12,7 @@ import { planIntent } from "../lib/voice/intents.ts";
 import { narrate } from "../lib/voice/narration.ts";
 import type { RelayMessage } from "../lib/voice/messages.ts";
 import { useVoice } from "../lib/voice/useVoice.ts";
+import { refusal, type ToolHost } from "../lib/webmcp/tools.ts";
 import { ApprovalDialog } from "./ApprovalDialog.tsx";
 import { GlassesPanel } from "./GlassesPanel.tsx";
 import { PlaceboButton } from "./PlaceboButton.tsx";
@@ -18,6 +20,7 @@ import { PsdChart } from "./PsdChart.tsx";
 import { CostMeter, DiagnosisPane, LoopStepper, RepairPane, VerdictPanel } from "./panels.tsx";
 import { VideoStage } from "./VideoStage.tsx";
 import { VoiceBar } from "./VoiceBar.tsx";
+import { WebMcpTools } from "./WebMcpTools.tsx";
 
 type Phase = "pre" | "post";
 
@@ -189,6 +192,40 @@ export function Workbench({ sessionId }: { sessionId: string }) {
   const voice = useVoice(sessionId, onVoiceFinal);
   speakRef.current = voice.speak;
 
+  // WebMCP (DESIGN §25.8): an agent may read the page and start a run, and may ask for the approval dialog. It is
+  // given no way to approve: the host has no such method and the views carry no token.
+  const router = useRouter();
+  const [reviewTick, setReviewTick] = useState(0);
+  const mcpHost = useMemo<ToolHost>(
+    () => ({
+      view: () => ({ sessionOpen: true, scenario: scenarioId, mode, run: latest.current.run, canRunVisualTest: latest.current.placeboReady }),
+      startInspection: async (scenario) => {
+        const here = latest.current.run === undefined && (scenario === undefined || scenario === scenarioId);
+        if (here) {
+          if (mode !== "live") throw refusal("STATE_CONFLICT", "this session is not a live session");
+          const { runId } = await startPerceive(sessionId);
+          return { sessionId, runId };
+        }
+        if (scenario === undefined) throw refusal("STATE_CONFLICT", "a run already exists in this session; pass a scenario to open a new one");
+        const created = await createSession(scenario, "live");
+        const { runId } = await startPerceive(created.sessionId);
+        router.push(`/s/${created.sessionId}`);
+        return { sessionId: created.sessionId, runId };
+      },
+      openApproval: () => {
+        const step = latest.current.run?.approval.required?.step ?? null;
+        if (step !== null) setReviewTick((n) => n + 1);
+        return step;
+      },
+      runVisualTest: async () => {
+        if (!latest.current.placeboReady) throw refusal("STATE_CONFLICT", "the visual test needs a finished run with a verdict");
+        return verifyPlacebo(sessionId);
+      },
+      report: () => getReport(sessionId),
+    }),
+    [mode, router, scenarioId, sessionId],
+  );
+
   // Spoken prompts when the run reaches a point that needs the user; each state is spoken once per offer,
   // and only while voice is on, so turning it on mid-run still hears where things stand.
   const narrated = useRef("");
@@ -247,6 +284,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
 
   return (
     <>
+      <WebMcpTools host={mcpHost} />
       <div className="banner" role="note">
         <p>
           <strong>{mode === "replay" ? "Recorded session" : mode === "byo" ? "Your clip" : "Live inspection"}</strong>{" "}
@@ -340,7 +378,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
         </div>
       </div>
 
-      {run !== undefined ? <ApprovalDialog run={run} busy={busy} onApprove={(s) => void approveNow(s)} onReject={() => void rejectNow()} /> : null}
+      {run !== undefined ? <ApprovalDialog run={run} busy={busy} onApprove={(s) => void approveNow(s)} onReject={() => void rejectNow()} reviewTick={reviewTick} /> : null}
       <p className="visually-hidden" role="status" aria-live="polite">
         {run?.verdict ? `Visual test ${run.verdict.verdict}` : approval ? `Approval step ${approval.step} is waiting` : ""}
       </p>
