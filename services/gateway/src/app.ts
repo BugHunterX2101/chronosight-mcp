@@ -11,6 +11,7 @@ import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import websocket from "@fastify/websocket";
+import multipart from "@fastify/multipart";
 import { WebSocket as WebSocketClient, type WebSocket } from "ws";
 import { ulid } from "ulid";
 import { z } from "zod";
@@ -28,6 +29,7 @@ import { Stats } from "./stats.ts";
 import { PairingStore, formatCode, normalizeCode } from "./hud/pairing.ts";
 import { TicketBook, bearer, signCapability, verifyCapability, type Cap } from "./hud/capability.ts";
 import { HudLog } from "./hud/project.ts";
+import { MAX_UPLOAD_BYTES, ingestUpload, removeClip, sweepScratch } from "./upload.ts";
 
 const BODY_LIMIT = 64 * 1024;
 const RATE_PER_MIN = 60;
@@ -95,6 +97,8 @@ export interface AppOptions {
   hudUrl?: string;
   /** HUD_PAIRING_TTL_S in ms (default 10 min). */
   hudPairingTtlMs?: number;
+  /** Bring-your-own uploads (DESIGN §11): the media worker's URL and the scratch directory both share. Unset turns POST /clips into MEDIA_UNAVAILABLE. */
+  media?: { url: string; scratchDir: string; fetch?: typeof fetch };
   /** Fastify trustProxy: which hops may set X-Forwarded-For (Caddy). */
   trustProxy?: string | boolean;
   logger?: boolean;
@@ -191,6 +195,8 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     genReqId: () => `req_${ulid()}`,
   });
   await app.register(websocket, { options: { maxPayload: 4096 } });
+  // Only POST /clips reads a multipart body. The file cap is one byte over ours so the streaming gate in upload.ts is what refuses.
+  await app.register(multipart, { limits: { fileSize: MAX_UPLOAD_BYTES + 1, files: 1, fields: 4, fieldSize: 256, parts: 6, headerPairs: 32 }, throwFileSizeLimit: false });
 
   // ---------------------------------------------------------------- identity
 
@@ -399,6 +405,42 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
       .finally(() => o.ledger.release(runId));
     s.run = { runId, driver, done };
     return reply.code(202).send({ runId });
+  });
+
+  // Bring-your-own upload (PRD FR-CAP-4, TECHNICAL §7.1). The privacy acknowledgement is the first field and the file
+  // the second; see upload.ts for what happens to the bytes.
+  app.post("/api/sessions/:id/clips", { bodyLimit: MAX_UPLOAD_BYTES + 1_048_576 }, async (req, reply) => {
+    const s = owned(req);
+    const media = o.media;
+    if (!media) throw new ApiError("MEDIA_UNAVAILABLE", "Uploads are not configured on this server.", { stage: "upload" });
+    if (s.mode !== "byo") throw new ApiError("STATE_CONFLICT", "uploads belong to a bring-your-own session");
+    if (s.run) throw new ApiError("STATE_CONFLICT", s.busy ? "a run is already active" : "this session's run has ended; start a new session");
+    if (s.uploading) throw new ApiError("STATE_CONFLICT", "an upload is already in progress");
+    if (!req.isMultipart()) throw new ApiError("BAD_REQUEST", "send multipart/form-data");
+    const declared = Number(req.headers["content-length"]);
+    if (Number.isFinite(declared) && declared > MAX_UPLOAD_BYTES + 1_048_576) {
+      throw new ApiError("MEDIA_TOO_LARGE", "That file is over 100 MB. Trim it or export a smaller clip.", { stage: "upload" });
+    }
+    s.uploading = true;
+    try {
+      const clip = await ingestUpload(req.parts(), {
+        scratchDir: media.scratchDir, mediaWorkerUrl: media.url, now,
+        audit: (kind, data) => void s.audit.append(null, kind, data, now()),
+        ...(media.fetch ? { fetch: media.fetch } : {}),
+      });
+      const previous = s.clip;
+      s.clip = clip;
+      if (previous) await removeClip(media.scratchDir, previous.clipId);
+      return reply.code(201).send({ clipId: clip.clipId, frames: clip.frames, fps: clip.fps, width: clip.width, height: clip.height, durationS: clip.durationS });
+    } catch (err) {
+      // The multipart parser's own limits arrive as FST_* errors; say what they mean in the catalogue's terms.
+      const code = (err as { code?: unknown } | null)?.code;
+      if (code === "FST_REQ_FILE_TOO_LARGE") throw new ApiError("MEDIA_TOO_LARGE", "That file is over 100 MB. Trim it or export a smaller clip.", { stage: "upload" });
+      if (typeof code === "string" && code.startsWith("FST_")) throw new ApiError("BAD_REQUEST", "the upload was not a single clip file", { stage: "upload" });
+      throw err;
+    } finally {
+      s.uploading = false;
+    }
   });
 
   app.post("/api/sessions/:id/diagnose", async (req, reply) => {
@@ -949,6 +991,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     hudLogs.get(s.id)?.close();
     hudLogs.delete(s.id);
     pairing.forget(s.id);
+    if (s.clip && o.media) void removeClip(o.media.scratchDir, s.clip.clipId);
     s.close();
   };
 
@@ -959,6 +1002,8 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
       if (s.busy) for (const r of s.active) void r.driver.submit({ kind: "stop", note: "session expired" });
       else dropSession(s);
     }
+    // A crashed gateway can leave a confidential clip behind; nothing outlives the session TTL by more than an hour.
+    if (o.media) void sweepScratch(o.media.scratchDir, o.sessionTtlMs + 3_600_000, t);
     for (const [k, m] of minute) if (m.window !== Math.floor(t / 60_000)) minute.delete(k);
     for (const [k, f] of adminFails) if (f.lockedUntil <= t && f.at.every((x) => t - x >= ADMIN_WINDOW_MS)) adminFails.delete(k);
   }, SWEEP_MS);

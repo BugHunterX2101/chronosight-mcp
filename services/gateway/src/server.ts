@@ -23,7 +23,7 @@ import { SamClient } from "./sam/client.ts";
 import { museSynthesizerFromEnv } from "./muse/synthesizer.ts";
 import { LauncherClient } from "./muse/launcher-client.ts";
 import { launcherSocketPath } from "./muse/sandbox-attach.ts";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { paths } from "./paths.ts";
 
 const env = process.env;
@@ -85,6 +85,9 @@ const app = await buildApp({
   publicOrigins,
   sessionTtlMs: ttlHours * 3_600_000,
   hudPairingTtlMs: hudTtlS * 1000,
+  ...(env.MEDIA_WORKER_URL?.trim()
+    ? { media: { url: env.MEDIA_WORKER_URL.trim(), scratchDir: env.MEDIA_SCRATCH_DIR?.trim() ? resolve(paths.root, env.MEDIA_SCRATCH_DIR.trim()) : join(paths.data, "media-scratch") } }
+    : {}),
   scenarios,
   conceptPlan: (id) => prefixes.get(id)!.scenario.concepts,
   scenarioTitle: (id) => prefixes.get(id)!.scenario.title,

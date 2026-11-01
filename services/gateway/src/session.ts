@@ -12,6 +12,7 @@ import {
 } from "@chronosight/run-model";
 import { AuditLog } from "./audit.ts";
 import type { RunDriver } from "./orchestrator/run.ts";
+import type { ClipRecord } from "./upload.ts";
 
 /** Events kept for `since` resumes; an older cursor gets `resync`. */
 export const RING_SIZE = 1000;
@@ -49,6 +50,10 @@ export class Session {
   /** Placebo child runs of `run` (§8.3), oldest first. */
   readonly children: ActiveRun[] = [];
   usd = 0;
+  /** The bring-your-own clip, once normalized (POST /clips). CONFIDENTIAL: it is never served from a public route. */
+  clip: ClipRecord | null = null;
+  /** True while an upload is streaming, so a second one is refused rather than raced. */
+  uploading = false;
   private readonly now: () => number;
   private readonly auditPath: string;
   private log: AuditLog | null = null;

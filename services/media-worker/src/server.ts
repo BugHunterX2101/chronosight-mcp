@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultTools, MediaError, normalizeClip, run as runTool, type Tools } from "./media.ts";
 
@@ -9,7 +9,7 @@ import { defaultTools, MediaError, normalizeClip, run as runTool, type Tools } f
 // container it ships in has one CPU.
 
 const root = resolve(fileURLToPath(new URL("../../../", import.meta.url)));
-const scratch = resolve(root, process.env.MEDIA_SCRATCH_DIR || "data/media-scratch");
+const scratch = resolve(root, process.env.MEDIA_SCRATCH_DIR || join(process.env.DATA_DIR || "data", "media-scratch"));
 const port = Number(process.env.MEDIA_WORKER_PORT || 8091);
 const host = process.env.MEDIA_WORKER_HOST || "127.0.0.1";
 const tools: Tools = defaultTools();

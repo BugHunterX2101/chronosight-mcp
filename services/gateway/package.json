@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@chronosight/run-model": "*",
+    "@fastify/multipart": "~10.1.6",
     "@fastify/websocket": "~11.3.0",
     "@muse-code/sdk": "1.4.14",
     "fastify": "~5.12.0",

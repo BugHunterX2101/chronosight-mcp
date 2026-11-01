@@ -26,6 +26,7 @@ export const HTTP_STATUS: Readonly<Record<string, number>> = {
   // Refusals the gate and the run driver raise that §7.7 does not list.
   BAD_REQUEST: 400,
   OVERRIDE_REQUIRED: 422,
+  MEDIA_UNAVAILABLE: 503,
   RISK_REVIEW_REQUIRED: 409,
   // Transport-level refusals.
   BODY_TOO_LARGE: 413,
