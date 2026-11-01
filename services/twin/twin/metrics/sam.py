@@ -96,7 +96,8 @@ def tracks(records: list[CsmkRecord], mapper=map) -> dict[tuple[int, int], Track
     by_key: dict[tuple[int, int], list[dict]] = defaultdict(list)
     for r, (cx, cy, area) in zip(records, mapper(decode, records)):
         if area > 0:
-            by_key[r.track_key].append({"frame": r.frame_idx, "cx": cx, "cy": cy, "area": area, "conf": r.conf})
+            by_key[r.track_key].append({"frame": r.frame_idx, "cx": cx, "cy": cy, "area": area, "conf": r.conf,
+                                        "w": r.box[2] - r.box[0]})
     return {k: Track.from_records(v) for k, v in by_key.items()}
 
 
@@ -119,10 +120,26 @@ def role_tracks(records: list[CsmkRecord], concepts: list[dict], mapper=map) -> 
     return out
 
 
-def telemetry(records: list[CsmkRecord], concepts: list[dict], fps: float, mm_per_px: float,
-              n_frames: int, mapper=map) -> Telemetry:
+def resolve_scale(ref_a: Track, mm_per_px: float | None, marker_mm: float | None,
+                  source: str = "camera") -> tuple[float, str]:
+    """FR-MEA-2, in order: a scale the caller gives (the twin's camera model, or a person's entry for a real rig);
+    else `markerSizeMm / median(refA box width in px)` (DESIGN §13.1); else NaN, so every mm figure is null
+    and the page labels the result "px (uncalibrated)"."""
+    if mm_per_px is not None:
+        return float(mm_per_px), source
+    w = ref_a.w[ref_a.w > 0]
+    if marker_mm is not None and w.size:
+        return float(marker_mm) / float(np.median(w)), "marker"
+    return float("nan"), "uncalibrated"
+
+
+def telemetry(records: list[CsmkRecord], concepts: list[dict], fps: float, mm_per_px: float | None,
+              n_frames: int, mapper=map, marker_mm: float | None = None, scale_source: str = "camera") -> Telemetry:
     rt = role_tracks(records, concepts, mapper)
-    return measure(rt["fault"], rt["refA"], rt["refB"], fps, mm_per_px, n_frames)
+    scale, source = resolve_scale(rt["refA"], mm_per_px, marker_mm, scale_source)
+    t = measure(rt["fault"], rt["refA"], rt["refB"], fps, scale, n_frames)
+    t.scale_source = source
+    return t
 
 
 def records_from_sse(path: Path, concept_idx: int) -> tuple[list[CsmkRecord], dict]:

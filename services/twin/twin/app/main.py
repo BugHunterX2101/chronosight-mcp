@@ -22,7 +22,7 @@ from typing import Any
 import numpy as np
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..hotload import bounds as hb
 from ..hotload import runner as hr
@@ -88,12 +88,21 @@ class RenderBody(_B):
     clipId: str | None = None
 
 
+class ByoScale(_B):
+    """A person's clip, not a render (PRD L2). The scenario still supplies the concept plan; the camera does not apply,
+    so the scale is what the person entered, or comes from the marker's known size, or is unknown (FR-MEA-2)."""
+    mmPerPx: float | None = Field(default=None, gt=0, le=1000)
+    markerSizeMm: float | None = Field(default=None, gt=0, le=1000)
+
+
 class MetricsBody(_B):
     clipId: str
     csmkPath: str
     scenarioId: str = "s1"
     phase: str = "pre"
-    nFrames: int | None = Field(default=None, gt=0, le=600)
+    # 60 s at 30 fps is 1800 frames (FR-CAP-4); a scenario render stays at its own 5 s.
+    nFrames: int | None = Field(default=None, gt=0, le=1800)
+    byo: ByoScale | None = None
     groundTruthPath: str | None = None
     includeSpectrum: bool = True
 
@@ -103,7 +112,8 @@ class KeyFramesBody(_B):
     scenarioId: str = "s1"
     clipPath: str
     csmkPath: str
-    nFrames: int | None = Field(default=None, gt=0, le=600)
+    nFrames: int | None = Field(default=None, gt=0, le=1800)
+    byo: ByoScale | None = None
 
 
 class ClipRef(_B):
@@ -138,6 +148,15 @@ class SamIngestBody(_B):
     scenarioId: str = "s1"
     sources: list[SamSource] = Field(min_length=1, max_length=16)
     fps: float | None = Field(default=None, gt=0, le=240)
+    # A real clip has its own frame size; a scenario render takes the camera's.
+    width: int | None = Field(default=None, ge=16, le=4096)
+    height: int | None = Field(default=None, ge=16, le=4096)
+
+    @model_validator(mode="after")
+    def _both_or_neither(self):
+        if (self.width is None) != (self.height is None):
+            raise ValueError("width and height go together")
+        return self
 
 
 class PatchLoadBody(_B):
@@ -285,13 +304,16 @@ def _remember(clip_id: str, t: Telemetry) -> None:
         _tele.popitem(last=False)
 
 
-def _measure_csmk(scenario_id: str, path: Path, n_frames: int | None) -> Telemetry:
+def _measure_csmk(scenario_id: str, path: Path, n_frames: int | None, byo: ByoScale | None = None) -> Telemetry:
     sc = load_scenario(scenario_id)
     header, recs = csmk.read(path)
     fps = float(header.fps or sc["fps"])
     n = n_frames or int(round(fps * sc["durationS"]))
     dec = _decoded(path, recs)
-    return sam.telemetry(recs, sc["concepts"], fps, sc["camera"]["mmPerPx"], n, lambda _f, _xs: dec)
+    if byo is None:
+        return sam.telemetry(recs, sc["concepts"], fps, sc["camera"]["mmPerPx"], n, lambda _f, _xs: dec)
+    return sam.telemetry(recs, sc["concepts"], fps, byo.mmPerPx, n, lambda _f, _xs: dec,
+                         marker_mm=byo.markerSizeMm, scale_source="user")
 
 
 def _decoded(path: Path, recs: list[csmk.CsmkRecord]) -> list[tuple[float, float, float]]:
@@ -325,7 +347,7 @@ def summary(t: Telemetry, spectrum: bool = True) -> dict:
         "rmsPx": _num(t.a_px), "rmsMm": _num(t.a_mm), "p2pPx": _num(t.p2p_px), "fStarHz": _num(t.f_star_hz),
         "coverage": {k: round(v, 6) for k, v in t.coverage.items()}, "confMean": _num(t.conf_mean),
         "areaMedianPx": _num(t.area_median), "noiseFloorPx": _num(t.n0_px), "fps": t.fps,
-        "frames": t.n_frames, "mmPerPx": t.scale_mm_per_px, "warnings": list(t.warnings),
+        "frames": t.n_frames, "mmPerPx": _num(t.scale_mm_per_px), "scaleSource": t.scale_source, "warnings": list(t.warnings),
     }
     if spectrum:
         floor = t.floor_on(t.grid)
@@ -349,7 +371,7 @@ async def metrics(body: MetricsBody):
     if not path.is_file():
         return _err(404, "CSMK_NOT_FOUND", body.csmkPath)
     try:
-        t = await asyncio.to_thread(_measure_csmk, body.scenarioId, path, body.nFrames)
+        t = await asyncio.to_thread(_measure_csmk, body.scenarioId, path, body.nFrames, body.byo)
     except csmk.CsmkError as exc:
         return _err(422, "CSMK_INVALID", str(exc))
     _remember(body.clipId, t)
@@ -365,7 +387,7 @@ async def metrics(body: MetricsBody):
 
 
 def _key_frames(body: KeyFramesBody, sc: dict, clip: Path, path: Path) -> list[dict]:
-    t = _tele.get(body.clipId) or _measure_csmk(body.scenarioId, path, body.nFrames)
+    t = _tele.get(body.clipId) or _measure_csmk(body.scenarioId, path, body.nFrames, body.byo)
     _remember(body.clipId, t)
     return kf.render(clip, csmk.read(path)[1], sc["concepts"], t)
 
@@ -413,7 +435,7 @@ def _ingest(body: SamIngestBody, sc: dict) -> dict:
     # Frame-major order keeps the .idx a per-frame slice; within a frame, concept then object (§12.3).
     recs.sort(key=lambda r: (r.frame_idx, r.concept_idx, r.object_id))
     cam = sc["camera"]
-    header = sam.header_for(recs, int(cam["width"]), int(cam["height"]), float(body.fps or sc["fps"]))
+    header = sam.header_for(recs, int(body.width or cam["width"]), int(body.height or cam["height"]), float(body.fps or sc["fps"]))
     out = DATA_DIR / "masks" / f"{body.clipId}.csmk"
     csmk.write(out, header, recs)
     _decoded(out, csmk.read(out)[1])

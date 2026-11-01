@@ -25,6 +25,8 @@ class Track:
     cy: np.ndarray
     area: np.ndarray              # mask pixel count
     conf: np.ndarray
+    # Box width in px per present frame; only real-clip scale (FR-MEA-2) reads it. Twin tracks leave it empty.
+    w: np.ndarray = field(default_factory=lambda: np.zeros(0))
 
     @classmethod
     def empty(cls) -> "Track":
@@ -37,7 +39,7 @@ class Track:
         if not recs:
             return cls.empty()
         col = lambda k, d=1.0: np.array([float(r.get(k, d)) for r in recs])  # noqa: E731
-        return cls(np.array([int(r["frame"]) for r in recs]), col("cx"), col("cy"), col("area", 0.0), col("conf"))
+        return cls(np.array([int(r["frame"]) for r in recs]), col("cx"), col("cy"), col("area", 0.0), col("conf"), col("w", 0.0))
 
     def __len__(self) -> int:
         return int(self.frames.size)
@@ -73,6 +75,8 @@ class Telemetry:
     conf_mean: float
     area_median: float
     warnings: list[str] = field(default_factory=list)
+    # Where `scale_mm_per_px` came from: "camera" (the twin's model), "marker", "user", or "uncalibrated" (NaN: mm are unknown).
+    scale_source: str = "camera"
 
     @property
     def duration_s(self) -> float:
