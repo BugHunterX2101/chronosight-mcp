@@ -325,11 +325,15 @@ describe("WebSocket (§7.2, §6.1)", () => {
     ws.terminate();
   });
 
-  it("refuses an upgrade without the allowlisted Origin or the cookie", async () => {
+  it("refuses an upgrade without the allowlisted Origin, and a stranger without the cookie gets no events", async () => {
     const { app } = await make();
     const { id, cookie } = await session(app);
     await expect(app.injectWS(`/ws/sessions/${id}`, { headers: { cookie } })).rejects.toThrow();
-    await expect(app.injectWS(`/ws/sessions/${id}`, { headers: { origin: ORIGIN } })).rejects.toThrow();
+    // A socket without the cookie is a possible HUD: it may upgrade, but it must prove a capability (hud.test.ts).
+    const got: string[] = [];
+    const ws = await app.injectWS(`/ws/sessions/${id}`, { headers: { origin: ORIGIN } }, { onInit: (sock) => sock.on("message", (m) => got.push(String(m))) });
+    expect(got).toEqual([]);
+    ws.terminate();
   });
 });
 

@@ -45,6 +45,8 @@ const publicOrigins = (env.PUBLIC_ORIGINS ?? "").split(",").map((x) => x.trim())
 if (!publicOrigins.length) throw new Error("PUBLIC_ORIGINS must list at least one origin");
 const ttlHours = Number(env.SESSION_TTL_HOURS?.trim() || 24);
 if (!(ttlHours > 0)) throw new Error("SESSION_TTL_HOURS must be positive");
+const hudTtlS = Number(env.HUD_PAIRING_TTL_S?.trim() || 600);
+if (!(hudTtlS > 0)) throw new Error("HUD_PAIRING_TTL_S must be positive");
 const port = Number(env.PORT?.trim() || 8080);
 const host = env.HOST?.trim() || "127.0.0.1";
 
@@ -82,6 +84,7 @@ const app = await buildApp({
   adminToken: env.ADMIN_TOKEN?.trim() || null,
   publicOrigins,
   sessionTtlMs: ttlHours * 3_600_000,
+  hudPairingTtlMs: hudTtlS * 1000,
   scenarios,
   conceptPlan: (id) => prefixes.get(id)!.scenario.concepts,
   scenarioTitle: (id) => prefixes.get(id)!.scenario.title,

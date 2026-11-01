@@ -25,6 +25,9 @@ import { sendFile } from "./http/static.ts";
 import { buildReport, renderReportHtml } from "./report.ts";
 import { ApiError, toApiError } from "./http/errors.ts";
 import { Stats } from "./stats.ts";
+import { PairingStore, formatCode, normalizeCode } from "./hud/pairing.ts";
+import { TicketBook, bearer, signCapability, verifyCapability, type Cap } from "./hud/capability.ts";
+import { HudLog } from "./hud/project.ts";
 
 const BODY_LIMIT = 64 * 1024;
 const RATE_PER_MIN = 60;
@@ -32,6 +35,8 @@ const ADMIN_FAILS = 10;
 const ADMIN_WINDOW_MS = 10 * 60_000;
 const ADMIN_LOCK_MS = 15 * 60_000;
 const WS_PING_MS = 15_000;
+/** TECHNICAL §7.2: a HUD socket must send its capability in the first frame within 5 s. */
+const HUD_AUTH_MS = 5_000;
 /** §6.1: coalesce above 1 MiB buffered, close 1013 above 8 MiB. */
 const WS_COALESCE_BYTES = 1 << 20;
 const WS_CLOSE_BYTES = 8 << 20;
@@ -86,6 +91,10 @@ export interface AppOptions {
   health?: () => Record<string, unknown>;
   /** Warms the Contributor prefix once (POST /admin/warm); unset turns the route into 404. */
   warm?: (scenarioId: string | null) => Promise<unknown[]>;
+  /** The HUD page's public URL (e.g. https://app.example/hud); the link-first deep link carries it. Unset: the first public origin plus /hud. */
+  hudUrl?: string;
+  /** HUD_PAIRING_TTL_S in ms (default 10 min). */
+  hudPairingTtlMs?: number;
   /** Fastify trustProxy: which hops may set X-Forwarded-For (Caddy). */
   trustProxy?: string | boolean;
   logger?: boolean;
@@ -132,6 +141,10 @@ const BeaconBody = z.strictObject({
   seconds: z.number().min(0).max(120),
 });
 const WarmBody = z.strictObject({ scenarioId: z.string().regex(/^[a-z0-9]{1,16}$/).optional() });
+const CodesBody = z.strictObject({});
+const PairBody = z.strictObject({ code: z.string().min(1).max(16).optional() });
+const RedeemBody = z.strictObject({ code: z.string().min(1).max(16) });
+const SseQuery = z.object({ ticket: z.string().max(128).optional(), since: z.coerce.number().int().min(0).default(0) });
 
 function parse<T>(schema: z.ZodType<T>, v: unknown): T {
   const r = schema.safeParse(v ?? {});
@@ -218,6 +231,33 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     return s;
   };
 
+  // ---------------------------------------------------------------- HUD identity (DESIGN §26)
+
+  const pairing = new PairingStore({ ttlMs: o.hudPairingTtlMs ?? 600_000, now });
+  const tickets = new TicketBook(now);
+  /** Each session's projected events for its glasses (see hud/project.ts). */
+  const hudLogs = new Map<string, HudLog>();
+  const hudUrl = o.hudUrl ?? `${o.publicOrigins[0] ?? ""}/hud`;
+
+  const sessionId = (req: FastifyRequest): string => {
+    const id = (req.params as { id?: string }).id ?? "";
+    if (!ID_RE.test(id) || !id.startsWith("ses_")) throw new ApiError("BAD_REQUEST", "malformed session id");
+    return id;
+  };
+
+  /** The session its owner's cookie proves, or the one a paired HUD's capability names with `need`. */
+  const access = (req: FastifyRequest, need: Cap): { s: Session; via: "cookie" | "hud" } => {
+    const id = sessionId(req);
+    if (cookieSession(req) === id) return { s: owned(req), via: "cookie" };
+    const cap = verifyCapability(o.signingKey, bearer(req.headers.authorization), now());
+    const s = sessions.get(id);
+    if (!cap || cap.sessionId !== id || !cap.caps.includes(need) || !s) throw new ApiError("SESSION_NOT_FOUND", "no such session");
+    return { s, via: "hud" };
+  };
+
+  /** A glasses caller is identified by its address for the pairing limits; never stored beyond the minute. */
+  const hudCaller = (req: FastifyRequest) => `hud:${clientIp(req)}`;
+
   // ---------------------------------------------------------------- request rules
 
   app.addHook("onRequest", async (req, reply) => {
@@ -285,19 +325,28 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     const id = `ses_${ulid()}`;
     const s = new Session({ id, mode: b.mode as SessionMode, scenarioId, visitorKey: visitorKey(req), dataDir: o.dataDir, ttlMs: o.sessionTtlMs, now });
     sessions.set(id, s);
+    const hud = new HudLog();
+    s.subscribe(hud.feed);
+    hudLogs.set(id, hud);
     const maxAge = Math.floor(o.sessionTtlMs / 1000);
     reply.header("set-cookie", `${COOKIE}=${signSid(id)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`);
     return reply.code(201).send({ sessionId: id, wsUrl: `/ws/sessions/${id}`, budgetRemaining: o.ledger.totals().remainingUsd });
   });
 
   app.get("/api/sessions/:id/snapshot", async (req) => {
-    const s = owned(req);
+    const { s, via } = access(req, "read");
+    // The glasses get the run's state and their own projected log, which they fold; never the session state.
+    if (via === "hud") return { headSeq: s.headSeq, state: s.runState ?? "IDLE", events: hudLogs.get(s.id)?.all ?? [] };
     return { headSeq: s.headSeq, scenarioId: s.scenarioId, mode: s.mode, state: s.state };
   });
 
   app.get("/api/sessions/:id/events", async (req) => {
-    const s = owned(req);
+    const { s, via } = access(req, "read");
     const q = parse(EventsQuery, req.query);
+    if (via === "hud") {
+      const events = hudLogs.get(s.id)?.since(q.since) ?? null;
+      return events === null ? { resync: true, headSeq: s.headSeq } : { events: events.slice(0, q.limit), headSeq: s.headSeq };
+    }
     const events = s.since(q.since, q.limit);
     return events === null ? { resync: true, headSeq: s.headSeq } : { events, headSeq: s.headSeq };
   });
@@ -370,7 +419,8 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
   });
 
   app.post("/api/sessions/:id/approval", async (req) => {
-    const s = owned(req);
+    // A paired HUD approves through this same call and the same two tokens (DESIGN §17.2, §26.5); only the channel differs.
+    const { s, via } = access(req, "approve");
     const b = parse(ApprovalBody, req.body);
     const d = driverOf(s);
     if (d.state !== "AWAITING_APPROVAL_1" && d.state !== "AWAITING_APPROVAL_2") {
@@ -387,7 +437,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
       await d.submit({ kind: "reject", note: b.note ?? null });
       return { accepted: true };
     }
-    await d.submit({ kind: "approve", step: b.step, token: b.token, channel: "click", approver: "workbench", note: b.note ?? null });
+    await d.submit({ kind: "approve", step: b.step, token: b.token, channel: via === "hud" ? "hud" : "click", approver: via === "hud" ? "hud" : "workbench", note: b.note ?? null });
     return b.step === 1 ? { accepted: true, nextStep: 2 } : { accepted: true };
   });
 
@@ -638,17 +688,16 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
 
   // ---------------------------------------------------------------- WebSocket (§7.2, §6.1)
 
-  app.get("/ws/sessions/:id", {
-    websocket: true,
-    preValidation: async (req) => {
-      const origin = req.headers.origin;
-      if (typeof origin !== "string" || !origins.has(origin)) throw new ApiError("ORIGIN_DENIED", "origin is not allowed");
-      owned(req);
-    },
-  }, (socket: WebSocket, req: FastifyRequest) => {
-    const s = sessions.get((req.params as { id: string }).id)!;
-    const sinceRaw = Number((req.query as { since?: string }).since ?? 0);
-    const since = Number.isInteger(sinceRaw) && sinceRaw >= 0 ? sinceRaw : 0;
+  const sinceOf = (raw: unknown): number => {
+    const n = Number(raw ?? 0);
+    return Number.isInteger(n) && n >= 0 ? n : 0;
+  };
+
+  const resyncEvent = (s: Session): Envelope =>
+    ({ v: 1, seq: s.headSeq, sessionId: s.id, runId: null, ts: new Date(now()).toISOString(), type: "resync.required", replay: false, data: { headSeq: s.headSeq } }) as Envelope;
+
+  /** The workbench's stream: every event, coalescing the high-rate ones when the socket falls behind (§6.1). */
+  const streamWorkbench = (socket: WebSocket, s: Session, since: number): void => {
     const pending: Envelope[] = [];
     let alive = true;
 
@@ -686,14 +735,174 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
       clearInterval(drain);
       clearInterval(ping);
     }
-    if (backlog === null) {
-      write({ v: 1, seq: s.headSeq, sessionId: s.id, runId: null, ts: new Date(now()).toISOString(), type: "resync.required", replay: false, data: { headSeq: s.headSeq } });
-    } else {
-      for (const e of backlog) push(e);
-    }
+    if (backlog === null) write(resyncEvent(s));
+    else for (const e of backlog) push(e);
     socket.on("close", stop);
     socket.on("error", stop);
     // The workbench channel is server-to-client; client frames are ignored.
+  };
+
+  /** The glasses' stream: the session's projected log, a few small events, so no coalescing is needed. */
+  const streamHud = (socket: WebSocket, s: Session, since: number): void => {
+    const log = hudLogs.get(s.id);
+    if (!log) {
+      socket.close(1008, "no such session");
+      return;
+    }
+    const backlog = log.since(since);
+    const unsubscribe = log.subscribe((e) => {
+      if (socket.bufferedAmount > WS_COALESCE_BYTES) socket.close(1013, "client too slow");
+      else socket.send(JSON.stringify(e));
+    });
+    const ping = setInterval(() => socket.ping(), WS_PING_MS);
+    const stop = () => {
+      unsubscribe();
+      clearInterval(ping);
+    };
+    if (backlog === null) socket.send(JSON.stringify(resyncEvent(s)));
+    else for (const e of backlog) socket.send(JSON.stringify(e));
+    socket.on("close", stop);
+    socket.on("error", stop);
+  };
+
+  app.get("/ws/sessions/:id", {
+    websocket: true,
+    preValidation: async (req) => {
+      const origin = req.headers.origin;
+      if (typeof origin !== "string" || !origins.has(origin)) throw new ApiError("ORIGIN_DENIED", "origin is not allowed");
+      // The owner's cookie is checked here. Glasses carry none; they prove a capability in their first frame.
+      const id = sessionId(req);
+      if (!sessions.has(id)) throw new ApiError("SESSION_NOT_FOUND", "no such session");
+    },
+  }, (socket: WebSocket, req: FastifyRequest) => {
+    const id = sessionId(req);
+    const s = sessions.get(id)!;
+    const since = sinceOf((req.query as { since?: string }).since);
+    if (cookieSession(req) === id) {
+      streamWorkbench(socket, s, since);
+      return;
+    }
+    // TECHNICAL §7.2: the first frame is {type: "auth", capability} within 5 s, otherwise close 1008. A browser
+    // cannot set a header on a WebSocket, and the 4-hour capability never goes in the URL.
+    const deadline = setTimeout(() => socket.close(1008, "auth required"), HUD_AUTH_MS);
+    socket.once("message", (raw) => {
+      clearTimeout(deadline);
+      let cap: ReturnType<typeof verifyCapability> = null;
+      try {
+        const m = JSON.parse(raw.toString()) as { type?: unknown; capability?: unknown };
+        if (m.type === "auth" && typeof m.capability === "string") cap = verifyCapability(o.signingKey, m.capability, now());
+      } catch {
+        // Not JSON: refused below.
+      }
+      if (!cap || cap.sessionId !== id || !cap.caps.includes("read")) {
+        socket.close(1008, "bad capability");
+        return;
+      }
+      streamHud(socket, s, since);
+    });
+    socket.on("close", () => clearTimeout(deadline));
+  });
+
+  // ---------------------------------------------------------------- HUD pairing and fallbacks (§26.4, §26.5)
+
+  const refuseLimited = (retryAfterS: number): never => {
+    throw new ApiError("RATE_LIMITED", "too many pairing attempts; wait a minute", { retryAfterS });
+  };
+
+  // HUD-first: the glasses ask for a code and show it.
+  app.post("/api/hud/codes", async (req, reply) => {
+    parse(CodesBody, req.body);
+    const c = pairing.create(hudCaller(req));
+    if (!c) throw new ApiError("RATE_LIMITED", "too many open pairing codes; try again shortly", { retryAfterS: 60 });
+    return reply.code(201).send({ code: c.code, display: formatCode(c.code), expiresAt: new Date(c.expiresAt).toISOString() });
+  });
+
+  // The workbench: `{code}` binds the glasses' code to this session; `{}` mints a link-first code.
+  app.post("/api/sessions/:id/hud/pair", async (req, reply) => {
+    const s = owned(req);
+    const b = parse(PairBody, req.body);
+    if (b.code !== undefined) {
+      const code = normalizeCode(b.code);
+      if (!code) throw new ApiError("PAIRING_INVALID", "that is not a pairing code");
+      const r = pairing.bind(code, s.id, `bind:${visitorKey(req)}`);
+      if (r.kind === "limited") return refuseLimited(r.retryAfterS);
+      if (r.kind === "invalid") throw new ApiError("PAIRING_INVALID", "the code is unknown, expired or already used");
+      return { paired: true };
+    }
+    const c = pairing.mint(s.id);
+    if (!c) throw new ApiError("RATE_LIMITED", "too many open pairing codes; try again shortly", { retryAfterS: 60 });
+    const appUrl = `${hudUrl}?code=${c.code}`;
+    return reply.code(201).send({
+      code: c.code, display: formatCode(c.code), expiresAt: new Date(c.expiresAt).toISOString(), url: appUrl,
+      deepLink: `fb-viewapp://web_app_deep_link?appName=ChronoSight&appUrl=${encodeURIComponent(appUrl)}`,
+    });
+  });
+
+  // The glasses trade the code for a capability once it is bound; until then it answers 202.
+  app.post("/api/hud/redeem", async (req, reply) => {
+    const b = parse(RedeemBody, req.body);
+    const code = normalizeCode(b.code);
+    if (!code) throw new ApiError("PAIRING_INVALID", "that is not a pairing code");
+    const r = pairing.redeem(code, hudCaller(req));
+    if (r.kind === "limited") return refuseLimited(r.retryAfterS);
+    if (r.kind === "invalid") throw new ApiError("PAIRING_INVALID", "the code is unknown, expired or already used");
+    if (r.kind === "pending") return reply.code(202).send({ pending: true });
+    if (!sessions.has(r.sessionId)) throw new ApiError("PAIRING_INVALID", "the session has ended");
+    const cap = signCapability(o.signingKey, r.sessionId, now());
+    return { capability: cap.token, sessionId: r.sessionId, expiresAt: new Date(cap.expiresAt).toISOString() };
+  });
+
+  // EventSource cannot set a header, so the SSE fallback trades the capability for a one-time ticket.
+  app.post("/api/hud/stream-ticket", async (req) => {
+    parse(CodesBody, req.body);
+    const cap = verifyCapability(o.signingKey, bearer(req.headers.authorization), now());
+    if (!cap || !cap.caps.includes("read") || !sessions.has(cap.sessionId)) throw new ApiError("SESSION_NOT_FOUND", "no such session");
+    const t = tickets.issue(cap.sessionId);
+    if (!t) throw new ApiError("RATE_LIMITED", "too many open stream tickets; try again shortly", { retryAfterS: 60 });
+    return { ticket: t.ticket, sessionId: cap.sessionId, expiresAt: new Date(t.expiresAt).toISOString() };
+  });
+
+  app.get("/sse/sessions/:id", async (req, reply) => {
+    const id = sessionId(req);
+    const origin = req.headers.origin;
+    if (typeof origin !== "string" || !origins.has(origin)) throw new ApiError("ORIGIN_DENIED", "origin is not allowed");
+    const q = parse(SseQuery, req.query);
+    const log = hudLogs.get(id);
+    if (!log || !sessions.has(id) || !tickets.consume(q.ticket, id)) throw new ApiError("SESSION_NOT_FOUND", "no such session or stream ticket");
+    const s = sessions.get(id)!;
+    // `Last-Event-ID` is the last seq the browser saw, and wins over `since`.
+    const last = Number(req.headers["last-event-id"]);
+    const since = Number.isInteger(last) && last >= 0 ? last : q.since;
+
+    reply.hijack();
+    const res = reply.raw;
+    res.writeHead(200, {
+      // The CORS and request-id headers the onRequest hook set; hijack skips Fastify's own writer.
+      ...(reply.getHeaders() as Record<string, string | string[]>),
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      connection: "keep-alive",
+      "x-accel-buffering": "no",
+    });
+    const send = (e: Envelope) => {
+      if (res.writableLength > WS_COALESCE_BYTES) {
+        res.end();
+        return;
+      }
+      res.write(`id: ${e.seq}\ndata: ${JSON.stringify(e)}\n\n`);
+    };
+    res.write(": open\n\n");
+    const backlog = log.since(since);
+    const unsubscribe = log.subscribe(send);
+    const beat = setInterval(() => res.write(": keepalive\n\n"), WS_PING_MS);
+    const stop = () => {
+      unsubscribe();
+      clearInterval(beat);
+    };
+    if (backlog === null) send(resyncEvent(s));
+    else for (const e of backlog) send(e);
+    req.raw.on("close", stop);
+    res.on("error", stop);
   });
 
   // ---------------------------------------------------------------- voice relay (§15)
@@ -737,6 +946,9 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
 
   const dropSession = (s: Session) => {
     sessions.delete(s.id);
+    hudLogs.get(s.id)?.close();
+    hudLogs.delete(s.id);
+    pairing.forget(s.id);
     s.close();
   };
 
