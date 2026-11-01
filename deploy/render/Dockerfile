@@ -30,7 +30,10 @@ COPY . .
 RUN npm run build -w apps/web
 
 COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
-RUN chmod +x deploy/render/start.sh && mkdir -p /app/data /app/replays && chown -R node:node /app
+# The official binary carries a file capability (cap_net_bind_service); a non-root user in Render's container
+# cannot exec it ("Operation not permitted"). Caddy listens on $PORT (>1024), so rewrite it as a plain file.
+RUN cat /usr/local/bin/caddy > /tmp/caddy && rm /usr/local/bin/caddy && install -m 0755 /tmp/caddy /usr/local/bin/caddy && rm /tmp/caddy \
+ && chmod +x deploy/render/start.sh && mkdir -p /app/data /app/replays && chown -R node:node /app
 
 ENV NODE_ENV=production \
     HOST=127.0.0.1 \
