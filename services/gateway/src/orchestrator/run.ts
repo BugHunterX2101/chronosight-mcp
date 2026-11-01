@@ -52,6 +52,14 @@ export const DEFAULT_TIMEOUTS: Timeouts = {
 
 export type Channel = "click" | "voice" | "hud";
 
+/** What a placebo child run takes from its parent (DESIGN §8.3): the pre clip it is compared with. */
+export interface PlaceboBasis {
+  pre: ClipState;
+  taint: DataClass;
+  /** The parent's concept selection, so the post clip is perceived with the same prompts. */
+  concepts: readonly string[] | null;
+}
+
 export type RunMessage =
   | { kind: "ask"; request: string; diagnosisId?: string; escalate?: boolean }
   | { kind: "approve"; step: 1 | 2; token: string; channel?: Channel; approver?: string; note?: string | null }
@@ -90,6 +98,8 @@ export interface RunDeps {
   /** Replays auto-advance AWAITING_QUESTION with the recorded intent (ST-5). */
   replayIntent?: string | null;
   mediaUrl?: (absPath: string) => string;
+  /** Set on a placebo child run (§8.3, FR-VUT-3): it starts in SIMULATING_POST and never diagnoses. */
+  placebo?: { parentRunId: string; basis: PlaceboBasis };
   now?: () => number;
   log?: (msg: string) => void;
 }
@@ -142,7 +152,7 @@ interface Current {
   diagnosis: Diagnosis;
 }
 
-interface ClipState {
+export interface ClipState {
   clipId: string;
   absPath: string;
   groundTruthPath: string;
@@ -289,6 +299,16 @@ export class RunDriver {
     return this.patchIds[0] ?? null;
   }
 
+  /**
+   * What a placebo child needs, once this run has a verdict (PASSED, or a failed test): the pre clip and the
+   * taint. Null while the run is working, when it never reached a test, and on a child itself.
+   */
+  get placeboBasis(): PlaceboBasis | null {
+    const s = this.cursor.state;
+    if (this.d.placebo || !this.pre || !this.verdict) return null;
+    return s === "PASSED" || s === "VERDICT_FAIL" || s === "FAILED" ? { pre: this.pre, taint: this.dataClass, concepts: this.d.concepts ?? null } : null;
+  }
+
   /** Which messages the driver will take right now ("stop" is always taken until the run ends). */
   get accepting(): RunMessage["kind"][] {
     return this.waiter ? [...this.waiter.kinds] : [];
@@ -315,6 +335,10 @@ export class RunDriver {
     if (this.running || this.cursor.state !== "IDLE") throw new RunError("STATE_CONFLICT", "run already started");
     this.running = true;
     try {
+      if (this.d.placebo) {
+        await this.placeboRun(this.d.placebo.parentRunId, this.d.placebo.basis);
+        return this.outcome();
+      }
       await this.capture();
       await this.perceivePre();
       if (await this.measurePre()) {
@@ -327,6 +351,10 @@ export class RunDriver {
       this.waiter = null;
       this.running = false;
     }
+    return this.outcome();
+  }
+
+  private outcome(): RunOutcome {
     return {
       state: this.cursor.state, attempt: this.cursor.attempt, taint: this.dataClass,
       diagnosisId: this.current?.diagnosisId ?? null, patchId: this.patchId, verdict: this.verdict, runUsd: this.runUsd,
@@ -335,10 +363,10 @@ export class RunDriver {
 
   // ------------------------------------------------------------------ plumbing
 
-  private go(to: RunState, reason: string): void {
+  private go(to: RunState, reason: string, extra: object = {}): void {
     const from = this.cursor.state;
     this.cursor = transition(this.cursor, to);
-    this.d.emit("run.state", { from, to, reason, attempt: this.cursor.attempt });
+    this.d.emit("run.state", { from, to, reason, attempt: this.cursor.attempt, ...extra });
     this.d.log?.(`${from} -> ${to} (${reason})`);
     // DESIGN §22.3: a run that spent past its reservation aborts at the next state boundary.
     if (this.overrun && !isTerminal(to)) this.overrunStop();
@@ -567,7 +595,7 @@ export class RunDriver {
       const post = await this.simulateStage(cand);
       if (typeof post === "string") { prior = post; continue; }
       await this.perceivePost(post);
-      const v = await this.measurePost(cand, post);
+      const v = await this.measurePost(cand.patchId, post);
       if (v.verdict === "PASS") {
         this.go("PASSED", "visual test passed");
         return;
@@ -899,7 +927,7 @@ export class RunDriver {
     this.charge(this.samCost(res, post.frames));
   }
 
-  private async measurePost(c: PatchCandidate, post: ClipState): Promise<VisualTestResult> {
+  private async measurePost(patchId: string, post: ClipState): Promise<VisualTestResult> {
     this.go("MEASURING_POST", "post masks ready");
     const pre = this.pre!;
     const { scenarioId } = this.d;
@@ -909,15 +937,57 @@ export class RunDriver {
       });
       this.emitMetrics(m, "post");
       return this.d.twin.visualTest({
-        scenarioId, patchId: c.patchId,
+        scenarioId, patchId,
         pre: { clipId: pre.clipId, csmkPath: pre.csmkPath, nFrames: pre.frames },
         post: { clipId: post.clipId, csmkPath: post.csmkPath, nFrames: post.frames, groundTruthPath: post.groundTruthPath },
       });
     });
     this.verdict = v;
     this.d.emit("test.result", v);
-    this.d.audit("verdict", { patchId: c.patchId, verdict: v.verdict, testId: v.testId });
+    this.d.audit("verdict", { patchId, verdict: v.verdict, testId: v.testId });
     return v;
+  }
+
+  // ------------------------------------------------------------------ placebo (§8.3, FR-VUT-3)
+
+  /**
+   * The negative control: the parent's own baseline code, comment-only edited, rendered and measured with the
+   * same pipeline. The twin refuses it unless its AST is identical to the baseline's, which is why it needs no
+   * diagnosis and no approval. The test must FAIL; a placebo that passes means the test cannot tell a change
+   * from nothing. The pre clip is the parent's, so only the post clip is rendered and perceived.
+   */
+  private async placeboRun(parentRunId: string, basis: PlaceboBasis): Promise<void> {
+    this.pre = basis.pre;
+    this.dataClass = basis.taint;
+    this.go("SIMULATING_POST", "placebo", { kind: "placebo", parentRunId });
+    const { scenarioId, seed } = this.d;
+    const patchId = "placebo";
+    const post = await this.within(this.t.simulating, "PLACEBO_FAILED", null, async () => {
+      const load = await this.d.twin.patchLoad({ scenarioId, patchId, files: {} });
+      if (isPatchFailure(load)) throw new RunError("PLACEBO_FAILED", `${load.reason}: ${load.detail}`);
+      if (!("patchId" in load) || load.ok !== true) {
+        throw new RunError((load as { code?: string }).code ?? "PLACEBO_FAILED", JSON.stringify(load).slice(0, 500));
+      }
+      this.d.audit("placebo", { parentRunId, patchId, approvalExempt: load.approvalExempt });
+      const r = await this.d.twin.render({ scenarioId, seed, controller: patchId });
+      if (isPatchFailure(r)) throw new RunError("PLACEBO_FAILED", `${r.reason}: ${r.detail}`);
+      const clipId = `po-placebo-${this.d.runId.slice(-8).toLowerCase()}`;
+      const clip: ClipState = {
+        clipId, absPath: this.abs(r.clipPath), groundTruthPath: this.abs(r.groundTruthPath),
+        csmkPath: `masks/${clipId}.csmk`, frames: r.frames, fps: r.fps,
+      };
+      return clip;
+    });
+    this.clips.set(post.clipId, post);
+    this.d.emit("twin.render", { clipId: post.clipId, phase: "post", url: this.url(post.absPath), frames: post.frames, fps: post.fps });
+    await this.perceivePost(post);
+    const v = await this.measurePost(patchId, post);
+    if (v.verdict === "PASS") {
+      this.go("PASSED", "placebo passed the visual test");
+      return;
+    }
+    this.go("VERDICT_FAIL", "visual test failed");
+    this.go("FAILED", "placebo rejected");
   }
 }
 

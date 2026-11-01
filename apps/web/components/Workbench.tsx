@@ -3,7 +3,8 @@
 import { isTerminal, type RunView } from "@chronosight/run-model/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parseMasks, type MaskFile } from "../lib/replay/csmk.ts";
-import { ApiError, cancelRun, clipUrl, diagnose, fetchMasks, listScenarios, sendApproval, startPerceive, type ScenarioInfo } from "../lib/session/api.ts";
+import { ApiError, cancelRun, clipUrl, diagnose, fetchMasks, listScenarios, sendApproval, startPerceive, verifyPlacebo, type ScenarioInfo } from "../lib/session/api.ts";
+import { canRunPlacebo, pickRuns } from "../lib/session/runs.ts";
 import { stageForRunState } from "../lib/scene/stages.ts";
 import { useSession } from "../lib/session/useSession.ts";
 import { planIntent } from "../lib/voice/intents.ts";
@@ -11,6 +12,7 @@ import { narrate } from "../lib/voice/narration.ts";
 import type { RelayMessage } from "../lib/voice/messages.ts";
 import { useVoice } from "../lib/voice/useVoice.ts";
 import { ApprovalDialog } from "./ApprovalDialog.tsx";
+import { PlaceboButton } from "./PlaceboButton.tsx";
 import { CostMeter, DiagnosisPane, LoopStepper, RepairPane, VerdictPanel } from "./panels.tsx";
 import { VideoStage } from "./VideoStage.tsx";
 import { VoiceBar } from "./VoiceBar.tsx";
@@ -43,8 +45,12 @@ export function Workbench({ sessionId }: { sessionId: string }) {
   const [question, setQuestion] = useState("");
   const [masks, setMasks] = useState<Record<string, MaskFile>>({});
 
-  const runId = state.runOrder.length > 0 ? state.runOrder[state.runOrder.length - 1]! : null;
-  const run: RunView | undefined = runId === null ? undefined : state.runs[runId];
+  // The workbench follows the main run; a placebo child (DESIGN 8.3) is shown beside its verdict, never in its place.
+  const runs = pickRuns(state);
+  const run: RunView | undefined = runs.main;
+  const runId = run?.runId ?? null;
+  const placebo = runs.placebo;
+  const placeboReady = mode === "live" && canRunPlacebo(runs);
 
   useEffect(() => {
     if (scenarioId === null) return;
@@ -75,6 +81,22 @@ export function Workbench({ sessionId }: { sessionId: string }) {
     }
   }, [runId, clips, runState, masks]);
 
+  // The placebo child's post clip is its own; its masks are served under its own run id.
+  const placeboId = placebo?.runId ?? null;
+  const placeboClips = placebo?.perception.clips;
+  const placeboState = placebo?.state;
+  useEffect(() => {
+    if (placeboId === null || placeboClips === undefined || placeboState === undefined) return;
+    if (!POST_DONE.has(placeboState) && placeboState !== "FAILED") return;
+    for (const clipId of Object.keys(placeboClips)) {
+      if (masks[clipId] !== undefined) continue;
+      fetchMasks(placeboId, clipId).then(
+        (buf) => setMasks((m) => (m[clipId] === undefined ? { ...m, [clipId]: parseMasks(buf) } : m)),
+        () => undefined, // the placebo may have ended before its clip was perceived; there is then nothing to show
+      );
+    }
+  }, [placeboId, placeboClips, placeboState, masks]);
+
   const act = useCallback(async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setProblem(null);
@@ -89,8 +111,9 @@ export function Workbench({ sessionId }: { sessionId: string }) {
 
   // Approvals by hand and by voice go through the same two calls, so the token, the hash binding and
   // the gateway's debounce apply to both. `latest` lets the voice handler read the current run without re-binding.
-  const latest = useRef({ run, concepts: scenario?.concepts.map((c) => c.slug) ?? [] });
-  latest.current = { run, concepts: scenario?.concepts.map((c) => c.slug) ?? [] };
+  const latest = useRef({ run, concepts: scenario?.concepts.map((c) => c.slug) ?? [], placeboReady });
+  latest.current = { run, concepts: scenario?.concepts.map((c) => c.slug) ?? [], placeboReady };
+  const runPlacebo = useCallback(() => act(() => verifyPlacebo(sessionId)), [act, sessionId]);
 
   const approveNow = useCallback(
     (step: 1 | 2) =>
@@ -129,6 +152,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
         approvalStep: required?.step ?? null,
         approveEnabled: required?.approveEnabled ?? false,
         concepts: latest.current.concepts,
+        placeboReady: latest.current.placeboReady,
       });
       setReply(plan.reply);
       speakRef.current(plan.reply);
@@ -153,9 +177,12 @@ export function Workbench({ sessionId }: { sessionId: string }) {
         case "inspect":
           setFocus(a.target);
           break;
+        case "placebo":
+          void runPlacebo();
+          break;
       }
     },
-    [act, approveNow, rejectNow, sessionId],
+    [act, approveNow, rejectNow, runPlacebo, sessionId],
   );
   const voice = useVoice(sessionId, onVoiceFinal);
   speakRef.current = voice.speak;
@@ -305,6 +332,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
           <DiagnosisPane run={run} />
           <RepairPane run={run} />
           <VerdictPanel verdict={run?.verdict ?? null} />
+          <PlaceboButton placebo={placebo} ready={placeboReady} busy={busy} onRun={() => void runPlacebo()} />
         </div>
       </div>
 

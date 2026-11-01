@@ -13,6 +13,8 @@ export interface IntentContext {
   approveEnabled: boolean;
   /** Concept slugs of the scenario, for "inspect …". */
   concepts: readonly string[];
+  /** The main run has a verdict and no placebo is running, so the negative control may be started. */
+  placeboReady?: boolean;
 }
 
 export type VoiceAction =
@@ -21,6 +23,7 @@ export type VoiceAction =
   | { kind: "diagnose"; transcript: string | null }
   | { kind: "cancel" }
   | { kind: "datasheet" }
+  | { kind: "placebo" }
   | { kind: "inspect"; target: string };
 
 export interface Plan {
@@ -57,8 +60,10 @@ export function planIntent(intent: VoiceIntent, ctx: IntentContext): Plan {
     case "inspect":
       if (intent.target === null) return { action: null, reply: `I can inspect: ${ctx.concepts.join(", ") || "no parts yet"}.` };
       return { action: { kind: "inspect", target: intent.target }, reply: `Looking at the ${intent.target}.` };
-    case "run_test":
     case "run_placebo":
+      if (!ctx.placeboReady) return { action: null, reply: "I can run the placebo once the visual test has a verdict." };
+      return { action: { kind: "placebo" }, reply: "Running the placebo. It should fail the visual test." };
+    case "run_test":
       return { action: null, reply: "Re-running the visual test is not available from the workbench yet." };
     case "none":
       return { action: null, reply: "I didn't catch that." };

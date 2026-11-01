@@ -555,3 +555,34 @@ describe("beacons and health (§7.1, §7.3, §14.1)", () => {
     expect((await bare.app.inject({ method: "POST", url: "/admin/warm", headers: { ...bearer(ADMIN), "content-type": "application/json" }, payload: {} })).statusCode).toBe(404);
   });
 });
+
+describe("placebo verification (§8.3, PRD §15.1)", () => {
+  const verify = (app: FastifyInstance, id: string, cookie: string, payload: object = { patchId: "placebo" }) =>
+    app.inject({ method: "POST", url: `/api/sessions/${id}/verify`, headers: { ...json, cookie }, payload });
+
+  it("takes only the placebo, and only from a live session with a finished visual test", async () => {
+    const { app, ledger } = await make();
+    const live = await session(app);
+    expect((await verify(app, live.id, live.cookie, { patchId: "pat_01J9ZQ4V6W8X0Y2Z3A4B5C6D7E" })).statusCode).toBe(400);
+    expect((await verify(app, live.id, live.cookie, {})).statusCode).toBe(400);
+    const noRun = await verify(app, live.id, live.cookie);
+    expect(noRun.statusCode).toBe(409);
+    expect(noRun.json().code).toBe("STATE_CONFLICT");
+    const replay = await session(app, "replay");
+    expect((await verify(app, replay.id, replay.cookie)).statusCode).toBe(409);
+    expect(ledger.totals().reservedUsd).toBe(0);
+  });
+
+  it("refuses while the run is still working, and needs the owning cookie", async () => {
+    const { app, ledger } = await make();
+    const { id, cookie } = await session(app);
+    expect((await app.inject({ method: "POST", url: `/api/sessions/${id}/perceive`, headers: { ...json, cookie }, payload: {} })).statusCode).toBe(202);
+    const busy = await verify(app, id, cookie);
+    // The twin is unreachable here, so the run may already have ended; either way there is no verdict to verify.
+    expect(busy.statusCode).toBe(409);
+    expect(busy.json().code).toBe("STATE_CONFLICT");
+    const other = await session(app);
+    expect((await verify(app, id, other.cookie)).statusCode).toBeGreaterThanOrEqual(400);
+    expect(ledger.totals().spentUsd).toBe(0);
+  });
+});

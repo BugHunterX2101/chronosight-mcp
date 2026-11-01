@@ -12,7 +12,8 @@ export const TERMINAL_STATES: ReadonlySet<RunState> = new Set(["PASSED", "FAILED
 export const MAX_ATTEMPTS = 3;
 
 const EDGES: Readonly<Record<RunState, readonly RunState[]>> = {
-  IDLE: ["CAPTURING"],
+  // SIMULATING_POST straight from IDLE is the placebo child run (§8.3); the reducer allows it only for kind "placebo".
+  IDLE: ["CAPTURING", "SIMULATING_POST"],
   CAPTURING: ["PERCEIVING_PRE"],
   PERCEIVING_PRE: ["MEASURING_PRE"],
   MEASURING_PRE: ["BLOCKED", "AWAITING_QUESTION"],

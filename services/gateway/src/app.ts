@@ -54,6 +54,8 @@ export interface RunContext {
   emit: RunDeps["emit"];
   audit: RunDeps["audit"];
   charge: RunDeps["charge"];
+  /** Set for a placebo child run (POST /verify). */
+  placebo?: RunDeps["placebo"];
 }
 
 export interface AppOptions {
@@ -110,6 +112,9 @@ const ApprovalBody = z.strictObject({
   token: z.string().min(1).max(2048),
   note: z.string().max(500).nullable().optional(),
 });
+// PRD §15.1 names a patchId or "placebo"; only the placebo is a run the gateway starts by itself.
+const VerifyBody = z.strictObject({ patchId: z.literal("placebo") });
+const MAX_PLACEBOS_PER_SESSION = 3;
 const EventsQuery = z.object({
   since: z.coerce.number().int().min(0).default(0),
   limit: z.coerce.number().int().min(1).max(1000).default(50),
@@ -395,17 +400,61 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     return reply.code(202).send({ patchId: d.leadPatchId });
   });
 
+  // The placebo negative control (DESIGN §8.3, FR-VUT-3): the baseline's own code, comment-only edited, through
+  // the same render, perception and visual test. It needs the parent's verdict, no diagnosis and no approval
+  // (the twin refuses it unless the AST is identical), and it must FAIL.
+  app.post("/api/sessions/:id/verify", async (req, reply) => {
+    const s = owned(req);
+    parse(VerifyBody, req.body);
+    if (s.mode !== "live" || !s.run) throw new ApiError("STATE_CONFLICT", "only a live run with a visual test can be verified");
+    if (s.busy) throw new ApiError("STATE_CONFLICT", "a run is already active");
+    const parent = s.run;
+    const basis = parent.driver.placeboBasis;
+    if (!basis) throw new ApiError("STATE_CONFLICT", `the placebo needs a finished visual test; the run is in ${parent.driver.state}`);
+    if (s.children.length >= MAX_PLACEBOS_PER_SESSION) throw new ApiError("STATE_CONFLICT", `a session runs the placebo at most ${MAX_PLACEBOS_PER_SESSION} times`);
+    const runId = `run_${ulid()}`;
+    const r = o.ledger.reserve(s.visitorKey, runId, { child: true });
+    if (!r.ok) {
+      const retryAfterS = r.code === "DAILY_CAP" ? secondsToUtcMidnight(now()) : null;
+      throw new ApiError(r.code, r.message, { stage: "budget", retryAfterS });
+    }
+    let driver: RunDriver;
+    try {
+      driver = new RunDriver(o.runDeps({
+        sessionId: s.id, runId, scenarioId: s.scenarioId, concepts: basis.concepts,
+        emit: (type, data) => s.emit(runId, type, data),
+        audit: (kind, data) => s.audit.append(runId, kind, data, now()).seq,
+        charge: (usd) => {
+          const c = o.ledger.charge(runId, usd);
+          s.usd += usd;
+          return { sessionUsd: sessionUsd(s), budgetRemainingUsd: Math.max(0, RESERVE_USD - c.runUsd), overReserve: c.overReserve };
+        },
+        placebo: { parentRunId: parent.runId, basis },
+      }));
+    } catch (e) {
+      o.ledger.release(runId);
+      throw e;
+    }
+    const done = driver.drive()
+      .then((out) => req.log.info({ runId, parentRunId: parent.runId, state: out.state, runUsd: out.runUsd }, "placebo ended"))
+      .catch((err: unknown) => req.log.error({ err, runId }, "placebo driver threw"))
+      .finally(() => o.ledger.release(runId));
+    s.children.push({ runId, driver, done });
+    return reply.code(202).send({ runId, parentRunId: parent.runId });
+  });
+
   app.post("/api/runs/:runId/cancel", async (req) => {
     const runId = (req.params as { runId: string }).runId;
     if (!ID_RE.test(runId) || !runId.startsWith("run_")) throw new ApiError("BAD_REQUEST", "malformed run id");
     const sid = cookieSession(req);
     const s = sid ? sessions.get(sid) : undefined;
-    if (!s?.run || s.run.runId !== runId) throw new ApiError("SESSION_NOT_FOUND", "no such run in this session");
-    const d = s.run.driver;
+    const active = s?.runById(runId);
+    if (!s || !active) throw new ApiError("SESSION_NOT_FOUND", "no such run in this session");
+    const d = active.driver;
     if (d.state === "ABORTED") return { state: "ABORTED" };
     if (isTerminal(d.state)) throw new ApiError("STATE_CONFLICT", `the run already ended in ${d.state}`);
     await d.submit({ kind: "stop", note: "user" });
-    await Promise.race([s.run.done, new Promise((r) => setTimeout(r, CANCEL_WAIT_MS).unref())]);
+    await Promise.race([active.done, new Promise((r) => setTimeout(r, CANCEL_WAIT_MS).unref())]);
     const end = stateOf(d); // re-read after the await; the narrowing above no longer holds
     if (end !== "ABORTED") throw new ApiError("STATE_CONFLICT", `the run ended in ${end}`);
     return { state: "ABORTED" };
@@ -442,10 +491,11 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     const q = parse(MaskQuery, req.query);
     if (q.track !== undefined && !parseTrack(q.track)) throw new ApiError("BAD_REQUEST", "track must be <conceptIdx>:<objectId>");
     if (q.from !== undefined && q.to !== undefined && q.to < q.from) throw new ApiError("BAD_REQUEST", "to is before from");
-    const owner = [...sessions.values()].find((x) => x.run?.runId === runId);
-    const rel = owner?.run?.driver.maskPath(clipId) ?? null;
-    if (!owner || !rel) throw new ApiError("NOT_FOUND", "no such clip in this run");
-    const isPublic = owner.run!.driver.taint === "PUBLIC";
+    const owner = [...sessions.values()].find((x) => x.runById(runId));
+    const ownerRun = owner?.runById(runId) ?? null;
+    const rel = ownerRun?.driver.maskPath(clipId) ?? null;
+    if (!owner || !ownerRun || !rel) throw new ApiError("NOT_FOUND", "no such clip in this run");
+    const isPublic = ownerRun.driver.taint === "PUBLIC";
     if (!isPublic && cookieSession(req) !== owner.id) throw new ApiError("SESSION_NOT_FOUND", "no such run");
     const file = join(o.dataDir, rel);
     if (!existsSync(file) || !existsSync(`${file}.idx`)) throw new ApiError("NOT_FOUND", "the clip has no masks yet");
@@ -694,7 +744,7 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     const t = now();
     for (const s of [...sessions.values()]) {
       if (s.expiresAt > t) continue;
-      if (s.busy) void s.run!.driver.submit({ kind: "stop", note: "session expired" });
+      if (s.busy) for (const r of s.active) void r.driver.submit({ kind: "stop", note: "session expired" });
       else dropSession(s);
     }
     for (const [k, m] of minute) if (m.window !== Math.floor(t / 60_000)) minute.delete(k);
@@ -706,8 +756,8 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     clearInterval(sweep);
     const runs: Promise<void>[] = [];
     for (const s of sessions.values()) {
-      if (s.busy) void s.run!.driver.submit({ kind: "stop", note: "gateway shutting down" });
-      if (s.run) runs.push(s.run.done);
+      for (const r of s.active) void r.driver.submit({ kind: "stop", note: "gateway shutting down" });
+      for (const r of [s.run, ...s.children]) if (r) runs.push(r.done);
     }
     await Promise.race([Promise.allSettled(runs), new Promise((r) => setTimeout(r, CANCEL_WAIT_MS).unref())]);
     for (const s of [...sessions.values()]) dropSession(s);

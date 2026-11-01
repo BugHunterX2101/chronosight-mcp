@@ -68,6 +68,9 @@ export interface ApprovalInput {
 
 export const sendApproval = (sessionId: string, a: ApprovalInput) => call<{ accepted: boolean; nextStep?: number }>("POST", `/api/sessions/${sessionId}/approval`, a);
 
+/** The placebo negative control (DESIGN §8.3): the gateway starts a child run of the finished one. */
+export const verifyPlacebo = (sessionId: string) => call<{ runId: string; parentRunId: string }>("POST", `/api/sessions/${sessionId}/verify`, { patchId: "placebo" });
+
 export const cancelRun = (runId: string) => call<{ state: string }>("POST", `/api/runs/${runId}/cancel`, {});
 
 export const getReport = (sessionId: string) => call<Record<string, unknown>>("GET", `/api/sessions/${sessionId}/report`);

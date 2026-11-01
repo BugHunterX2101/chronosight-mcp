@@ -109,12 +109,17 @@ describe("what an intent may do", () => {
   });
 
   it("things the workbench cannot do say so rather than pretending", () => {
-    for (const k of ["run_test", "run_placebo"]) {
-      const p = plan(k);
-      expect(p.action).toBeNull();
-      expect(p.reply).toMatch(/not available/);
-    }
+    const p = plan("run_test");
+    expect(p.action).toBeNull();
+    expect(p.reply).toMatch(/not available/);
     expect(plan("none").reply).toBe("I didn't catch that.");
+  });
+
+  it("the placebo starts only when the page says a verdict is in and nothing is running", () => {
+    expect(plan("run_placebo", { state: "PASSED", placeboReady: true }).action).toEqual({ kind: "placebo" });
+    const early = plan("run_placebo", { state: "PATCHING" });
+    expect(early.action).toBeNull();
+    expect(early.reply).toMatch(/once the visual test has a verdict/);
   });
 
   it("every plan has something to say", () => {

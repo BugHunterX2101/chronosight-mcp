@@ -4,7 +4,7 @@
 // which makes resume and replay idempotent. An event that would break a §8.2 invariant is not
 // applied; it is recorded in `violation`, and the gateway treats that as its own bug (TECHNICAL §5.1).
 
-import type { Envelope, EventData } from "./envelope.ts";
+import type { Envelope, EventData, RunKind } from "./envelope.ts";
 import { MAX_ATTEMPTS, canTransition, type RunState } from "./state-machine.ts";
 import type { VisualTestResult } from "./schemas/visual-test.ts";
 
@@ -44,6 +44,9 @@ export interface CandidateView {
 
 export interface RunView {
   runId: string;
+  /** `placebo` for the negative-control child run (§8.3); its `parentRunId` is the run it controls. */
+  kind: RunKind;
+  parentRunId: string | null;
   state: RunState;
   attempt: number;
   reason: string | null;
@@ -89,7 +92,7 @@ export function initialSession(): SessionState {
 
 function newRun(runId: string): RunView {
   return {
-    runId, state: "IDLE", attempt: 0, reason: null,
+    runId, kind: "main", parentRunId: null, state: "IDLE", attempt: 0, reason: null,
     perception: { clips: {}, metrics: {}, lastFrame: {} },
     diagnosis: { diagnosisId: null, summary: "", progress: [], final: null },
     approval: { required: null, recorded: [], risk: null },
@@ -121,10 +124,18 @@ function applyRun(run: RunView, e: Envelope): RunView {
       if (!canTransition(run.state, s.to)) throw new Violation(`illegal run transition ${run.state} -> ${s.to}`);
       if (s.attempt < run.attempt || s.attempt > MAX_ATTEMPTS) throw new Violation(`attempt ${s.attempt} after ${run.attempt}`);
       if (s.to === "DIAGNOSING" && s.attempt !== run.attempt + 1) throw new Violation(`entering DIAGNOSING must spend one attempt (${run.attempt} -> ${s.attempt})`);
+      // §8.3: only a placebo child run may skip capture, diagnosis and approval, and it never loops back to diagnose.
+      const first = run.state === "IDLE";
+      if (first && s.to === "SIMULATING_POST" && (s.kind !== "placebo" || typeof s.parentRunId !== "string")) {
+        throw new Violation("a run may start in SIMULATING_POST only as a placebo child with a parent");
+      }
+      if (!first && (s.kind !== undefined || s.parentRunId !== undefined)) throw new Violation("kind and parentRunId are set on a run's first transition only");
+      if (run.kind === "placebo" && s.to === "DIAGNOSING") throw new Violation("a placebo run does not diagnose");
       // Leaving the approval states, or falling back from step 2 to step 1, retires the offered token.
       const keepToken = s.to === "AWAITING_APPROVAL_2";
       return {
         ...run, state: s.to, attempt: s.attempt, reason: s.reason,
+        ...(first ? { kind: s.kind ?? "main", parentRunId: s.parentRunId ?? null } : {}),
         approval: keepToken ? run.approval : { ...run.approval, required: null },
       };
     }

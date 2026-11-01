@@ -200,11 +200,13 @@ export class BudgetLedger {
   }
 
   /** §6.8 reserve. Synchronous from the first check to the fsync. */
-  reserve(visitorKey: string, runId: string): Reservation | Rejection {
+  reserve(visitorKey: string, runId: string, opts: { child?: boolean } = {}): Reservation | Rejection {
     const now = this.o.now();
     this.rollDay(now);
     if (!this.live) return { ok: false, code: "LIVE_PAUSED", message: "Live runs paused. Watch a replay.", retryable: false };
-    if (this.runsInLastHour(visitorKey, now) >= this.o.visitorRunsPerHour) {
+    // A placebo child (§8.3) belongs to a run that already took a slot, so it does not count against the
+    // visitor's hourly runs; the pause and the daily cap still apply to it.
+    if (!opts.child && this.runsInLastHour(visitorKey, now) >= this.o.visitorRunsPerHour) {
       return { ok: false, code: "VISITOR_CAP", message: `${this.o.visitorRunsPerHour} live runs in the last hour`, retryable: true };
     }
     const r = toMicros(RESERVE_USD);
@@ -213,7 +215,7 @@ export class BudgetLedger {
     }
     this.reserved += r;
     this.open.set(runId, this.day);
-    this.visit(visitorKey, now);
+    if (!opts.child) this.visit(visitorKey, now);
     this.append({ t: "reserve", runId, usd: RESERVE_USD, at: new Date(now).toISOString() });
     return { ok: true, runId, usd: RESERVE_USD };
   }

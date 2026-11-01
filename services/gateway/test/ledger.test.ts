@@ -134,3 +134,20 @@ describe("BudgetLedger.boot", () => {
     expect(existsSync(l.lockPath)).toBe(false);
   });
 });
+
+describe("BudgetLedger.reserve for a placebo child", () => {
+  it("does not use the visitor's hourly runs, but still honours the pause and the daily cap", () => {
+    clock = Date.parse("2026-10-31T12:00:00.000Z");
+    const l = open({ dailyCapUsd: 1.4 });
+    expect(l.reserve("v1", "run_a").ok).toBe(true);
+    expect(l.reserve("v1", "run_b", { child: true }).ok).toBe(true);
+    expect(l.reserve("v1", "run_c", { child: true })).toMatchObject({ ok: false, code: "DAILY_CAP" });
+    l.release("run_a");
+    l.release("run_b");
+    // run_a was the visitor's first slot and the child took none, so one hourly run is left
+    expect(l.reserve("v1", "run_d").ok).toBe(true);
+    expect(l.reserve("v1", "run_e")).toMatchObject({ ok: false, code: "VISITOR_CAP" });
+    l.setLive(false);
+    expect(l.reserve("v2", "run_g", { child: true })).toMatchObject({ ok: false, code: "LIVE_PAUSED" });
+  });
+});

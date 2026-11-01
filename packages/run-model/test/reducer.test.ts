@@ -134,3 +134,43 @@ describe("runReducer", () => {
     expect(s.headSeq).toBe(1);
   });
 });
+
+describe("placebo child runs (§8.3)", () => {
+  const CHILD = "run_01JBYYYYYYYYYYYYYYYYYYYYYY";
+  const first = (extra: object) => ev("run.state", { from: "IDLE", to: "SIMULATING_POST", reason: "placebo", attempt: 0, ...extra }, CHILD);
+  const next = (from: RunState, to: RunState) => ev("run.state", { from, to, reason: "t", attempt: 0 }, CHILD);
+
+  it("starts in SIMULATING_POST with its kind and parent, and ends FAILED when the test rejects it", () => {
+    seq = 0;
+    const s = fold([
+      first({ kind: "placebo", parentRunId: RUN }),
+      next("SIMULATING_POST", "PERCEIVING_POST"), next("PERCEIVING_POST", "MEASURING_POST"),
+      next("MEASURING_POST", "VERDICT_FAIL"), next("VERDICT_FAIL", "FAILED"),
+    ]);
+    expect(s.violation).toBeNull();
+    expect(s.runs[CHILD]).toMatchObject({ kind: "placebo", parentRunId: RUN, state: "FAILED", attempt: 0 });
+  });
+
+  it("is the only run that may skip capture, diagnosis and approval", () => {
+    for (const extra of [{}, { kind: "main" }, { kind: "placebo" }]) {
+      seq = 0;
+      const s = fold([first(extra)]);
+      expect(s.violation?.message).toContain("placebo child with a parent");
+      expect(s.runs[CHILD]).toBeUndefined();
+    }
+  });
+
+  it("never loops back to diagnose, and kind is set on the first transition only", () => {
+    seq = 0;
+    const base = [first({ kind: "placebo", parentRunId: RUN }), next("SIMULATING_POST", "PERCEIVING_POST"), next("PERCEIVING_POST", "MEASURING_POST"), next("MEASURING_POST", "VERDICT_FAIL")];
+    const loop = fold([...base, ev("run.state", { from: "VERDICT_FAIL", to: "DIAGNOSING", reason: "t", attempt: 1 }, CHILD)]);
+    expect(loop.violation?.message).toContain("does not diagnose");
+    const late = fold([ev("run.state", { from: "IDLE", to: "SIMULATING_POST", reason: "placebo", attempt: 0, kind: "placebo", parentRunId: RUN }, "run_01JBZZZZZZZZZZZZZZZZZZZZZZ"), ev("run.state", { from: "SIMULATING_POST", to: "PERCEIVING_POST", reason: "t", attempt: 0, kind: "main" }, "run_01JBZZZZZZZZZZZZZZZZZZZZZZ")]);
+    expect(late.violation?.message).toContain("first transition only");
+  });
+
+  it("leaves an ordinary run a main run with no parent", () => {
+    seq = 0;
+    expect(fold([go("IDLE", "CAPTURING")]).runs[RUN]).toMatchObject({ kind: "main", parentRunId: null });
+  });
+});

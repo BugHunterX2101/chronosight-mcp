@@ -46,6 +46,8 @@ export class Session {
   readonly createdAt: number;
   readonly expiresAt: number;
   run: ActiveRun | null = null;
+  /** Placebo child runs of `run` (§8.3), oldest first. */
+  readonly children: ActiveRun[] = [];
   usd = 0;
   private readonly now: () => number;
   private readonly auditPath: string;
@@ -87,10 +89,19 @@ export class Session {
     return this.run?.driver.state ?? null;
   }
 
-  /** True while a run is in a non-terminal state. */
+  /** True while a run, or one of its placebo children, is in a non-terminal state. */
   get busy(): boolean {
-    const s = this.runState;
-    return s !== null && !isTerminal(s);
+    return this.active.length > 0;
+  }
+
+  /** The runs still working, children included. */
+  get active(): ActiveRun[] {
+    return [this.run, ...this.children].filter((r): r is ActiveRun => r !== null && !isTerminal(r.driver.state));
+  }
+
+  /** The session's run or one of its children, by id. */
+  runById(runId: string): ActiveRun | null {
+    return [this.run, ...this.children].find((r) => r?.runId === runId) ?? null;
   }
 
   emit(runId: string | null, type: EventType, data: object): number {

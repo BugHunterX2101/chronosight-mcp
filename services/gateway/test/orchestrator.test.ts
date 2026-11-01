@@ -123,6 +123,10 @@ interface HarnessOpts {
   charge?: RunDeps["charge"];
   candidates?: number;
   concepts?: string[];
+  /** Builds a placebo child (§8.3) of this finished run instead of a main run. */
+  placeboOf?: Harness;
+  /** The twin refuses the placebo because its AST differs from the baseline's. */
+  placeboRefused?: boolean;
 }
 
 function harness(opts: HarnessOpts = {}): Harness {
@@ -157,7 +161,7 @@ function harness(opts: HarnessOpts = {}): Harness {
   };
 
   const deps: RunDeps = {
-    sessionId: "ses_1", runId: "run_1", scenarioId: "s1", seed: 7,
+    sessionId: "ses_1", runId: opts.placeboOf ? "run_000000000000000000PLACEBO" : "run_1", scenarioId: "s1", seed: 7,
     dataDir: mkdtempSync(join(tmpdir(), "cs-run-")),
     prefix: { scenario: { id: "s1", concepts: [
       { slug: "forearm", prompt: "orange robot arm segment", role: "fault" },
@@ -165,6 +169,7 @@ function harness(opts: HarnessOpts = {}): Harness {
       { slug: "marker", prompt: "checkered square", role: "refs" },
     ] } } as unknown as Prefix,
     concepts: opts.concepts,
+    ...(opts.placeboOf ? { placebo: { parentRunId: "run_1", basis: opts.placeboOf.driver.placeboBasis! } } : {}),
     prices: { models: {} } as unknown as Prices,
     twin: {
       render: async (b) => ({
@@ -179,7 +184,14 @@ function harness(opts: HarnessOpts = {}): Harness {
         });
         return { clipId: b.clipId, frames: [frame(144, "min"), frame(148, "max")] };
       },
-      patchLoad: async (b) => (b.dryRun ? { ok: true, code: null, details: [], params: null } : { ok: true, patchId: b.patchId, params: null, approvalExempt: null }),
+      patchLoad: async (b) => {
+        if (b.patchId === "placebo") {
+          return opts.placeboRefused
+            ? { code: "PLACEBO_AST_MISMATCH", message: "placebo AST differs from the baseline; child run aborted" }
+            : { ok: true, patchId: "placebo", params: null, approvalExempt: "placebo-ast-identical" };
+        }
+        return b.dryRun ? { ok: true, code: null, details: [], params: null } : { ok: true, patchId: b.patchId, params: null, approvalExempt: null };
+      },
       visualTest: async () => verdict(verdicts.shift() ?? "FAIL"),
     },
     sam: {
@@ -383,5 +395,75 @@ describe("run loop", () => {
     const err = h.events.find((e) => e.type === "error")!.data;
     expect(err).toMatchObject({ code: "BUDGET_OVERRUN", retryable: false, stage: "AWAITING_APPROVAL_1" });
     expect(h.events.at(-1)!.data).toMatchObject({ to: "ABORTED", reason: "BUDGET_OVERRUN" });
+  });
+});
+
+describe("placebo child run (§8.3, FR-VUT-3)", () => {
+  async function parent(): Promise<Harness> {
+    const h = harness();
+    expect(h.driver.placeboBasis).toBeNull();
+    await h.driver.drive();
+    return h;
+  }
+
+  it("is offered only once the parent has a verdict, and never to a child", async () => {
+    const h = await parent();
+    expect(h.driver.state).toBe("PASSED");
+    expect(h.driver.placeboBasis?.pre.clipId).toBe("bl-k-baseline");
+    const child = harness({ placeboOf: h, verdicts: ["FAIL"] });
+    await child.driver.drive();
+    expect(child.driver.placeboBasis).toBeNull();
+  });
+
+  it("starts in SIMULATING_POST, skips diagnosis and approval, and ends FAILED when the test rejects it", async () => {
+    const h = await parent();
+    const child = harness({ placeboOf: h, verdicts: ["FAIL"] });
+    const out = await child.driver.drive();
+    expect(out.state).toBe("FAILED");
+    expect(child.states()).toEqual(["SIMULATING_POST", "PERCEIVING_POST", "MEASURING_POST", "VERDICT_FAIL", "FAILED"]);
+    const first = child.events.find((e) => e.type === "run.state")!.data;
+    expect(first).toMatchObject({ from: "IDLE", to: "SIMULATING_POST", kind: "placebo", parentRunId: "run_1" });
+    expect(child.diagnoses).toHaveLength(0);
+    expect(child.keyFrameCalls()).toBe(0);
+    expect(child.events.some((e) => e.type === "approval.required")).toBe(false);
+    expect(child.audits.find((a) => a.kind === "placebo")!.data).toMatchObject({ patchId: "placebo", approvalExempt: "placebo-ast-identical" });
+    expect(child.audits.find((a) => a.kind === "verdict")!.data).toMatchObject({ patchId: "placebo", verdict: "FAIL" });
+  });
+
+  it("renders and perceives only the post clip; the pre clip is the parent's", async () => {
+    const h = await parent();
+    const child = harness({ placeboOf: h, verdicts: ["FAIL"] });
+    await child.driver.drive();
+    expect(child.samCalls.map((c) => c.clipId)).toEqual(["po-placebo-" + "run_000000000000000000PLACEBO".slice(-8).toLowerCase()]);
+    const renders = child.events.filter((e) => e.type === "twin.render").map((e) => e.data);
+    expect(renders).toHaveLength(1);
+    expect(renders[0]).toMatchObject({ phase: "post" });
+    expect(child.driver.maskPath(child.samCalls[0]!.clipId)).toBe(`masks/${child.samCalls[0]!.clipId}.csmk`);
+    expect(child.driver.maskPath("bl-k-baseline")).toBeNull();
+  });
+
+  it("ends PASSED when the test wrongly accepts it, which the client reads as an alert", async () => {
+    const h = await parent();
+    const child = harness({ placeboOf: h, verdicts: ["PASS"] });
+    expect((await child.driver.drive()).state).toBe("PASSED");
+    expect(child.states().at(-1)).toBe("PASSED");
+  });
+
+  it("fails the child run when the twin refuses the placebo for its AST", async () => {
+    const h = await parent();
+    const child = harness({ placeboOf: h, placeboRefused: true });
+    const out = await child.driver.drive();
+    expect(out.state).toBe("FAILED");
+    expect(child.events.find((e) => e.type === "error")!.data).toMatchObject({ code: "PLACEBO_AST_MISMATCH" });
+    expect(child.samCalls).toHaveLength(0);
+  });
+
+  it("takes the parent's taint, so a CONFIDENTIAL run's placebo clip stays behind its cookie", async () => {
+    const h = harness({ intent: "why does the arm shake at the elbow" });
+    await h.driver.drive();
+    expect(h.driver.placeboBasis?.taint).toBe("CONFIDENTIAL");
+    const child = harness({ placeboOf: h, verdicts: ["FAIL"] });
+    await child.driver.drive();
+    expect(child.driver.taint).toBe("CONFIDENTIAL");
   });
 });

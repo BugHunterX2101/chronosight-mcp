@@ -6,6 +6,9 @@ import type { Diagnosis, Lane } from "./schemas/diagnosis.ts";
 import type { VisualTestResult } from "./schemas/visual-test.ts";
 import type { RunState } from "./state-machine.ts";
 
+/** `placebo` is the negative control (FR-VUT-3): a child run that begins in SIMULATING_POST. */
+export type RunKind = "main" | "placebo";
+
 export const EVENT_TYPES = [
   "run.state", "perception.frame", "perception.metrics", "transcript.partial", "transcript.final",
   "diagnosis.delta", "diagnosis.final", "risk.review", "approval.required", "approval.recorded",
@@ -15,7 +18,11 @@ export const EVENT_TYPES = [
 export type EventType = (typeof EVENT_TYPES)[number];
 
 export interface EventData {
-  "run.state": { from: RunState | null; to: RunState; reason: string; attempt: number };
+  "run.state": {
+    from: RunState | null; to: RunState; reason: string; attempt: number;
+    /** Set on a run's first transition. A placebo child run (DESIGN §8.3) names its parent. */
+    kind?: RunKind; parentRunId?: string;
+  };
   "diagnosis.delta": { diagnosisId: string; kind: "summary" | "progress"; text: string };
   "diagnosis.final": {
     diagnosis: Diagnosis; lane: Lane; laneReason: string; cacheHitPct: number;
