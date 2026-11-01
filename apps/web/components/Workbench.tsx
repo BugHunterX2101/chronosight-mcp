@@ -12,6 +12,7 @@ import { narrate } from "../lib/voice/narration.ts";
 import type { RelayMessage } from "../lib/voice/messages.ts";
 import { useVoice } from "../lib/voice/useVoice.ts";
 import { ApprovalDialog } from "./ApprovalDialog.tsx";
+import { GlassesPanel } from "./GlassesPanel.tsx";
 import { PlaceboButton } from "./PlaceboButton.tsx";
 import { PsdChart } from "./PsdChart.tsx";
 import { CostMeter, DiagnosisPane, LoopStepper, RepairPane, VerdictPanel } from "./panels.tsx";
@@ -335,6 +336,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
           <VerdictPanel verdict={run?.verdict ?? null} />
           <PsdChart run={run} />
           <PlaceboButton placebo={placebo} ready={placeboReady} busy={busy} onRun={() => void runPlacebo()} />
+          {mode !== "replay" ? <GlassesPanel sessionId={sessionId} /> : null}
         </div>
       </div>
 

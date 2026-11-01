@@ -1217,6 +1217,70 @@ select {
   flex: 1 1 260px;
 }
 
+/* Glasses pairing and preview. The frame is the real 600 x 600 /hud page shown at half size; no inline styles. */
+.glasses-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.glasses-form input[type="text"] {
+  flex: 0 0 auto;
+  width: 14ch;
+  font: 600 16px var(--font-num);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.glasses-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin: 12px 0;
+}
+
+.glasses-link p {
+  margin: 0 0 6px;
+}
+
+.glasses-display {
+  font-family: var(--font-num);
+  letter-spacing: 0.12em;
+}
+
+.glasses-qr {
+  width: 168px;
+  height: 168px;
+  border-radius: 6px;
+}
+
+.glasses-figure {
+  margin: 12px 0 0;
+}
+
+.glasses-frame {
+  width: 300px;
+  max-width: 100%;
+  height: 300px;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+}
+
+.glasses-frame iframe {
+  display: block;
+  width: 600px;
+  height: 600px;
+  border: 0;
+  background: #000;
+  transform: scale(0.5);
+  transform-origin: 0 0;
+}
+
 .voice-bar {
   display: flex;
   flex-wrap: wrap;

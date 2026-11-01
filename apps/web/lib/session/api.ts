@@ -71,6 +71,20 @@ export const sendApproval = (sessionId: string, a: ApprovalInput) => call<{ acce
 /** The placebo negative control (DESIGN §8.3): the gateway starts a child run of the finished one. */
 export const verifyPlacebo = (sessionId: string) => call<{ runId: string; parentRunId: string }>("POST", `/api/sessions/${sessionId}/verify`, { patchId: "placebo" });
 
+/** A link-first pairing code for the glasses (DESIGN §26.5): the page and the Meta AI app both open `url` with the code in it. */
+export interface GlassesLink {
+  code: string;
+  display: string;
+  expiresAt: string;
+  url: string;
+  deepLink: string;
+}
+
+export const mintGlassesLink = (sessionId: string) => call<GlassesLink>("POST", `/api/sessions/${sessionId}/hud/pair`, {});
+
+/** HUD-first pairing: the glasses show a code and the workbench binds it to this session. */
+export const bindGlassesCode = (sessionId: string, code: string) => call<{ paired: boolean }>("POST", `/api/sessions/${sessionId}/hud/pair`, { code });
+
 export const cancelRun = (runId: string) => call<{ state: string }>("POST", `/api/runs/${runId}/cancel`, {});
 
 export const getReport = (sessionId: string) => call<Record<string, unknown>>("GET", `/api/sessions/${sessionId}/report`);
