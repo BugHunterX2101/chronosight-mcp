@@ -17,6 +17,7 @@ import { ApprovalDialog } from "./ApprovalDialog.tsx";
 import { GlassesPanel } from "./GlassesPanel.tsx";
 import { PlaceboButton } from "./PlaceboButton.tsx";
 import { PsdChart } from "./PsdChart.tsx";
+import { ByoPanel } from "./ByoPanel.tsx";
 import { CostMeter, DiagnosisPane, LoopStepper, RepairPane, VerdictPanel } from "./panels.tsx";
 import { VideoStage } from "./VideoStage.tsx";
 import { VoiceBar } from "./VoiceBar.tsx";
@@ -296,7 +297,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
       </div>
 
       <h1>{scenario?.title ?? scenarioId ?? "Inspection"}</h1>
-      <LoopStepper state={state_} live />
+      <LoopStepper state={state_} reason={run?.reason ?? null} live />
 
       <div className="controls">
         {run === undefined && mode === "live" ? (
@@ -320,6 +321,10 @@ export function Workbench({ sessionId }: { sessionId: string }) {
         ) : null}
         <a href={`/report/${sessionId}`}>Audit report</a>
       </div>
+
+      {run === undefined && mode === "byo" ? (
+        <ByoPanel sessionId={sessionId} busy={busy} onAnalyse={(scale) => void act(() => startPerceive(sessionId, scale))} />
+      ) : null}
 
       <VoiceBar voice={voice} reply={reply} />
 

@@ -150,7 +150,7 @@ describe("sessions and request rules (§7.1)", () => {
     const r = await app.inject({ method: "GET", url: "/api/scenarios" });
     expect(r.statusCode).toBe(200);
     const plan = buildPrefix("s1").scenario.concepts.map((c) => ({ slug: c.slug, role: c.role }));
-    expect(r.json()).toEqual({ scenarios: [{ id: "s1", title: "s1", concepts: plan }] });
+    expect(r.json()).toEqual({ scenarios: [{ id: "s1", title: "s1", concepts: plan }], uploads: false });
   });
 
   it("validates bodies and refuses unknown scenarios and fields", async () => {

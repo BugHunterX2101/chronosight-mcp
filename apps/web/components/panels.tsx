@@ -52,17 +52,25 @@ const NOW: Record<RunState, string> = {
 
 const STOPPED_EARLY: ReadonlySet<RunState> = new Set(["FAILED", "BLOCKED", "ABORTED"]);
 
+/** The gateway ends a run on a person's own clip in ABORTED with this reason once the diagnosis is in (no patch is made). */
+export const BYO_DIAGNOSED = "BYO_DIAGNOSED";
+const DIAGNOSE_AT = PHASES.findIndex((p) => p.id === "diagnose");
+
 /** `live` announces phase changes to screen readers; it is for the live workbench, not for a scrubbed replay. */
-export function LoopStepper({ state, live = false }: { state: RunState; live?: boolean }) {
+export function LoopStepper({ state, reason = null, live = false }: { state: RunState; reason?: string | null; live?: boolean }) {
+  const analysed = state === "ABORTED" && reason === BYO_DIAGNOSED;
   const at = PHASES.findIndex((p) => p.id === PHASE_OF[state]);
-  const stoppedEarly = STOPPED_EARLY.has(state);
+  const stoppedEarly = STOPPED_EARLY.has(state) && !analysed;
   return (
     <div className="rail">
       <ol className="stepper" aria-label="Run progress">
         {PHASES.map((p, i) => {
           // A run that failed, was blocked or was cancelled does not say how far it got, so no phase is claimed.
-          const status =
-            stoppedEarly || at === -1
+          const status = analysed
+            ? i <= DIAGNOSE_AT
+              ? "done"
+              : "pending"
+            : stoppedEarly || at === -1
               ? "pending"
               : state === "PASSED"
                 ? "done"
@@ -85,7 +93,7 @@ export function LoopStepper({ state, live = false }: { state: RunState; live?: b
       </ol>
       <p className={stoppedEarly || state === "VERDICT_FAIL" ? "rail-now fail" : "rail-now"} aria-live={live ? "polite" : "off"}>
         {stoppedEarly || state === "VERDICT_FAIL" ? <span aria-hidden="true">✕ </span> : null}
-        {NOW[state]}
+        {analysed ? "Analysis finished. No patch is made for your own clip" : NOW[state]}
       </p>
     </div>
   );

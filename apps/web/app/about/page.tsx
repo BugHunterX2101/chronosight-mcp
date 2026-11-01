@@ -36,7 +36,12 @@ export default function AboutPage() {
         <li>No patch is applied without your two approvals, and the approval is bound to the exact patch specification you were shown.</li>
         <li>Live runs are limited by a daily budget and a per-visitor hourly cap. When they are off, recorded runs still play.</li>
         <li>The browser never holds a model key. It talks only to this site&apos;s gateway.</li>
-        <li>This version runs only the built-in synthetic scenarios. It does not accept uploaded video.</li>
+        <li>
+          Where the server has its video processor, you can analyse your own MP4 or MOV instead (up to 100 MB; a run covers about 25 seconds). It is perceived,
+          measured and diagnosed, and no patch is made. Your clip stays behind your session cookie, is deleted with the session and is never published or recorded
+          as a replay.
+        </li>
+        <li>This site&apos;s hosted demo has no video processor and no model key, so it plays recorded runs only.</li>
       </ul>
 
       <p>

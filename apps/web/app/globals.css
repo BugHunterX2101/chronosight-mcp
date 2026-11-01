@@ -1516,3 +1516,60 @@ dialog.approval[open] {
     break-inside: avoid;
   }
 }
+
+/* ───────── Bring your own clip ───────── */
+.byo {
+  display: grid;
+  gap: 12px;
+  max-width: 640px;
+  margin: 8px 0 16px;
+}
+
+.byo-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.byo-drop {
+  display: block;
+  padding: 24px 16px;
+  border: 2px dashed var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-2);
+  text-align: center;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.byo-drop:hover,
+.byo-drop-on {
+  border-color: var(--obj-1);
+  background: var(--raise);
+}
+
+.byo-file {
+  max-width: 100%;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.byo-ready {
+  display: grid;
+  gap: 8px;
+}
+
+.byo-preview {
+  width: 100%;
+  max-height: 360px;
+  background: #000;
+  border-radius: 6px;
+}
+
+.byo-scale {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}

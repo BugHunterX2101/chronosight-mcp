@@ -323,8 +323,10 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
   // ---------------------------------------------------------------- scenarios
 
   // What the start screen offers: ids, titles and concept plans. No session or key is involved.
+  // `uploads` tells the page whether a person's own clip can be taken here (a media worker is configured).
   app.get("/api/scenarios", async () => ({
     scenarios: o.scenarios.map((id) => ({ id, title: o.scenarioTitle?.(id) ?? id, concepts: o.conceptPlan(id).map((c) => ({ slug: c.slug, role: c.role })) })),
+    uploads: Boolean(o.media),
   }));
 
   // ---------------------------------------------------------------- sessions

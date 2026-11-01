@@ -28,11 +28,13 @@ export interface ScenarioInfo {
 }
 
 async function call<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+  // A FormData body keeps the multipart boundary the browser writes, so it gets no content-type of ours.
+  const form = typeof FormData !== "undefined" && body instanceof FormData;
   const res = await fetch(`${GATEWAY_ORIGIN}${path}`, {
     method,
     credentials: "include",
-    headers: body === undefined ? undefined : { "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: body === undefined || form ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : form ? (body as FormData) : JSON.stringify(body),
   });
   const text = await res.text();
   let parsed: unknown = null;
@@ -52,7 +54,34 @@ export const createSession = (scenarioId: string, mode: "live" | "replay" | "byo
 
 export const getSnapshot = (sessionId: string) => call<{ headSeq: number; scenarioId: string; mode: "live" | "replay" | "byo"; state: SessionState }>("GET", `/api/sessions/${sessionId}/snapshot`);
 
-export const startPerceive = (sessionId: string) => call<{ runId: string }>("POST", `/api/sessions/${sessionId}/perceive`, {});
+/** A person's clip has no camera model, so its scale is the reference marker's real size or mm per pixel, if they know it (FR-MEA-2). */
+export interface ClipScale {
+  markerSizeMm?: number;
+  mmPerPx?: number;
+}
+
+export const startPerceive = (sessionId: string, scale: ClipScale = {}) => call<{ runId: string }>("POST", `/api/sessions/${sessionId}/perceive`, scale);
+
+/** Whether this gateway takes a person's own clip (a media worker is configured). */
+export const uploadsAvailable = () => call<{ uploads?: boolean }>("GET", "/api/scenarios").then((r) => r.uploads === true);
+
+export interface UploadedClip {
+  clipId: string;
+  frames: number;
+  fps: number;
+  width: number;
+  height: number;
+  durationS: number;
+}
+
+/** The notice a person acknowledges before any byte leaves the browser (PRD §17.4); `consentAt` is the moment they did. */
+export function uploadClip(sessionId: string, file: File, consentAt: Date): Promise<UploadedClip> {
+  const form = new FormData();
+  // The gateway reads the acknowledgement before the file, so it is appended first.
+  form.append("consentAt", consentAt.toISOString());
+  form.append("file", file);
+  return call<UploadedClip>("POST", `/api/sessions/${sessionId}/clips`, form);
+}
 
 export const diagnose = (sessionId: string, opts: { transcript?: string; escalate?: boolean }) =>
   call<{ diagnosisId: string }>("POST", `/api/sessions/${sessionId}/diagnose`, opts);
