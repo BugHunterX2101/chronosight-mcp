@@ -21,7 +21,7 @@ export interface Scenario {
   hardBounds: Record<string, [number, number]>;
   targetFiles: string[];
   concepts: { slug: string; prompt: string; role: string; expectedCount: number }[];
-  assertions: { type: string; role: string; params: Record<string, number> }[];
+  assertions: { type: string; role: string; params: Record<string, number | string | boolean> }[];
   [k: string]: unknown;
 }
 

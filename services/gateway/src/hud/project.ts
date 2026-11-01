@@ -48,7 +48,14 @@ const testOf = (d: Data): Data => {
 };
 
 const PROJECT: Partial<Record<EventType, (d: Data) => Data | null>> = {
-  "run.state": (d) => ({ from: d.from ?? null, to: d.to, attempt: num(d.attempt), ...(d.kind ? { kind: d.kind } : {}), ...(d.parentRunId ? { parentRunId: d.parentRunId } : {}) }),
+  "run.state": (d) => ({
+    from: d.from ?? null,
+    to: d.to,
+    attempt: num(d.attempt),
+    ...(d.reason === "BYO_DIAGNOSED" ? { reason: d.reason } : {}),
+    ...(d.kind ? { kind: d.kind } : {}),
+    ...(d.parentRunId ? { parentRunId: d.parentRunId } : {}),
+  }),
   // Only the final reading of a track; the live ones are the workbench's.
   "perception.metrics": (d) => (d.final === true ? { phase: d.phase === "post" ? "post" : "pre", rmsMm: num(d.rmsMm), fStarHz: num(d.fStarHz), coverage: num(d.coverage) } : null),
   // The words are the owner's; the glasses learn what was meant.

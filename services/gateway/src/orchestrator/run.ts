@@ -949,7 +949,7 @@ export class RunDriver {
     if (failure !== null || !clip) {
       const pre = this.pre!;
       const v = await this.d.twin.visualTest({
-        scenarioId, patchId: c.patchId, pre: { clipId: pre.clipId, csmkPath: pre.csmkPath, nFrames: pre.frames },
+        scenarioId, patchId: c.patchId, pre: { clipId: pre.clipId, csmkPath: pre.csmkPath, nFrames: pre.frames, groundTruthPath: pre.groundTruthPath },
         failure: { code: "PATCH_RUNTIME_ERROR", detail: (failure ?? "").slice(0, 2000) },
       });
       this.verdict = v;
@@ -982,7 +982,7 @@ export class RunDriver {
       this.emitMetrics(m, "post");
       return this.d.twin.visualTest({
         scenarioId, patchId,
-        pre: { clipId: pre.clipId, csmkPath: pre.csmkPath, nFrames: pre.frames },
+        pre: { clipId: pre.clipId, csmkPath: pre.csmkPath, nFrames: pre.frames, groundTruthPath: pre.groundTruthPath },
         post: { clipId: post.clipId, csmkPath: post.csmkPath, nFrames: post.frames, groundTruthPath: post.groundTruthPath },
       });
     });

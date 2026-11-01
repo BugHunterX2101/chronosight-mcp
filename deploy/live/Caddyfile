@@ -1,0 +1,9 @@
+:10000 {
+  @gateway path /api/* /media/* /replays/* /sse/* /ws/* /admin/*
+  handle @gateway {
+    reverse_proxy gateway:8080
+  }
+  handle {
+    reverse_proxy web:3000
+  }
+}

@@ -5,7 +5,7 @@
   "engines": { "node": ">=24 <25" },
   "workspaces": ["packages/*", "services/gateway", "services/sandbox-launcher", "services/media-worker", "apps/web"],
   "scripts": {
-    "typecheck": "tsc -p packages/run-model && tsc -p services/gateway && tsc -p services/sandbox-launcher && tsc -p services/media-worker",
+    "typecheck": "tsc -p packages/run-model && tsc -p services/gateway && tsc -p services/sandbox-launcher && tsc -p services/media-worker && npm run typecheck -w apps/web",
     "test": "vitest run",
     "dev:gateway": "npm run dev -w services/gateway",
     "dev:web": "npm run dev -w apps/web",

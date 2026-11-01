@@ -1,0 +1,132 @@
+name: chronosight-live
+
+services:
+  gateway:
+    build:
+      context: ../..
+      dockerfile: deploy/live/Dockerfile.gateway
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8080
+      DATA_DIR: /app/data
+      TWIN_URL: http://twin:8090
+      MEDIA_WORKER_URL: http://media-worker:8091
+      LAUNCHER_SOCKET: /run/launcher/launcher.sock
+      EGRESS_PROXY_URL: http://egress-proxy:3128
+      PUBLIC_ORIGINS: ${PUBLIC_ORIGINS:?set PUBLIC_ORIGINS}
+      LIVE_RUNS_ENABLED: ${LIVE_RUNS_ENABLED:-false}
+      MOCK_META: ${MOCK_META:-true}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-24}
+      BUDGET_GLOBAL_DAILY_USD: ${BUDGET_GLOBAL_DAILY_USD:-3}
+      BUDGET_PER_VISITOR_RUNS_PER_HOUR: ${BUDGET_PER_VISITOR_RUNS_PER_HOUR:-2}
+      META_API_KEY: ${META_API_KEY:-}
+      META_API_BASE: ${META_API_BASE:-https://api.meta.ai/v1}
+      SESSION_SIGNING_KEY: ${SESSION_SIGNING_KEY:?set SESSION_SIGNING_KEY}
+      APPROVAL_HMAC_KEY: ${APPROVAL_HMAC_KEY:?set APPROVAL_HMAC_KEY}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-chronosight-sandbox:latest}
+    volumes:
+      - chronosight-data:/app/data
+      - launcher-socket:/run/launcher
+    depends_on:
+      twin:
+        condition: service_healthy
+      media-worker:
+        condition: service_healthy
+      sandbox-launcher:
+        condition: service_healthy
+    networks: [edge, internal]
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/live/Dockerfile.web
+    environment:
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    depends_on: [gateway]
+    networks: [edge]
+
+  twin:
+    build:
+      context: ../..
+      dockerfile: deploy/live/Dockerfile.twin
+    environment:
+      DATA_DIR: /app/data
+    volumes:
+      - chronosight-data:/app/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  media-worker:
+    build:
+      context: ../..
+      dockerfile: deploy/live/Dockerfile.media-worker
+    environment:
+      MEDIA_WORKER_HOST: 0.0.0.0
+      MEDIA_WORKER_PORT: 8091
+      DATA_DIR: /app/data
+    volumes:
+      - chronosight-data:/app/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8091/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  sandbox-launcher:
+    build:
+      context: ../..
+      dockerfile: deploy/live/Dockerfile.launcher
+    environment:
+      LAUNCHER_SOCKET: /run/launcher/launcher.sock
+      SANDBOX_IMAGE: ${SANDBOX_IMAGE:-chronosight-sandbox:latest}
+      EGRESS_PROXY_URL: http://egress-proxy:3128
+      SANDBOX_NETWORK: sbx
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - launcher-socket:/run/launcher
+      - chronosight-data:/app/data
+    networks: [sbx]
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('node:fs').accessSync('/run/launcher/launcher.sock')"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
+  egress-proxy:
+    build:
+      context: ../../sandbox/egress-proxy
+    networks: [sbx, egress]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  edge:
+    image: caddy:2.10-alpine
+    ports:
+      - "${PORT:-10000}:10000"
+    environment:
+      PUBLIC_ORIGINS: ${PUBLIC_ORIGINS:?set PUBLIC_ORIGINS}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on: [gateway, web]
+    networks: [edge]
+
+volumes:
+  chronosight-data:
+  launcher-socket:
+
+networks:
+  edge: {}
+  internal:
+    internal: true
+  sbx:
+    name: sbx
+    internal: true
+  egress: {}

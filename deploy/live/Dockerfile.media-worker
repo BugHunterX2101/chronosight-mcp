@@ -1,0 +1,10 @@
+FROM node:24-bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY . .
+RUN npm ci --omit=dev --no-audit --no-fund
+RUN useradd --create-home --uid 10001 chronosight && mkdir -p /app/data && chown -R chronosight:chronosight /app
+USER chronosight
+ENV NODE_ENV=production DATA_DIR=/app/data MEDIA_WORKER_HOST=0.0.0.0 MEDIA_WORKER_PORT=8091
+EXPOSE 8091
+CMD ["node", "services/media-worker/src/server.ts"]

@@ -34,6 +34,7 @@ from ..render.s1 import RENDERER_VERSION
 from ..sim.loader import SCENARIOS, load_baseline
 from ..sim.run import load_scenario, render, simulate
 from ..vut.evaluate import evaluate, failed_patch_result, precheck
+from ..vut.typed import evaluate_typed
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 # A relative DATA_DIR is taken from the repo root, as the gateway does, so both see one directory.
@@ -531,6 +532,10 @@ async def visual_test(body: VisualTestBody):
     gt_post = None
     if body.post.groundTruthPath:
         gt_post = measure_ground_truth(json.loads(_inside(body.post.groundTruthPath).read_text(encoding="utf-8")))
+    if body.scenarioId in {"s2", "s3"} and body.pre.groundTruthPath and body.post.groundTruthPath:
+        pre_gt = json.loads(_inside(body.pre.groundTruthPath).read_text(encoding="utf-8"))
+        post_gt_raw = json.loads(_inside(body.post.groundTruthPath).read_text(encoding="utf-8"))
+        return evaluate_typed(body.scenarioId, pre_gt, post_gt_raw, body.patchId, body.testId).dump()
     res = evaluate(pre, post, body.patchId, params, object_id=body.objectId, gt_post=gt_post, test_id=body.testId)
     return res.dump()
 
