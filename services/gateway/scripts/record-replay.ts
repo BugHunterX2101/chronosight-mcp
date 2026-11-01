@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { paths } from "../src/paths.ts";
 import { loadScenario } from "../src/prefix.ts";
 import { recordReplay, updateIndex, verifyBundle } from "../src/replay/record.ts";
+import { publishReplay } from "../src/replay/publish.ts";
 
 const [sessionId, runId] = process.argv.slice(2);
 if (!sessionId) {
@@ -28,6 +29,16 @@ if (!v.ok) {
   process.exit(1);
 }
 updateIndex(replaysDir, manifest, now);
+if (process.env.STORAGE_BUCKET_URL?.trim() || process.env.STORAGE_KEY?.trim()) {
+  if (!process.env.STORAGE_BUCKET_URL?.trim() || !process.env.STORAGE_KEY?.trim()) {
+    throw new Error("STORAGE_BUCKET_URL and STORAGE_KEY must be set together");
+  }
+  const published = await publishReplay(dir, manifest, {
+    bucketUrl: process.env.STORAGE_BUCKET_URL,
+    storageKey: process.env.STORAGE_KEY,
+  });
+  console.log(`published ${published.objects} objects (${(published.bytes / 1e6).toFixed(1)} MB) to ${published.baseUrl}`);
+}
 const bytes = manifest.files.reduce((n, f) => n + f.bytes, 0);
 console.log(`recorded ${manifest.runId} (${manifest.scenarioId}) → ${dir}`);
 console.log(`${manifest.files.length} files, ${(bytes / 1e6).toFixed(1)} MB, verified; models: ${manifest.models.join(", ")}`);

@@ -145,6 +145,11 @@ describe("narration", () => {
     expect(t).not.toMatch(/\d/);
   });
 
+  it("explains that a BYO run ends after diagnosis", () => {
+    expect(narrate("ABORTED", { topHypothesis: null, riskLevel: null, citations: null, reason: "BYO_DIAGNOSED" }))
+      .toBe("Your clip was analysed. No patch was made.");
+  });
+
   it("speaks only where the user has something to do or learn", () => {
     for (const s of ["IDLE", "PERCEIVING_PRE", "DIAGNOSING", "PATCHING", "SIMULATING_POST"] as const) expect(narrate(s, facts)).toBeNull();
     for (const s of ["AWAITING_QUESTION", "AWAITING_APPROVAL_1", "AWAITING_APPROVAL_2", "PASSED", "VERDICT_FAIL", "FAILED"] as const) expect(narrate(s, facts)).not.toBeNull();

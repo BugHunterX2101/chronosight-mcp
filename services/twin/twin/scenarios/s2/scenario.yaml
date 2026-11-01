@@ -1,0 +1,26 @@
+version: 1
+id: s2
+title: "Grid-tied solar microinverter: thermal derating"
+hazardousVoltage: true
+durationS: 5.0
+warmupS: 8.0
+fps: 30
+simHz: 1000
+concepts:
+  - {slug: status-led, prompt: "red status LED", role: fault, expectedCount: 1}
+  - {slug: hotspot, prompt: "bright hot spot on MOSFET", role: fault, expectedCount: 1}
+  - {slug: fan, prompt: "cooling fan", role: context, expectedCount: 1}
+markers: {sizeMm: 20}
+camera: {width: 1280, height: 720, mmPerPx: 0.5, shakePx: 0.3, sensorNoiseDn: 2.0, subframes: 2}
+seeds: {baseline: 7, calibration: [1, 2, 3, 4, 5], mutation: [101, 102, 103, 104, 105]}
+objectives:
+  - "Reduce MOSFET hotspot area with an early fan ramp and thermal duty derating"
+hardBounds:
+  DERATE_TEMP_C: [55.0, 95.0]
+  FAN_START_C: [35.0, 75.0]
+  FAN_GAIN: [0.01, 0.2]
+targetFiles: [controller.py, params.py]
+assertions:
+  - {type: blink_code, role: fault, params: {expectedPost: steady-on}}
+  - {type: area_change, role: fault, params: {maxRelChange: -0.5}}
+  - {type: rotation_present, role: context, params: {minHz: 0.5, maxHz: 4.0}}

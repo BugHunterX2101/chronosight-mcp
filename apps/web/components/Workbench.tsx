@@ -241,6 +241,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
       topHypothesis: top === undefined ? null : { title: top.title, confidencePct: Math.round(top.confidence * 100) },
       riskLevel: dx?.diagnosis.riskLevel ?? null,
       citations: dx?.citations ?? null,
+      reason: run.reason,
     });
     narrated.current = key;
     if (text === null) return;

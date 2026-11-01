@@ -1,0 +1,25 @@
+version: 1
+id: s3
+title: "CNC stepper axis: mid-band resonance and lost steps"
+hazardousVoltage: false
+durationS: 5.0
+warmupS: 1.0
+fps: 30
+simHz: 1000
+concepts:
+  - {slug: carriage, prompt: "CNC carriage", role: fault, expectedCount: 1}
+  - {slug: rail, prompt: "linear guide rail", role: context, expectedCount: 1}
+  - {slug: marker, prompt: "checkered reference marker", role: refs, expectedCount: 2}
+markers: {sizeMm: 20}
+camera: {width: 1280, height: 720, mmPerPx: 0.5, shakePx: 0.3, sensorNoiseDn: 2.0, subframes: 2}
+seeds: {baseline: 7, calibration: [1, 2, 3, 4, 5], mutation: [101, 102, 103, 104, 105]}
+objectives:
+  - "Reach the commanded carriage position without mid-band resonance"
+hardBounds:
+  MICROSTEP: [1, 16]
+  RESONANCE_SKIP_MM_S: [250.0, 500.0]
+  HOLD_CURRENT: [0.2, 1.0]
+targetFiles: [controller.py, params.py]
+assertions:
+  - {type: position_error, role: fault, params: {maxMm: 0.1}}
+  - {type: vibration, role: fault, params: {r: 0.7}}

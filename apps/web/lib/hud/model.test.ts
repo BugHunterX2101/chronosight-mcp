@@ -74,6 +74,14 @@ describe("foldEvent", () => {
     expect(m.verdict).toMatchObject({ verdict: "PASS", reductionPct: 91, bandDropDb: 23 });
     expect(m.error).toEqual({ message: "Render failed", retryable: true });
   });
+
+  it("explains that a BYO analysis ends without a patch", () => {
+    seq = 0;
+    const m = fold([state("ABORTED", { reason: "BYO_DIAGNOSED" })]);
+    expect(m.reason).toBe("BYO_DIAGNOSED");
+    expect(nextStep(m).text).toBe("Analysis finished. No patch was made");
+    expect(spokenFor(m, "H1")).toContain("Analysis finished");
+  });
 });
 
 describe("wording", () => {

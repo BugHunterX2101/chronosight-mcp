@@ -1,0 +1,5 @@
+PARAMS = {
+    "MICROSTEP": 1,
+    "RESONANCE_SKIP_MM_S": 380.0,
+    "HOLD_CURRENT": 1.0,
+}

@@ -6,7 +6,9 @@ Specs: [PRD.md](PRD.md) (what), [DESIGN.md](DESIGN.md) (how), [TECHNICAL.md](TEC
 
 ## What it does today
 
-One scenario, **S1: a 6-DOF robot arm whose elbow joint hunts** (`services/twin/twin/scenarios/s1`). The loop:
+Three deterministic digital-twin scenarios are now present: **S1** robot-arm elbow
+hunting, **S2** solar microinverter thermal derating, and **S3** CNC stepper-axis
+resonance (`services/twin/twin/scenarios/s1`, `s2`, and `s3`). The loop:
 
 1. **Capture**: the twin renders a clip and records a sensor trace. Or you upload your own MP4/MOV (see *Bring your own clip*).
 2. **Perceive**: SAM 3.1 finds and tracks named parts (forearm, elbow, marker); vibration of the fault part is measured from the tracks (Lomb-Scargle spectrum, noise floor from a reference marker).
@@ -21,17 +23,18 @@ Other surfaces: replay player for recorded runs (each file sha256-verified in th
 
 | Area | State |
 | :-- | :-- |
-| Twin (sim, render, metrics, hot-load, visual unit test), S1 | Built, 46 pytest tests pass |
+| Twin (sim, render, metrics, hot-load, visual unit test), S1-S3 | Built; 50 pytest tests pass, including deterministic S2/S3 fixtures and typed assertions |
 | Gateway (run orchestrator, approval gate, diagnosis, SAM client, budget ledger, audit chain, replay recorder, HUD, ASR relay, beacons, admin) | Built |
 | Sandbox launcher + egress proxy + Muse synthesis | Built (local Docker only) |
 | Media worker (probe + normalize untrusted uploads) | Built |
 | Web (home, `/s/[id]` workbench, `/replay/[id]`, `/report/[id]`, `/about`, `/admin`, `/hud`, PsdChart, PlaceboButton, GlassesPreview, WebMCP, voice) | Built |
 | Bring-your-own clip (gateway + web) | Built; needs a media worker; see limits below |
-| Replay **publisher** (push bundles to a CDN) | **Not built.** The recorder exists; bundles are served by the gateway from `replays/` |
+| Replay **publisher** (push bundles to a CDN) | Built as an opt-in immutable HTTP PUT publisher; local recording remains the default |
 | Hosted demo on Render | Replay-only, see *Deploy on Render* |
+| Provider-neutral live stack | Docker Compose under `deploy/live`; fixture/mock mode is the safe default |
 | Whole-product sweep and video readiness | Not finished; see HANDOFF.md |
 
-Test totals at the last full run: `npx vitest run` = **563 tests in 38 files, all pass**; `pytest services/twin/tests` = **46 pass**. Typechecks (`tsc -p` on gateway, web, media-worker, run-model) are clean.
+Test totals at the last full run: `npx vitest run` = **569 tests in 39 files, all pass**; `pytest services/twin/tests` = **50 pass**. Typechecks (`tsc -p` on gateway, web, media-worker, run-model) are clean.
 
 ## Architecture
 
@@ -398,7 +401,7 @@ With `MOCK_META=true` the gateway boots without a Meta key (no real model calls)
 | `SANDBOX_IMAGE`, `EGRESS_PROXY_URL` | launcher | synthesis image and proxy |
 | `PARTNER_ENDPOINTS_ENABLED`, `BASETEN_API_KEY`, `BASETEN_MODEL_ID` | gateway | optional partner lane (PUBLIC data only) |
 | `MODAL_TOKEN_ID`, `MODAL_TOKEN_SECRET` | tests | Modal is used for tests only |
-| `STORAGE_BUCKET_URL`, `STORAGE_KEY` | replay publisher | not wired yet |
+| `STORAGE_BUCKET_URL`, `STORAGE_KEY` | replay publisher; both are required together and are never exposed to the browser |
 | `NEXT_PUBLIC_GATEWAY_ORIGIN`, `NEXT_PUBLIC_CDN_ORIGIN` | web | the only two values the browser sees; **empty = same origin** |
 | `DATA_DIR` | gateway | session and audit storage |
 
@@ -423,7 +426,7 @@ Limits, stated plainly:
 - The tracker uses **S1's concept plan** (orange arm segment, round joint, checkered square). A generic video is stopped at the precheck (BLOCKED).
 - Without a scale the run reports pixels and says so.
 - The uploaded file's name is never stored or logged. A run that used an upload is never recorded as a replay (`clip.used` refusal in `replay/record.ts`).
-- Not built: webcam capture (FR-CAP-3), audio extraction from uploads (FR-DIA-6), D1 logs.
+- Webcam capture is implemented in the BYO panel with MP4/WebM capability detection; it still needs a real Chrome/Safari click-through against a running media worker. Audio extraction from uploads and D1 logs remain unbuilt.
 
 ## Safety model
 
@@ -450,13 +453,27 @@ What the hosted demo is: **replay-only**. There is no twin, media worker, sandbo
 
 To go live (real runs) you need a host that can run the twin, the launcher and Docker, and one registrable domain for web and gateway (TR-2). Do not enable `LIVE_RUNS_ENABLED` on a public host without reviewing the caps.
 
+## Provider-neutral live Docker stack
+
+`deploy/live/compose.yaml` is the production-shaped composition for a Docker-capable host. It keeps the web and gateway behind one Caddy origin, places the twin and media worker on an internal network, and gives the sandbox launcher the only Docker-socket mount. Replay/session data is stored in the named `chronosight-data` volume.
+
+Start it with:
+
+```sh
+cp .env.example .env
+# Set PUBLIC_ORIGINS, SESSION_SIGNING_KEY, and APPROVAL_HMAC_KEY in .env.
+docker compose -f deploy/live/compose.yaml up --build
+```
+
+The default is fixture/mock mode (`LIVE_RUNS_ENABLED=false`, `MOCK_META=true`). Keep that mode until the host, storage retention, sandbox image, egress allowlist, readiness checks, and budget caps have been reviewed. The composition is deployment preparation; it is not live-run acceptance evidence.
+
 ## Known gaps and deviations
 
 - Diagnosis uses the deepest reasoning setting; the per-attempt cap is **240 s**. The <= 30 s target in the spec is **not met**.
 - HUD live states H4/H5/HE have not been observed from a real run. WebMCP was verified against a recording shim, not a real agent.
 - The placebo control and BYO verification have not been exercised live, to avoid spend.
 - `/about` carries no validation tables, on purpose. There are no judge-tuning or mutation-run documents; the twin's mutation code is kept.
-- No LICENSE file is committed (`pyproject.toml` declares MIT).
+- The repository is MIT-licensed; see [LICENSE](LICENSE).
 
 ## Security reminders for the repo owner
 

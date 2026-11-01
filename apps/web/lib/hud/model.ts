@@ -48,6 +48,7 @@ export interface HudModel {
   /** child runs (the placebo) belong to the workbench, not to the glasses */
   children: string[];
   state: string | null;
+  reason: string | null;
   attempt: number;
   diagnosis: HudDiagnosis | null;
   riskLevel: string | null;
@@ -61,7 +62,7 @@ export interface HudModel {
 }
 
 export const emptyModel: HudModel = {
-  seq: 0, runId: null, children: [], state: null, attempt: 0, diagnosis: null, riskLevel: null, concern: null,
+  seq: 0, runId: null, children: [], state: null, reason: null, attempt: 0, diagnosis: null, riskLevel: null, concern: null,
   pre: null, post: null, approval: null, patch: null, verdict: null, error: null,
 };
 
@@ -81,7 +82,7 @@ export function foldEvent(m: HudModel, e: HudEvent): HudModel {
     case "run.state": {
       if (str(d.parentRunId) !== null && e.runId) return { ...next, children: [...m.children, e.runId] };
       const base = e.runId && e.runId !== m.runId ? fresh(next, e.runId) : next;
-      return { ...base, state: str(d.to), attempt: num(d.attempt) ?? base.attempt };
+      return { ...base, state: str(d.to), reason: str(d.reason), attempt: num(d.attempt) ?? base.attempt };
     }
     case "perception.metrics": {
       const r: Reading = { rmsMm: num(d.rmsMm), fStarHz: num(d.fStarHz), coverage: num(d.coverage) };
@@ -208,7 +209,9 @@ export function nextStep(m: HudModel): Step {
     case "FAILED":
     case "BLOCKED":
     case "ABORTED":
-      return { text: "Use the laptop to continue", review };
+      return m.reason === "BYO_DIAGNOSED"
+        ? { text: "Analysis finished. No patch was made", review }
+        : { text: "Use the laptop to continue", review };
     default:
       return review ? { text: words(`Review ${fix}`, 12), review } : { text: "Waiting for the diagnosis", review: false };
   }
@@ -234,6 +237,7 @@ export function spokenFor(m: HudModel, screen: string): string {
     case "HE":
       return m.error ? `${m.error.message}${m.error.retryable ? "" : ". Use the laptop"}` : "Something went wrong";
     default:
+      if (m.state === "ABORTED" && m.reason === "BYO_DIAGNOSED") return "Analysis finished. No patch was made";
       return statusLine(m).replace("·", ",");
   }
 }

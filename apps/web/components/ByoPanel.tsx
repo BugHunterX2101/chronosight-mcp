@@ -1,8 +1,9 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { ApiError, clipUrl, uploadClip, type ClipScale, type UploadedClip } from "../lib/session/api.ts";
 import { clipProblem, parseScale, PRIVACY_NOTICE } from "../lib/session/byo.ts";
+import { recordCameraClip } from "../lib/capture/camera.ts";
 
 // Bring your own clip (PRD FR-CAP-4): acknowledge the privacy notice, upload an MP4 or MOV, say how big the reference
 // marker is if you know, then analyse. Nothing is sent until the notice is acknowledged; the gateway checks it again.
@@ -15,10 +16,12 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
   const [file, setFile] = useState<File | null>(null);
   const [clip, setClip] = useState<UploadedClip | null>(null);
   const [sending, setSending] = useState(false);
+  const [recording, setRecording] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [marker, setMarker] = useState("");
   const [px, setPx] = useState("");
+  const camera = useRef<Promise<void> | null>(null);
 
   const choose = (f: File | null) => {
     setClip(null);
@@ -46,6 +49,17 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
       setProblem(null);
       onAnalyse(parsed.scale);
     }
+  };
+
+  const record = () => {
+    if (recording) return;
+    setProblem(null);
+    setRecording(true);
+    const job = recordCameraClip().then((captured) => choose(captured)).catch((err: unknown) => setProblem(say(err))).finally(() => {
+      setRecording(false);
+      camera.current = null;
+    });
+    camera.current = job;
   };
 
   return (
@@ -76,6 +90,9 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
       <input id={ids.file} className="byo-file" type="file" accept="video/mp4,video/quicktime,.mp4,.mov" onChange={(e) => choose(e.target.files?.[0] ?? null)} />
 
       <div className="controls">
+        <button type="button" disabled={!agreed || recording || sending || file !== null} onClick={record}>
+          {recording ? "Recording 5 s…" : "Record 5 s from camera"}
+        </button>
         <button type="button" className="primary" disabled={!agreed || file === null || problem !== null || sending || clip !== null} onClick={() => void send()}>
           {sending ? "Uploading…" : "Upload clip"}
         </button>

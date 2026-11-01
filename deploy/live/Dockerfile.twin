@@ -1,0 +1,11 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY services/twin services/twin
+COPY corpus corpus
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv && uv sync --frozen --no-dev
+RUN useradd --create-home --uid 10001 chronosight && mkdir -p /app/data && chown -R chronosight:chronosight /app
+USER chronosight
+ENV PYTHONPATH=/app/services/twin DATA_DIR=/app/data
+EXPOSE 8090
+CMD ["uv", "run", "--frozen", "--no-dev", "uvicorn", "twin.app.main:app", "--host", "0.0.0.0", "--port", "8090"]

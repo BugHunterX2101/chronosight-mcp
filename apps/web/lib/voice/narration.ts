@@ -9,6 +9,7 @@ export interface NarrationFacts {
   topHypothesis: { title: string; confidencePct: number } | null;
   riskLevel: string | null;
   citations: { verified: number; total: number } | null;
+  reason?: string | null;
 }
 
 export function narrate(state: RunState, f: NarrationFacts): string | null {
@@ -27,6 +28,10 @@ export function narrate(state: RunState, f: NarrationFacts): string | null {
       return "The visual test passed. Say show datasheet to see the sources.";
     case "VERDICT_FAIL":
       return "The visual test did not pass. Use the Diagnose again button to retry.";
+    case "ABORTED":
+      return f.reason === "BYO_DIAGNOSED"
+        ? "Your clip was analysed. No patch was made."
+        : "The run stopped. The reason is in the event list.";
     case "FAILED":
       return "The run failed. The reason is in the error list.";
     default:

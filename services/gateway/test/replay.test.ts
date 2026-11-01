@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { AuditLog } from "../src/audit.ts";
 import { loadScenario } from "../src/prefix.ts";
 import { recordReplay, ReplayError, updateIndex, verifyBundle } from "../src/replay/record.ts";
+import { publishReplay, ReplayPublishError } from "../src/replay/publish.ts";
 
 const root = mkdtempSync(join(tmpdir(), "replay-"));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
@@ -122,6 +123,42 @@ describe("verifyBundle (TH-3)", () => {
     writeFileSync(clip, good);
     writeFileSync(join(dir, "extra.js"), "alert(1)");
     expect(verifyBundle(dir)).toEqual({ ok: false, path: "extra.js", reason: "not listed in the manifest" });
+  });
+
+  describe("publishReplay", () => {
+    it("publishes every manifest object with immutable cache headers", async () => {
+      const dataDir = volume("publish");
+      const { dir, manifest } = record(dataDir);
+      const requests: { url: string; init: RequestInit }[] = [];
+      const result = await publishReplay(dir, manifest, {
+        bucketUrl: "https://cdn.example.test/replays",
+        storageKey: "test-key",
+        fetchImpl: async (input, init) => {
+          requests.push({ url: String(input), init: init ?? {} });
+          return new Response(null, { status: 201 });
+        },
+      });
+      expect(result.objects).toBe(manifest.files.length + 1);
+      expect(requests[0]?.url).toContain(`${RUN}/`);
+      expect(requests[0]?.init.method).toBe("PUT");
+      expect(requests[0]?.init.headers).toMatchObject({ authorization: "Bearer test-key", "if-none-match": "*" });
+    });
+
+    it("refuses a confidential manifest and a changed bundle", async () => {
+      const dataDir = volume("publish-refuse");
+      const { dir, manifest } = record(dataDir);
+      await expect(publishReplay(dir, { ...manifest, dataClass: "CONFIDENTIAL" as "PUBLIC" }, {
+        bucketUrl: "https://cdn.example.test",
+        storageKey: "test-key",
+        fetchImpl: async () => new Response(null, { status: 201 }),
+      })).rejects.toBeInstanceOf(ReplayPublishError);
+      writeFileSync(join(dir, "unexpected.txt"), "not in manifest");
+      await expect(publishReplay(dir, manifest, {
+        bucketUrl: "https://cdn.example.test",
+        storageKey: "test-key",
+        fetchImpl: async () => new Response(null, { status: 201 }),
+      })).rejects.toThrow("unverified bundle");
+    });
   });
 
   it("fails a manifest that points outside the bundle or is not JSON", () => {
