@@ -37,6 +37,9 @@ export interface ClipRecord {
   height: number;
   durationS: number;
   uploadedAt: number;
+  /** Confidential extracted device sound for FR-DIA-6, when present. */
+  audioPath?: string;
+  audioCommand?: string;
 }
 
 export interface IngestDeps {
@@ -123,6 +126,8 @@ interface WorkerClip {
   durationS: number;
   path: string;
   command: string;
+  audioPath?: string;
+  audioCommand?: string;
 }
 
 async function normalize(d: IngestDeps, clipId: string): Promise<WorkerClip> {
@@ -181,6 +186,7 @@ export async function ingestUpload(parts: AsyncIterable<Multipart>, d: IngestDep
       return {
         clipId, path: join(dir, "clip.mp4"), sha256: clip.sha256, bytes: clip.bytes, frames: clip.frames, fps: clip.fps,
         width: clip.width, height: clip.height, durationS: clip.durationS, uploadedAt: d.now(),
+        audioPath: clip.audioPath, audioCommand: clip.audioCommand,
       };
     } catch (err) {
       await rm(dir, { recursive: true, force: true });

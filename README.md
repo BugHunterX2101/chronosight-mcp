@@ -426,7 +426,7 @@ Limits, stated plainly:
 - The tracker uses **S1's concept plan** (orange arm segment, round joint, checkered square). A generic video is stopped at the precheck (BLOCKED).
 - Without a scale the run reports pixels and says so.
 - The uploaded file's name is never stored or logged. A run that used an upload is never recorded as a replay (`clip.used` refusal in `replay/record.ts`).
-- Webcam capture is implemented in the BYO panel with MP4/WebM capability detection; it still needs a real Chrome/Safari click-through against a running media worker. Audio extraction from uploads and D1 logs remain unbuilt.
+- Webcam capture is implemented in the BYO panel with MP4/WebM capability detection; it still needs a real Chrome/Safari click-through against a running media worker. The media worker now extracts confidential 16 kHz mono WAV audio (when present) beside the normalized video; D1 model logs remain unbuilt.
 
 ## Safety model
 

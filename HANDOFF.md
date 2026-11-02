@@ -1,11 +1,11 @@
 # Hand-off
 
-State of ChronoSight as of 2026-11-01, branch `build/wip` (remote `BugHunterX2101/chronosight-mcp`). Read [README.md](README.md) first for architecture, env names and commands; this file is what you need to continue.
+State of ChronoSight as of 2026-11-02, branch `build/wip` (remote `BugHunterX2101/chronosight-mcp`). Read [README.md](README.md) first for architecture, env names and commands; this file is what you need to continue.
 
 ## 1. Where things stand
 
 **Verified at hand-off**
-- `npx vitest run`: 574 tests, 39 files, pass. `pytest services/twin/tests`: 50 pass. Root TypeScript checks and the web production build pass.
+- `npx vitest run`: 575 tests, 39 files, pass. `pytest services/twin/tests`: 50 pass. Root TypeScript checks and the web production build pass.
 - Live Meta Model API smoke check: one PUBLIC S1 diagnosis completed with the configured server-side key, 172.4 s elapsed, observed model cost `$0.0069`, exit code 0. No key or raw credential material was logged or stored.
 - Baseten and Modal were not invoked: this codebase currently exposes only their configuration names and documentation, not a provider client or executable partner lane. They remain acceptance-blocked rather than being represented as validated.
 - After the check, `.env.local` remained `LIVE_RUNS_ENABLED=false`, `PARTNER_ENDPOINTS_ENABLED=false`, and `MOCK_META=false`; no live run, BYO verification, placebo, HUD acceptance, or real-hardware check was performed.
@@ -13,13 +13,18 @@ State of ChronoSight as of 2026-11-01, branch `build/wip` (remote `BugHunterX210
 
 **Built**: twin and deterministic S1/S2/S3 scenario packages; gateway (orchestrator, approvals, diagnosis, SAM client, ledger, audit chain, replay recorder, HUD pairing and transports, ASR relay, beacons, admin health and warm); sandbox launcher and egress proxy; media worker; web (home, workbench, replay, report, about, admin, `/hud`, PsdChart, PlaceboButton, GlassesPreview, WebMCP, voice, bring-your-own-clip panel).
 
-**Not done** (in priority order)
+**Remaining acceptance gates** (in priority order)
 1. **Whole-product sweep and video readiness**: a pass over every route, navigation, error and empty state, mobile widths, performance, and a rehearsed demo script. Not finished.
 2. **Live checks that cost money** (all need explicit approval, see section 4): HUD states H4/H5/HE from a real run; a real placebo run; a real BYO run.
-3. Audio extraction from uploads (FR-DIA-6), D1 logs, and real browser validation of webcam capture.
+3. D1 model/audio logs and real browser validation of webcam capture. Upload normalization extracts and retains confidential 16 kHz mono WAV audio when a source track is present (FR-DIA-6); no model receives it until the D1 lane is implemented.
 4. Diagnosis latency: the spec target is <= 30 s; measured xhigh latency forced a 240 s per-attempt cap. Unmet.
 5. Render activation is manual because auto-deploy is disabled; the replay-only service still cannot host the full live stack.
 6. `graphify-out/` was refreshed after the bring-your-own-clip commits; run `graphify update .` after code changes.
+
+**Latest local verification**
+- Media extraction: 26 tests pass; upload/orchestrator compatibility: 61 tests pass.
+- Full regression: 575 Vitest tests and 50 Python tests pass; TypeScript checks pass.
+- Secure provider environment check found `META_API_KEY`, `BASETEN_API_KEY`, `MODAL_TOKEN`, and `RENDER_API_TOKEN` unset in the current process, so no additional live provider call was made.
 
 ## 2. Resume locally
 

@@ -83,6 +83,9 @@ export interface Normalized extends Probe {
   frames: number;
   /** The exact ffmpeg command line, logged per clip (FR-CAP-2). */
   command: string;
+  /** Separate confidential device sound for FR-DIA-6, when the upload contains audio. */
+  audioPath?: string;
+  audioCommand?: string;
 }
 
 export interface Tools {
@@ -236,6 +239,18 @@ export function ffmpegArgs(input: string, output: string): string[] {
   ];
 }
 
+/** Extracts at most the first five seconds of device sound as 16 kHz mono PCM WAV for FR-DIA-6. */
+export function audioArgs(input: string, output: string): string[] {
+  return [
+    "-hide_banner", "-nostdin", "-y", "-loglevel", "error",
+    "-protocol_whitelist", "file",
+    "-threads", "1", "-i", input,
+    "-map", "0:a:0", "-vn", "-sn", "-dn",
+    "-t", "5", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "-f", "wav",
+    output,
+  ];
+}
+
 const sha256 = (file: string): Promise<string> =>
   new Promise((resolve, reject) => {
     const h = createHash("sha256");
@@ -261,10 +276,12 @@ export async function normalizeClip(scratch: string, clipId: string, tools: Tool
   } catch {
     throw new MediaError("NOT_FOUND");
   }
-  await probeClip(input, tools);
+  const source = await probeClip(input, tools);
 
   const output = clipPath(scratch, clipId);
   const staging = join(scratch, clipId, "clip.partial.mp4");
+  const audioOutput = join(scratch, clipId, "audio.wav");
+  const audioStaging = join(scratch, clipId, "audio.partial.wav");
   const args = ffmpegArgs(input, staging);
   const ran = await run(tools.ffmpeg, args, NORMALIZE_TIMEOUT_MS);
   if (ran.timedOut) {
@@ -276,6 +293,26 @@ export async function normalizeClip(scratch: string, clipId: string, tools: Tool
     throw new MediaError("UNDECODABLE", ran.stderr.trim().split("\n")[0]?.slice(0, 160));
   }
   await rename(staging, output);
+
+  let audioPath: string | undefined;
+  let audioCommand: string | undefined;
+  if (source.hasAudio) {
+    const extracted = audioArgs(input, audioStaging);
+    const audioRun = await run(tools.ffmpeg, extracted, NORMALIZE_TIMEOUT_MS);
+    if (audioRun.timedOut) {
+      await rm(audioStaging, { force: true });
+      await rm(output, { force: true });
+      throw new MediaError("NORMALIZE_TIMEOUT");
+    }
+    if (audioRun.code !== 0) {
+      await rm(audioStaging, { force: true });
+      await rm(output, { force: true });
+      throw new MediaError("UNDECODABLE", audioRun.stderr.trim().split("\n")[0]?.slice(0, 160));
+    }
+    await rename(audioStaging, audioOutput);
+    audioPath = audioOutput;
+    audioCommand = [tools.ffmpeg, ...extracted].join(" ");
+  }
 
   const out = await ffprobe(tools, output, true);
   const video = out.streams.find((s) => s.codec_type === "video");
@@ -294,5 +331,7 @@ export async function normalizeClip(scratch: string, clipId: string, tools: Tool
     fps: TARGET_FPS,
     frames,
     command: [tools.ffmpeg, ...args].join(" "),
+    audioPath,
+    audioCommand,
   };
 }

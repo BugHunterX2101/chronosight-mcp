@@ -377,7 +377,10 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
   const byoRun = (s: Session, b: z.infer<typeof PerceiveBody>): NonNullable<RunDeps["byo"]> => {
     const c = s.clip!;
     return {
-      clip: { clipId: c.clipId, path: c.path, sha256: c.sha256, frames: c.frames, fps: c.fps, width: c.width, height: c.height, durationS: c.durationS },
+      clip: {
+        clipId: c.clipId, path: c.path, sha256: c.sha256, frames: c.frames, fps: c.fps,
+        width: c.width, height: c.height, durationS: c.durationS, audioPath: c.audioPath, audioCommand: c.audioCommand,
+      },
       scale: { ...(b.mmPerPx !== undefined ? { mmPerPx: b.mmPerPx } : {}), ...(b.markerSizeMm !== undefined ? { markerSizeMm: b.markerSizeMm } : {}) },
       clipUrl: `/api/sessions/${s.id}/clip`,
     };
