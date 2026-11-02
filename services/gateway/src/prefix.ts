@@ -46,11 +46,15 @@ export interface Prefix {
 
 export const CONTROLLER_INTERFACE = "Controller.step(state: State, dt: float) -> Command";
 
+export function normalizePrefixText(text: string, path = "prefix input"): string {
+  const normalized = text.replace(/\r\n/g, "\n");
+  if (normalized.includes("\r")) throw new Error(`${path}: CR found, prefix inputs must use LF`);
+  if (normalized.normalize("NFC") !== normalized) throw new Error(`${path}: text is not NFC`);
+  return normalized;
+}
+
 function readText(path: string): string {
-  const text = readFileSync(path, "utf8");
-  if (text.includes("\r")) throw new Error(`${path}: CR found, prefix inputs must use LF`);
-  if (text.normalize("NFC") !== text) throw new Error(`${path}: text is not NFC`);
-  return text;
+  return normalizePrefixText(readFileSync(path, "utf8"), path);
 }
 
 export function loadScenario(scenarioId: string): Scenario {

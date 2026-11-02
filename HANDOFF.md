@@ -5,7 +5,7 @@ State of ChronoSight as of 2026-11-02, branch `build/wip` (remote `BugHunterX210
 ## 1. Where things stand
 
 **Verified at hand-off**
-- `npx vitest run`: 576 tests, 40 files, pass. `pytest services/twin/tests`: 50 pass. Root TypeScript checks and the web production build pass.
+- `npx vitest run`: 579 tests, 40 files, pass. `pytest services/twin/tests`: 50 pass in the project `.venv`. Root TypeScript checks and the web production build pass.
 - Live Meta Model API smoke check: one PUBLIC S1 diagnosis completed with the configured server-side key, 172.4 s elapsed, observed model cost `$0.0069`, exit code 0. No key or raw credential material was logged or stored.
 - Baseten and Modal were not invoked: this codebase currently exposes only their configuration names and documentation, not a provider client or executable partner lane. They remain acceptance-blocked rather than being represented as validated.
 - After the check, `.env.local` remained `LIVE_RUNS_ENABLED=false`, `PARTNER_ENDPOINTS_ENABLED=false`, and `MOCK_META=false`; no live run, BYO verification, placebo, HUD acceptance, or real-hardware check was performed.
@@ -23,9 +23,10 @@ State of ChronoSight as of 2026-11-02, branch `build/wip` (remote `BugHunterX210
 
 **Latest local verification**
 - Media extraction: 26 tests pass; upload/orchestrator compatibility: 61 tests pass.
-- Full regression: 576 Vitest tests and 50 Python tests pass; TypeScript checks and production build pass.
+- Full regression: 579 Vitest tests and 50 Python tests pass; TypeScript checks and production build pass.
 - A real S1 run reached twin rendering, perception, live Meta diagnosis, both approvals, and sandbox patching. The first candidate failed its independent harness (12/15 tests), and the run returned to diagnosis; no PASS claim was made.
-- Windows gateway startup was fixed by restoring LF-only scenario prefix inputs; a regression test now loads S1, S2, and S3 through `buildPrefix`.
+- The captured S1 trace identified a second live-run defect: a candidate that reached 15/15 inside the sandbox was discarded because Muse continued reasoning until the 110-second host cancellation. The synthesizer now stops a non-terminating turn after a completed passing pytest summary and preserves the workspace for the independent harness; this is covered by `pytestPassed` regression tests. The live provider path still needs one owner-approved rerun before a PASS claim.
+- Prefix loading now normalizes CRLF at the file boundary and rejects only lone carriage returns; regression coverage explicitly exercises Windows line endings.
 - The workbench now exposes clearly labelled deterministic voice demo commands that invoke canonical PUBLIC intents without synthetic audio.
 - Secure provider environment checks must report presence only. Baseten/Modal remain unvalidated because this repository has no executable partner lane.
 

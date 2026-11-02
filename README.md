@@ -34,7 +34,7 @@ Other surfaces: replay player for recorded runs (each file sha256-verified in th
 | Provider-neutral live stack | Docker Compose under `deploy/live`; fixture/mock mode is the safe default |
 | Whole-product sweep and video readiness | Not finished; see HANDOFF.md |
 
-Test totals at the last full run: `npx vitest run` = **569 tests in 39 files, all pass**; `pytest services/twin/tests` = **50 pass**. Typechecks (`tsc -p` on gateway, web, media-worker, run-model) are clean.
+Test totals at the last full run: `npx vitest run` = **579 tests in 40 files, all pass**; `pytest services/twin/tests` = **50 pass**. Typechecks (`tsc -p` on gateway, web, media-worker, run-model) are clean.
 
 ## Architecture
 
