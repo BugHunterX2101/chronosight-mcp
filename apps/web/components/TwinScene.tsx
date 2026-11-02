@@ -207,6 +207,10 @@ export function TwinScene({ stage, hz, residual, labels = [], readout = null, va
     <figure className={`scene scene-${variant}`}>
       <div ref={host} className="scene-host">
         {supported ? null : <SceneFallback stage={stage} />}
+        <div className="scene-topline" aria-hidden="true">
+          <span className="scene-signal"><span className="scene-signal-dot" /> signal trace</span>
+          <span className="num">30 FPS / WebGL2</span>
+        </div>
         <div className="scene-chips" aria-hidden="true">
           {[0, 1, 2].map((i) =>
             labels[i] === undefined ? null : (

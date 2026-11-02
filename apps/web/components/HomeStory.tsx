@@ -193,6 +193,16 @@ export function HomeStory() {
                 Recording of a real run, <time dateTime={primary.recordedAt}>{primary.recordedAt.slice(0, 10)}</time>. Every file is checked against its sha256 in your browser.
               </p>
             ) : null}
+            {primary !== undefined ? (
+              <div className="hero-evidence" role="status">
+                <span className="evidence-pulse" aria-hidden="true" />
+                <span>
+                  <strong>Evidence locked</strong>
+                  <span className="muted"> · recorded run, browser-verified</span>
+                </span>
+                <span className="num evidence-hash">SHA256 / OK</span>
+              </div>
+            ) : null}
           </section>
 
           <ol ref={list} className="beats" aria-label="How a run goes">
