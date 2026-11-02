@@ -194,6 +194,12 @@ export function Workbench({ sessionId }: { sessionId: string }) {
     },
     [act, approveNow, rejectNow, runPlacebo, sessionId],
   );
+  const onDemoVoice = useCallback(
+    (text: string, intent: Extract<RelayMessage, { type: "transcript.final" }>["intent"]) => {
+      onVoiceFinal({ type: "transcript.final", turnId: `demo-${Date.now()}`, text, intent, dataClass: "PUBLIC" });
+    },
+    [onVoiceFinal],
+  );
   const voice = useVoice(sessionId, onVoiceFinal);
   speakRef.current = voice.speak;
 
@@ -331,7 +337,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
         <ByoPanel sessionId={sessionId} busy={busy} onAnalyse={(scale) => void act(() => startPerceive(sessionId, scale))} />
       ) : null}
 
-      <VoiceBar voice={voice} reply={reply} />
+      <VoiceBar voice={voice} reply={reply} onDemo={onDemoVoice} />
 
       {problem !== null ? (
         <p role="alert" className="alert">

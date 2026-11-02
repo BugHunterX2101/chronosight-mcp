@@ -1,5 +1,6 @@
 "use client";
 
+import type { VoiceIntent } from "../lib/voice/messages.ts";
 import type { VoiceView } from "../lib/voice/useVoice.ts";
 
 // The talk control and the live transcript line (DESIGN §15.8). State is always written in words, never
@@ -19,7 +20,13 @@ const INTENT_LABEL: Record<string, string> = {
   free_text: "a question",
 };
 
-export function VoiceBar({ voice, reply }: { voice: VoiceView; reply: string | null }) {
+const DEMO_COMMANDS: readonly { label: string; text: string; intent: VoiceIntent }[] = [
+  { label: "Explain the fault", text: "Demo command: explain the fault", intent: { kind: "explain_fault" } },
+  { label: "Show sources", text: "Demo command: show the sources", intent: { kind: "show_datasheet" } },
+  { label: "Voice help", text: "Demo command: help", intent: { kind: "help" } },
+];
+
+export function VoiceBar({ voice, reply, onDemo }: { voice: VoiceView; reply: string | null; onDemo: (text: string, intent: VoiceIntent) => void }) {
   const on = voice.status === "starting" || voice.status === "listening";
   const state = !voice.supported
     ? "Voice needs a browser with microphone support. Type instead."
@@ -38,6 +45,14 @@ export function VoiceBar({ voice, reply }: { voice: VoiceView; reply: string | n
       <button type="button" className={on ? "primary" : undefined} aria-pressed={on} disabled={!voice.supported} onClick={voice.toggle}>
         {on ? "Stop listening" : "Talk to Chronosight"}
       </button>
+      <div className="voice-demo" aria-label="Demo voice commands">
+        <span className="muted">Try without a microphone:</span>
+        {DEMO_COMMANDS.map((command) => (
+          <button key={command.label} type="button" onClick={() => onDemo(command.text, command.intent)}>
+            {command.label}
+          </button>
+        ))}
+      </div>
       <span className="muted" role="status" aria-live="polite">
         {state}
         {voice.status === "listening" && voice.detail !== null ? ` · ${voice.detail}` : ""}

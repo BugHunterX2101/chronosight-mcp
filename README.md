@@ -475,6 +475,16 @@ The default is fixture/mock mode (`LIVE_RUNS_ENABLED=false`, `MOCK_META=true`). 
 - `/about` carries no validation tables, on purpose. There are no judge-tuning or mutation-run documents; the twin's mutation code is kept.
 - The repository is MIT-licensed; see [LICENSE](LICENSE).
 
+## Hackathon provenance
+
+The ChronoSight application code and the ENCX-14 synthetic engineering corpus
+were authored for this project during the October 26–November 4, 2026
+hackathon window. This statement covers the project-authored material in
+`apps/web`, `packages/run-model`, `services/gateway`, `services/media-worker`,
+`services/sandbox-launcher`, `sandbox`, and `corpus/encx14`; it does not claim
+ownership of third-party dependencies, SDKs, models, container images, or
+service infrastructure.
+
 ## Security reminders for the repo owner
 
 The repository is public. Revoke the GitHub tokens that were pasted during development, revoke or rotate the Render API key that was used to create the service, and rotate the Baseten and Meta keys.

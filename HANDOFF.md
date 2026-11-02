@@ -5,7 +5,7 @@ State of ChronoSight as of 2026-11-02, branch `build/wip` (remote `BugHunterX210
 ## 1. Where things stand
 
 **Verified at hand-off**
-- `npx vitest run`: 575 tests, 39 files, pass. `pytest services/twin/tests`: 50 pass. Root TypeScript checks and the web production build pass.
+- `npx vitest run`: 576 tests, 40 files, pass. `pytest services/twin/tests`: 50 pass. Root TypeScript checks and the web production build pass.
 - Live Meta Model API smoke check: one PUBLIC S1 diagnosis completed with the configured server-side key, 172.4 s elapsed, observed model cost `$0.0069`, exit code 0. No key or raw credential material was logged or stored.
 - Baseten and Modal were not invoked: this codebase currently exposes only their configuration names and documentation, not a provider client or executable partner lane. They remain acceptance-blocked rather than being represented as validated.
 - After the check, `.env.local` remained `LIVE_RUNS_ENABLED=false`, `PARTNER_ENDPOINTS_ENABLED=false`, and `MOCK_META=false`; no live run, BYO verification, placebo, HUD acceptance, or real-hardware check was performed.
@@ -23,8 +23,11 @@ State of ChronoSight as of 2026-11-02, branch `build/wip` (remote `BugHunterX210
 
 **Latest local verification**
 - Media extraction: 26 tests pass; upload/orchestrator compatibility: 61 tests pass.
-- Full regression: 575 Vitest tests and 50 Python tests pass; TypeScript checks pass.
-- Secure provider environment check found `META_API_KEY`, `BASETEN_API_KEY`, `MODAL_TOKEN`, and `RENDER_API_TOKEN` unset in the current process, so no additional live provider call was made.
+- Full regression: 576 Vitest tests and 50 Python tests pass; TypeScript checks and production build pass.
+- A real S1 run reached twin rendering, perception, live Meta diagnosis, both approvals, and sandbox patching. The first candidate failed its independent harness (12/15 tests), and the run returned to diagnosis; no PASS claim was made.
+- Windows gateway startup was fixed by restoring LF-only scenario prefix inputs; a regression test now loads S1, S2, and S3 through `buildPrefix`.
+- The workbench now exposes clearly labelled deterministic voice demo commands that invoke canonical PUBLIC intents without synthetic audio.
+- Secure provider environment checks must report presence only. Baseten/Modal remain unvalidated because this repository has no executable partner lane.
 
 ## 2. Resume locally
 
