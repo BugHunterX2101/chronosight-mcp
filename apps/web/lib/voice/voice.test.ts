@@ -64,6 +64,13 @@ describe("relay messages", () => {
     expect(f('{"kind":"inspect","target":null}')).toMatchObject({ intent: { kind: "inspect", target: null } });
   });
 
+  it("parses a safe help request without treating it as a diagnosis question", () => {
+    expect(parseRelayMessage('{"type":"transcript.final","turnId":"1","text":"What can I say?","intent":{"kind":"help"},"dataClass":"PUBLIC"}')).toMatchObject({
+      intent: { kind: "help" },
+      dataClass: "PUBLIC",
+    });
+  });
+
   it("drops anything it does not know", () => {
     for (const raw of ["nope", "[]", '{"type":"other"}', '{"type":"transcript.final","turnId":"1","text":"x","intent":{"kind":"launch_missiles"}}', '{"type":"transcript.partial","text":"x"}', '{"type":"transcript.final","turnId":"1","text":"x","intent":{"kind":"free_text"}}']) {
       expect(parseRelayMessage(raw)).toBeNull();
@@ -123,7 +130,7 @@ describe("what an intent may do", () => {
   });
 
   it("every plan has something to say", () => {
-    for (const k of ["inspect", "explain_fault", "show_datasheet", "approve", "confirm", "reject", "run_test", "run_placebo", "cancel", "free_text", "none"]) {
+    for (const k of ["inspect", "explain_fault", "show_datasheet", "approve", "confirm", "reject", "run_test", "run_placebo", "cancel", "help", "free_text", "none"]) {
       expect(plan(k, {}, { target: null, feedback: "", text: "t" }).reply.length).toBeGreaterThan(0);
     }
   });

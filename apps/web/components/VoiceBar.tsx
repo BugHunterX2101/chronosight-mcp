@@ -15,6 +15,7 @@ const INTENT_LABEL: Record<string, string> = {
   run_test: "re-run the test",
   run_placebo: "run the placebo",
   cancel: "cancel the run",
+  help: "show voice help",
   free_text: "a question",
 };
 

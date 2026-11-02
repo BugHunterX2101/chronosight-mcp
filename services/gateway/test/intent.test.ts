@@ -92,6 +92,11 @@ describe("approval is strict", () => {
 });
 
 describe("state context", () => {
+  it.each(["help", "what can you do", "what can I say?", "show commands"])("%j is safe voice help", (t) => {
+    expect(kind(t, "AWAITING_QUESTION")).toBe("help");
+    expect(intentDataClass(parseIntent(t, "AWAITING_QUESTION"))).toBe("PUBLIC");
+  });
+
   it.each([
     ["why is it shaking", "explain_fault"],
     ["what's causing that", "explain_fault"],

@@ -6,8 +6,8 @@ import { NextResponse, type NextRequest } from "next/server";
 // 'unsafe-inline' in production.
 
 function csp(nonce: string, framed: boolean): string {
-  const gateway = process.env.NEXT_PUBLIC_GATEWAY_ORIGIN ?? "";
-  const cdn = process.env.NEXT_PUBLIC_CDN_ORIGIN ?? "";
+  const gateway = (process.env.NEXT_PUBLIC_GATEWAY_ORIGIN ?? "").replace(/\/+$/, "");
+  const cdn = (process.env.NEXT_PUBLIC_CDN_ORIGIN ?? "").replace(/\/+$/, "");
   const ws = gateway.replace(/^http/, "ws");
   const dev = process.env.NODE_ENV !== "production";
   const list = (...xs: string[]) => xs.filter((x) => x !== "").join(" ");
