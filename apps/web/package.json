@@ -12,7 +12,8 @@
     "prebuild": "node scripts/build-hud.mjs",
     "build": "next build",
     "start": "next start -p 3000",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@chronosight/run-model": "*",
@@ -23,6 +24,8 @@
     "react-dom": "19.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
+    "@playwright/test": "^1.51.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "rolldown": "1.2.16"

@@ -12,7 +12,7 @@ export const MAX_CLIP_BYTES = 100 * 1024 * 1024;
 
 /** Why a file cannot be uploaded, or null when it can. */
 export function clipProblem(file: { name: string; size: number }): string | null {
-  if (!/\.(mp4|mov)$/i.test(file.name)) return "Choose an MP4 or MOV video.";
+  if (!/\.(mp4|mov|webm)$/i.test(file.name)) return "Choose an MP4, MOV or WebM video.";
   if (file.size <= 0) return "That file is empty.";
   if (file.size > MAX_CLIP_BYTES) return "That file is over 100 MB. Trim it or export a smaller clip.";
   return null;

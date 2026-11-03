@@ -53,13 +53,13 @@ export interface IngestDeps {
 
 /** A person-readable message for each way the body can fail before the worker sees it. */
 const TOO_LARGE = "That file is over 100 MB. Trim it or export a smaller clip.";
-const BAD_MAGIC = "That file is not an MP4 or MOV video. Upload an .mp4 or .mov file.";
+const BAD_MAGIC = "That file is not a supported video. Upload an .mp4, .mov or .webm file.";
 const NEEDS_CONSENT = "Acknowledge the privacy notice before uploading.";
 
 export function checkMagic(head: Buffer): void {
-  if (head.length < 12 || head.toString("latin1", 4, 8) !== "ftyp" || !BRANDS.includes(head.toString("latin1", 8, 12))) {
-    throw new ApiError("MEDIA_BAD_MAGIC", BAD_MAGIC, { stage: "upload" });
-  }
+  const webm = head.length >= 4 && head.readUInt32BE(0) === 0x1a45dfa3;
+  const mp4 = head.length >= 12 && head.toString("latin1", 4, 8) === "ftyp" && BRANDS.includes(head.toString("latin1", 8, 12));
+  if (!webm && !mp4) throw new ApiError("MEDIA_BAD_MAGIC", BAD_MAGIC, { stage: "upload" });
 }
 
 /** Counts and hashes the body as it streams, stops it at the cap, and checks the first 12 bytes once. */

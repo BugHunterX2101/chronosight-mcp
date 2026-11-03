@@ -12,6 +12,7 @@ import { Breaker, backoffDelayMs, cacheRetention, isContributor, route, type Rou
 import { intersectBounds, sanitizeHints, verifyCitation } from "./citations.ts";
 import { costOf, type Prices } from "./budget.ts";
 import type { KeyFrame } from "./twin.ts";
+import type { AudioEvidence } from "./audio.ts";
 
 // DESIGN ST-6 and §16.8 say 90 s, but real xhigh runs take 120–160 s end to end with the first summary at 6–7 s and
 // 14–19k reasoning tokens, cached or not (measured), so a 90 s deadline can never finish. The user set 240 s.
@@ -29,6 +30,7 @@ export interface DiagnoseInput {
   request: string;
   /** D5: failed-verdict reasons or a traceback from a previous loop attempt */
   priorAttempt?: string | null;
+  audioEvidence?: AudioEvidence;
   /** Caller-chosen ID so progress events can name the diagnosis; never sent to the model. */
   diagnosisId?: string;
   /** The operator asked for the Standard · max lane (POST /diagnose `{escalate: true}`). */
@@ -107,6 +109,7 @@ export function buildRequest(input: DiagnoseInput, r: Route, routing: RoutingCon
     dynamic.push({ type: "input_image", image_url: `data:${f.mime};base64,${f.dataBase64}` });
   }
   dynamic.push(text(`<<request dataClass=${input.dataClass}>>\n${input.request}\n`));
+  if (input.audioEvidence) dynamic.push(text(`<<audio evidence>>\n${jcs(input.audioEvidence)}\n`));
   const d5 = [input.priorAttempt ?? "", ...feedback].filter(Boolean);
   if (d5.length) dynamic.push(text(`<<prior attempt>>\n${d5.join("\n")}\n`));
   return {

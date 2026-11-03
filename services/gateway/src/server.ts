@@ -26,6 +26,8 @@ import { launcherSocketPath } from "./muse/sandbox-attach.ts";
 import { join, resolve } from "node:path";
 import { paths } from "./paths.ts";
 import { tooLongToAfford } from "./byo.ts";
+import { MetaAudioDiagnosisProvider } from "./audio.ts";
+import type { DataClass } from "@chronosight/run-model";
 
 const env = process.env;
 
@@ -62,6 +64,10 @@ const prices = loadPrices();
 const prefixes = new Map<string, Prefix>(scenarios.map((id) => [id, buildPrefix(id)]));
 const twin = new TwinClient(env.TWIN_URL?.trim() || "http://127.0.0.1:8090");
 const meta = new MetaClient({ mode, apiKey, baseURL: metaBase });
+const d1AudioModel = env.D1_AUDIO_MODEL?.trim() || "muse-spark-1.3";
+const audioProvider = apiKey && mode !== "true" && env.D1_AUDIO_ENABLED?.trim() === "true"
+  ? new MetaAudioDiagnosisProvider(meta, prices, d1AudioModel)
+  : null;
 const launcher = new LauncherClient(launcherSocketPath(env), 5_000);
 const breakers = new Map();
 const stats = new Stats();
@@ -119,6 +125,7 @@ const app = await buildApp({
       twin,
       sam: new SamClient({ mode, apiKey, baseURL: metaBase, dataDir: paths.data, fixturesDir: paths.fixtures, twin, log }),
       diagnose: (input, emit) => diagnose({ meta, routing, prices, breakers, stats, emit, log }, input),
+      ...(audioProvider ? { audioDiagnose: (input: { audioPath: string; request: string; dataClass: DataClass }) => audioProvider.diagnose(input) } : {}),
       reviewRisk: (input) => reviewRisk({ meta, routing, prices, log }, input),
       synth: museSynthesizerFromEnv(env, log),
       // FR-PAT-5 / §18.10: 2–3 independent candidates; the synthesizer caps how many run at once.

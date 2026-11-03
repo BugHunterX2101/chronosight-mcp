@@ -18,6 +18,7 @@ export const TARGET_FPS = 30;
 export const LONG_EDGE_MAX = 1280;
 /** DESIGN §11.2: `ftyp` at offset 4 with one of these major brands. */
 export const BRANDS = ["isom", "iso2", "mp41", "mp42", "avc1", "qt  ", "M4V "] as const;
+const WEBM_MAGIC = 0x1a45dfa3;
 
 const PROBE_TIMEOUT_MS = 20_000;
 const NORMALIZE_TIMEOUT_MS = 180_000;
@@ -43,7 +44,7 @@ export type MediaCode =
 export const MESSAGES: Record<MediaCode, string> = {
   BAD_CLIP_ID: "That clip id is not valid.",
   NOT_FOUND: "No uploaded clip was found to process.",
-  NOT_MP4: "That file is not an MP4 or MOV video. Upload an .mp4 or .mov file.",
+  NOT_MP4: "That file is not a supported video. Upload an .mp4, .mov or .webm file.",
   BRAND_REJECTED: "That video's format is not supported. Export it as H.264 MP4 or MOV and try again.",
   TRUNCATED: "That video is cut short or incomplete. Upload the full file.",
   BOX_SIZE_INVALID: "That video file is damaged: its structure declares an impossible size.",
@@ -98,7 +99,8 @@ export const defaultTools = (): Tools => ({ ffmpeg: process.env.FFMPEG_PATH || "
 // ---- container walk -----------------------------------------------------------------------------------------
 
 /**
- * Walks the top-level boxes of the file in plain code. A box that claims more than the upload cap can never be
+ * Walks MP4 top-level boxes of the file in plain code. WebM/EBML is passed to ffprobe for the second opinion.
+ * A box that claims more than the upload cap can never be
  * real; a box that runs past the end of the file is a cut-off upload; and a file with no `moov` has no index.
  */
 export async function checkContainer(file: string): Promise<void> {
@@ -112,6 +114,11 @@ export async function checkContainer(file: string): Promise<void> {
     const size = (await handle.stat()).size;
     if (size === 0) throw new MediaError("NOT_MP4");
     const head = Buffer.alloc(16);
+    const { bytesRead: magicBytes } = await handle.read(head, 0, 4, 0);
+    if (magicBytes === 4 && head.readUInt32BE(0) === WEBM_MAGIC) {
+      await handle.close();
+      return;
+    }
     let offset = 0;
     let sawMoov = false;
     for (let n = 0; offset < size; n += 1) {

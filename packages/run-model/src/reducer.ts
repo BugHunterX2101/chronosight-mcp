@@ -63,6 +63,7 @@ export interface RunView {
     progress: string[];
     final: EventData["diagnosis.final"] | null;
   };
+  audioDiagnosis: EventData["audio.diagnosis"] | null;
   approval: {
     required: ApprovalRequired | null;
     recorded: ApprovalRecorded[];
@@ -95,6 +96,7 @@ function newRun(runId: string): RunView {
     runId, kind: "main", parentRunId: null, state: "IDLE", attempt: 0, reason: null,
     perception: { clips: {}, metrics: {}, lastFrame: {} },
     diagnosis: { diagnosisId: null, summary: "", progress: [], final: null },
+    audioDiagnosis: null,
     approval: { required: null, recorded: [], risk: null },
     repair: { candidates: {} },
     verdict: null, cost: null, errors: [], ratelimit: {},
@@ -167,6 +169,8 @@ function applyRun(run: RunView, e: Envelope): RunView {
         approval: fresh ? { ...run.approval, required: null, risk: null } : { ...run.approval, required: null },
       };
     }
+    case "audio.diagnosis":
+      return { ...run, audioDiagnosis: e.data as EventData["audio.diagnosis"] };
     case "risk.review":
       return { ...run, approval: { ...run.approval, risk: d } };
     case "approval.required": {

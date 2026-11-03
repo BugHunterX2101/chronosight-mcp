@@ -30,6 +30,29 @@ describe("runReducer", () => {
     expect(s.violation).toBeNull();
   });
 
+  it("records the confidential audio diagnosis boundary without treating it as model evidence", () => {
+    seq = 0;
+    const s = fold([
+      go("IDLE", "CAPTURING"),
+      ev("audio.diagnosis", {
+        status: "unavailable",
+        provider: "none",
+        reason: "D1_UNAVAILABLE",
+        sampleRate: 16_000,
+        channels: 1,
+      }),
+    ]);
+    expect(s.runs[RUN]!.audioDiagnosis).toEqual({
+      status: "unavailable",
+      provider: "none",
+      reason: "D1_UNAVAILABLE",
+      sampleRate: 16_000,
+      channels: 1,
+    });
+    expect(s.runs[RUN]!.diagnosis.final).toBeNull();
+    expect(s.violation).toBeNull();
+  });
+
   it("ignores an envelope at or below headSeq, so resume and replay are idempotent", () => {
     seq = 0;
     const es = toApproval1();

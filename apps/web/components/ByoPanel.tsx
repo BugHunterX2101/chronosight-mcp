@@ -85,9 +85,9 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
           choose(e.dataTransfer.files[0] ?? null);
         }}
       >
-        {file === null ? "Drop an MP4 or MOV here, or choose one (up to 100 MB)" : `${file.name} · ${(file.size / 1_048_576).toFixed(1)} MB`}
+        {file === null ? "Drop an MP4, MOV or WebM here, or choose one (up to 100 MB)" : `${file.name} · ${(file.size / 1_048_576).toFixed(1)} MB`}
       </label>
-      <input id={ids.file} className="byo-file" type="file" accept="video/mp4,video/quicktime,.mp4,.mov" onChange={(e) => choose(e.target.files?.[0] ?? null)} />
+      <input id={ids.file} className="byo-file" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" onChange={(e) => choose(e.target.files?.[0] ?? null)} />
 
       <div className="controls">
         <button type="button" disabled={!agreed || recording || sending || file !== null} onClick={record}>

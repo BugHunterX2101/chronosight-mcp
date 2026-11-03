@@ -15,6 +15,7 @@ import {
 import { GateError, type ApprovalGate, type Binding, type TokenPayload } from "../gate/approval.ts";
 import type { RiskInput, RiskResult } from "../gate/risk.ts";
 import type { DiagnoseInput, DiagnoseResult } from "../diagnosis.ts";
+import type { AudioDiagnosisResult } from "../audio.ts";
 import type { Prefix } from "../prefix.ts";
 import { costOf, type Prices } from "../budget.ts";
 import type { PerceiveInput, PerceiveResult } from "../sam/client.ts";
@@ -27,6 +28,8 @@ import { scoreJ, type PatchCandidate, type PatchSynthesizer } from "../muse/type
 export interface Timeouts {
   capturing: number;
   perceiving: number;
+  /** Post-repair perception can be slower because it is usually a cache miss for the new clip. */
+  perceivingPost: number;
   measuring: number;
   awaitingQuestion: number;
   approval1: number;
@@ -41,6 +44,7 @@ export interface Timeouts {
 export const DEFAULT_TIMEOUTS: Timeouts = {
   capturing: 60_000,
   perceiving: 60_000,
+  perceivingPost: 180_000,
   measuring: 10_000,
   awaitingQuestion: 15 * 60_000,
   approval1: 15 * 60_000,
@@ -79,6 +83,7 @@ export interface RunDeps {
   twin: Pick<TwinClient, "render" | "metrics" | "keyFrames" | "visualTest" | "patchLoad">;
   sam: { perceive(input: PerceiveInput): Promise<PerceiveResult> };
   diagnose: (input: DiagnoseInput, emit: (kind: "summary" | "progress", text: string) => void) => Promise<DiagnoseResult>;
+  audioDiagnose?: (input: { audioPath: string; request: string; dataClass: DataClass }) => Promise<AudioDiagnosisResult>;
   reviewRisk: (input: RiskInput) => Promise<RiskResult>;
   synth: PatchSynthesizer;
   gate: ApprovalGate;
@@ -678,11 +683,39 @@ export class RunDriver {
       { ...m, clipId: this.d.byo ? "uploaded-clip" : `${this.d.scenarioId}-baseline-${this.d.seed}` }, this.d.prefix.scenario, this.d.byo ? "uploaded" : undefined,
     );
     const keyFrames = await this.preKeyFrames(diagnosisId);
+    let audioEvidence: AudioDiagnosisResult["evidence"] | undefined;
+    if (this.d.byo?.clip.audioPath) {
+      if (!this.d.audioDiagnose) {
+        this.d.emit("audio.diagnosis", {
+          status: "unavailable", provider: "none",
+          reason: "D1_UNAVAILABLE: no confidential audio diagnosis provider is configured; audio remains local and is not sent to a model.",
+          sampleRate: 16_000, channels: 1,
+        });
+      } else {
+        try {
+          const audio = await this.d.audioDiagnose({ audioPath: this.d.byo.clip.audioPath, request: this.request!, dataClass: "CONFIDENTIAL" });
+          audioEvidence = audio.evidence;
+          this.charge(audio.costUsd);
+          this.d.emit("audio.diagnosis", {
+            status: "completed", provider: audio.provider,
+            reason: `D1 completed with ${audio.evidence.observations.length} observations.`,
+            sampleRate: 16_000, channels: 1,
+          });
+        } catch (error) {
+          this.d.emit("audio.diagnosis", {
+            status: "failed", provider: "meta",
+            reason: `D1_FAILED: ${error instanceof Error ? error.message : String(error)}`.slice(0, 500),
+            sampleRate: 16_000, channels: 1,
+          });
+        }
+      }
+    }
     this.billed();
     const res = await this.within(null, "DIAGNOSIS_TIMEOUT", "FAILED", () =>
       this.d.diagnose(
         {
           prefix: this.d.prefix, dataClass: this.dataClass, telemetry, keyFrames, request: this.request!, priorAttempt: prior, diagnosisId, escalate,
+          ...(audioEvidence ? { audioEvidence } : {}),
           run: {
             contribFailures: this.contribFailures,
             budgetRemainingUsd: () => this.budgetRemaining,
@@ -964,7 +997,7 @@ export class RunDriver {
   private async perceivePost(post: ClipState): Promise<void> {
     this.go("PERCEIVING_POST", "post clip ready");
     this.billed();
-    const res = await this.within(this.t.perceiving, "SAM_TIMEOUT", "ABORTED", (signal) =>
+    const res = await this.within(this.t.perceivingPost, "SAM_TIMEOUT", "ABORTED", (signal) =>
       this.d.sam.perceive({ clipId: post.clipId, scenarioId: this.d.scenarioId, clipPath: post.absPath, concepts: this.concepts(), signal }));
     post.csmkPath = res.csmkPath;
     for (const w of res.warnings) this.d.log?.(`SAM warning: ${w}`);
