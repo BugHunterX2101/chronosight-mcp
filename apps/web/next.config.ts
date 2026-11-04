@@ -23,6 +23,9 @@ function publicEnv(): Record<string, string> {
 // Security headers and the nonce CSP are set by proxy.ts (DL-21, TQ-1), so none are listed here.
 const config: NextConfig = {
   env: publicEnv(),
+  // Playwright exercises the app at 127.0.0.1 while Next's dev server can identify its own
+  // origin differently. Permit that loopback host so HMR does not prevent client hydration.
+  allowedDevOrigins: ["127.0.0.1"],
   // run-model ships TypeScript source; the browser entry has no node: imports.
   transpilePackages: ["@chronosight/run-model"],
   poweredByHeader: false,

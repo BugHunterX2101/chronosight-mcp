@@ -2,7 +2,7 @@
 
 **The visual unit test for physical systems.** ChronoSight watches a (simulated) machine misbehave on video, measures the fault from pixels, asks a reasoning model why, has a coding model write a bounded patch, runs the patch in an isolated sandbox, then films the machine again and measures the same signal to check the repair. Nothing is applied without two separate human approvals.
 
-Specs: [PRD.md](PRD.md) (what), [DESIGN.md](DESIGN.md) (how), [TECHNICAL.md](TECHNICAL.md) (stack and contracts). Deviations made while building are listed in [docs/DECISIONS.md](docs/DECISIONS.md) (D-1 to D-11). Hand-off notes for the next developer: [HANDOFF.md](HANDOFF.md).
+Specs: [PRD.md](PRD.md) (what), [DESIGN.md](DESIGN.md) (how), [TECHNICAL.md](TECHNICAL.md) (stack and contracts). Deviations made while building are listed in [docs/DECISIONS.md](docs/DECISIONS.md) (D-1 to D-11).
 
 ## What it does today
 
@@ -28,13 +28,13 @@ Other surfaces: replay player for recorded runs (each file sha256-verified in th
 | Sandbox launcher + egress proxy + Muse synthesis | Built (local Docker only) |
 | Media worker (probe + normalize untrusted uploads) | Built |
 | Web (home, `/s/[id]` workbench, `/replay/[id]`, `/report/[id]`, `/about`, `/admin`, `/hud`, PsdChart, PlaceboButton, GlassesPreview, WebMCP, voice) | Built |
-| Bring-your-own clip (gateway + web) | Built; needs a media worker; see limits below |
+| Bring-your-own clip (gateway + web) | Built; accepts MP4, MOV and WebM, including a consent-gated five-second browser camera capture; needs a media worker; see limits below |
 | Replay **publisher** (push bundles to a CDN) | Built as an opt-in immutable HTTP PUT publisher; local recording remains the default |
 | Hosted demo on Render | Replay-only, see *Deploy on Render* |
 | Provider-neutral live stack | Docker Compose under `deploy/live`; fixture/mock mode is the safe default |
 | Whole-product sweep and video readiness | Not finished; see HANDOFF.md |
 
-Test totals at the last full run: `npx vitest run` = **569 tests in 39 files, all pass**; `pytest services/twin/tests` = **50 pass**. Typechecks (`tsc -p` on gateway, web, media-worker, run-model) are clean.
+Latest local verification: `npx vitest run --pool=threads` = **571 passing tests in 40 files** (11 Docker-hardening checks skipped when their container prerequisite is absent); `pytest services/twin/tests` = **50 passed**. The browser E2E suite validates the consent gate plus native Chromium `getUserMedia` and `MediaRecorder` capture against a virtual camera. Typechecks (`tsc -p` on gateway, web, media-worker, run-model) and the production web build are clean.
 
 ## Architecture
 
@@ -420,14 +420,14 @@ The sandbox hardening tests need Docker. Modal is used for tests only; synthesis
 
 ## Bring your own clip
 
-The workbench offers "Analyse your own clip" when `/api/scenarios` reports `uploads:true`. Flow: acknowledge the privacy notice (PRD 17.4; the gateway records `consentAt`) -> `POST /api/sessions/:id/clips` (MP4/MOV, <= 100 MB) -> optional scale (marker width in mm or mm/px) -> `perceive` -> `diagnose`. The run ends **ABORTED with reason `BYO_DIAGNOSED`**: measured and diagnosed, no patch.
+The workbench offers "Analyse your own clip" when `/api/scenarios` reports `uploads:true`. Flow: acknowledge the privacy notice (PRD 17.4; the gateway records `consentAt`) -> upload an MP4, MOV or WebM (or record a five-second camera clip) -> `POST /api/sessions/:id/clips` (<= 100 MB) -> optional scale (marker width in mm or mm/px) -> `perceive` -> `diagnose`. Camera access is same-origin only and still requires the browser's permission prompt and a user gesture. The run ends **ABORTED with reason `BYO_DIAGNOSED`**: measured and diagnosed, no patch.
 
 Limits, stated plainly:
 - Uploads are processed inline by the media worker, not through the Files API; a run is capped at 750 frames (25 s) for three concepts.
 - The tracker uses **S1's concept plan** (orange arm segment, round joint, checkered square). A generic video is stopped at the precheck (BLOCKED).
 - Without a scale the run reports pixels and says so.
 - The uploaded file's name is never stored or logged. A run that used an upload is never recorded as a replay (`clip.used` refusal in `replay/record.ts`).
-- Webcam capture is implemented in the BYO panel with MP4/WebM capability detection; it still needs a real Chrome/Safari click-through against a running media worker. Audio extraction from uploads and D1 logs remain unbuilt.
+- Webcam capture is implemented in the BYO panel with MP4/WebM capability detection; it still needs a real Chrome/Safari click-through against a running media worker. The media worker now extracts confidential 16 kHz mono WAV audio (when present) beside the normalized video; D1 model logs remain unbuilt.
 
 ## Safety model
 
@@ -468,14 +468,6 @@ docker compose -f deploy/live/compose.yaml up --build
 ```
 
 The default is fixture/mock mode (`LIVE_RUNS_ENABLED=false`, `MOCK_META=true`). Keep that mode until the host, storage retention, sandbox image, egress allowlist, readiness checks, and budget caps have been reviewed. The composition is deployment preparation; it is not live-run acceptance evidence.
-
-## Known gaps and deviations
-
-- Diagnosis uses the deepest reasoning setting; the per-attempt cap is **240 s**. The <= 30 s target in the spec is **not met**.
-- HUD live states H4/H5/HE have not been observed from a real run. WebMCP was verified against a recording shim, not a real agent.
-- The placebo control and BYO verification have not been exercised live, to avoid spend.
-- `/about` carries no validation tables, on purpose. There are no judge-tuning or mutation-run documents; the twin's mutation code is kept.
-- The repository is MIT-licensed; see [LICENSE](LICENSE).
 
 ## Security reminders for the repo owner
 

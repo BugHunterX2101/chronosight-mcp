@@ -22,6 +22,7 @@ export type VoiceAction =
   | { kind: "reject"; note: string }
   | { kind: "diagnose"; transcript: string | null }
   | { kind: "cancel" }
+  | { kind: "help" }
   | { kind: "datasheet" }
   | { kind: "placebo" }
   | { kind: "inspect"; target: string };
@@ -55,6 +56,12 @@ export function planIntent(intent: VoiceIntent, ctx: IntentContext): Plan {
       return { action: { kind: "diagnose", transcript: intent.text }, reply: "Looking into that." };
     case "cancel":
       return { action: { kind: "cancel" }, reply: "Cancelling the run." };
+    case "help":
+      if (ctx.state === "AWAITING_QUESTION") return { action: null, reply: "Ask why the machine is misbehaving, or say inspect followed by a part name." };
+      if (ctx.state === "AWAITING_APPROVAL_1") return { action: null, reply: "Say approve to accept the proposed scope, or reject followed by your concern." };
+      if (ctx.state === "AWAITING_APPROVAL_2") return { action: null, reply: "Say confirm to apply the reviewed patch, or reject followed by your concern." };
+      if (ctx.state === "PASSED" || ctx.state === "VERDICT_FAIL") return { action: null, reply: "You can say show datasheet, run placebo, or start another inspection." };
+      return { action: null, reply: "You can say cancel, inspect a part, or ask me to explain the fault when perception is done." };
     case "show_datasheet":
       return { action: { kind: "datasheet" }, reply: "Showing the cited sources." };
     case "inspect":

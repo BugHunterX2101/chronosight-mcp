@@ -21,6 +21,9 @@ export interface ByoClip {
   width: number;
   height: number;
   durationS: number;
+  /** Confidential extracted device sound for FR-DIA-6, when present. */
+  audioPath?: string;
+  audioCommand?: string;
 }
 
 /** FR-MEA-2: a person's entries, if any. With neither, the twin reports px and says it is uncalibrated. */

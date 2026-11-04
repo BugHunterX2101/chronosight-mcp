@@ -1,30 +1,32 @@
 {
-  "name": "@chronosight/web",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "engines": {
-    "node": ">=24 <25"
-  },
-  "scripts": {
-    "predev": "node scripts/build-hud.mjs",
-    "dev": "next dev --turbopack -p 3000",
-    "prebuild": "node scripts/build-hud.mjs",
-    "build": "next build",
-    "start": "next start -p 3000",
-    "typecheck": "tsc --noEmit"
-  },
-  "dependencies": {
-    "@chronosight/run-model": "*",
-    "@meta-sam/parser": "0.1.0",
-    "next": "16.4.3",
-    "qrcode-generator": "2.0.4",
-    "react": "19.3.1",
-    "react-dom": "19.3.1"
-  },
-  "devDependencies": {
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "rolldown": "1.2.16"
-  }
+    "name":  "@chronosight/web",
+    "version":  "0.1.0",
+    "private":  true,
+    "type":  "module",
+    "engines":  {
+                    "node":  ">=24 <25"
+                },
+    "scripts":  {
+                    "predev":  "node scripts/build-hud.mjs",
+                    "dev":  "next dev --turbopack -p 3000",
+                    "prebuild":  "node scripts/build-hud.mjs",
+                    "build":  "next build",
+                    "start":  "next start -p 3000",
+                    "typecheck":  "tsc --noEmit",
+                    "test:e2e":  "playwright test"
+                },
+    "dependencies":  {
+                         "@chronosight/run-model":  "*",
+                         "@meta-sam/parser":  "0.1.0",
+                         "next":  "16.4.3",
+                         "qrcode-generator":  "2.0.4",
+                         "react":  "19.3.1",
+                         "react-dom":  "19.3.1"
+                     },
+    "devDependencies":  {
+                            "@playwright/test":  "^1.51.1",
+                            "@types/react":  "^19",
+                            "@types/react-dom":  "^19",
+                            "rolldown":  "1.2.16"
+                        }
 }

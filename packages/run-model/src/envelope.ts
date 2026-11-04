@@ -12,7 +12,7 @@ export type RunKind = "main" | "placebo";
 export const EVENT_TYPES = [
   "run.state", "perception.frame", "perception.metrics", "transcript.partial", "transcript.final",
   "diagnosis.delta", "diagnosis.final", "risk.review", "approval.required", "approval.recorded",
-  "patch.progress", "patch.diff", "patch.tests", "twin.render", "test.result", "cost.update",
+  "audio.diagnosis", "patch.progress", "patch.diff", "patch.tests", "twin.render", "test.result", "cost.update",
   "ratelimit", "error", "resync.required",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
@@ -27,6 +27,13 @@ export interface EventData {
   "diagnosis.final": {
     diagnosis: Diagnosis; lane: Lane; laneReason: string; cacheHitPct: number;
     citations: { verified: number; total: number };
+  };
+  "audio.diagnosis": {
+    status: "unavailable" | "completed" | "failed";
+    provider: string;
+    reason: string;
+    sampleRate: 16_000;
+    channels: 1;
   };
   "twin.render": { clipId: string; phase: "pre" | "post"; url: string; frames: number; fps: number };
   "test.result": VisualTestResult;

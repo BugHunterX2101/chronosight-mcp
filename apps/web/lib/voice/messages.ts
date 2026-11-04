@@ -10,6 +10,7 @@ export type VoiceIntent =
   | { kind: "run_test" }
   | { kind: "run_placebo" }
   | { kind: "cancel" }
+  | { kind: "help" }
   | { kind: "free_text"; text: string }
   | { kind: "none" };
 
@@ -19,7 +20,7 @@ export type RelayMessage =
   | { type: "transcript.partial"; turnId: string; text: string }
   | { type: "transcript.final"; turnId: string; text: string; intent: VoiceIntent; dataClass: "PUBLIC" | "CONFIDENTIAL" };
 
-const KINDS = new Set(["inspect", "explain_fault", "show_datasheet", "approve", "confirm", "reject", "run_test", "run_placebo", "cancel", "free_text", "none"]);
+const KINDS = new Set(["inspect", "explain_fault", "show_datasheet", "approve", "confirm", "reject", "run_test", "run_placebo", "cancel", "help", "free_text", "none"]);
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 function parseIntentValue(v: unknown): VoiceIntent | null {

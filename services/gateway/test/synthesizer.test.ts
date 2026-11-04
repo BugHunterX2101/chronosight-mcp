@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { PatchSpec } from "@chronosight/run-model";
-import { editedWorkspace, failureContext, harnessSummary, pytestTally } from "../src/muse/synthesizer.ts";
+import { editedWorkspace, failureContext, harnessSummary, pytestPassed, pytestTally } from "../src/muse/synthesizer.ts";
 import { launcherSocketPath } from "../src/muse/sandbox-attach.ts";
 
 // A bash tool result as muse serve 1.4.14 reports it: a JSON chunk whose output is escaped.
@@ -27,6 +27,18 @@ describe("pytestTally", () => {
   it("is null when no pytest summary is present", () => {
     expect(pytestTally(chunk("bwrap: No permissions to create a new namespace\n"))).toBeNull();
     expect(pytestTally("")).toBeNull();
+  });
+});
+
+describe("pytestPassed", () => {
+  it("recognizes a passing run even when pytest reports warnings", () => {
+    expect(pytestPassed("15 passed, 2 warnings")).toBe(true);
+  });
+
+  it("rejects failures, errors, and missing summaries", () => {
+    expect(pytestPassed("12 failed, 3 passed")).toBe(false);
+    expect(pytestPassed("1 error, 14 passed")).toBe(false);
+    expect(pytestPassed(null)).toBe(false);
   });
 });
 

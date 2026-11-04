@@ -68,7 +68,10 @@ const server = createServer((req, res) => {
         const clipId = typeof body === "object" && body !== null && "clipId" in body && typeof body.clipId === "string" ? body.clipId : "";
         const result = await serial(() => normalizeClip(scratch, clipId, tools));
         // The exact command line is logged per clip (FR-CAP-2). The paths in it name the clip, not the person.
-        log("clip.normalized", { clipId, command: result.command, frames: result.frames, bytes: result.bytes, durationS: result.durationS });
+        log("clip.normalized", {
+          clipId, command: result.command, audioCommand: result.audioCommand, hasAudio: result.audioPath !== undefined,
+          frames: result.frames, bytes: result.bytes, durationS: result.durationS,
+        });
         return send(res, 200, { ok: true, ...result });
       }
       send(res, 404, { ok: false, code: "NOT_FOUND", message: "no such route" });

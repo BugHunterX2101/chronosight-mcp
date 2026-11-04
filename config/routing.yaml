@@ -37,7 +37,7 @@ tasks:
     retries: 3
     lane: std
   device.sound:
-    primary: { model: muse-spark-1.2, effort: null, summary: null }
+    primary: { model: muse-spark-1.3, effort: null, summary: null }
     dataClasses: [PUBLIC, CONFIDENTIAL]
     fallback: null
     retries: 1

@@ -1,9 +1,4 @@
-export const CAMERA_MIME_TYPES = [
-  "video/mp4;codecs=avc1",
-  "video/mp4",
-  "video/webm;codecs=vp9",
-  "video/webm",
-] as const;
+export const CAMERA_MIME_TYPES = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"] as const;
 
 export function recordingMimeType(supported: (mime: string) => boolean = (mime) => MediaRecorder.isTypeSupported(mime)): string {
   const mime = CAMERA_MIME_TYPES.find(supported);

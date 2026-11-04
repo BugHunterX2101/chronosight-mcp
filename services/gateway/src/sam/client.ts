@@ -129,6 +129,8 @@ export class SamClient {
           marks[c.slug] = { t_request_sent: t, t_first_byte: t, t_completed: Date.now() };
         } else {
           marks[c.slug] = await this.streamWithRetry(input, c, tee);
+          const mark = marks[c.slug]!;
+          this.d.log?.(`SAM ${input.clipId}/${c.slug}: first byte ${mark.t_first_byte === null ? "n/a" : mark.t_first_byte - mark.t_request_sent} ms; complete ${mark.t_completed === null ? "n/a" : mark.t_completed - mark.t_request_sent} ms`);
           if (this.d.mode === "record") {
             mkdirSync(dirname(fixture), { recursive: true });
             copyFileSync(tee, fixture);
@@ -141,7 +143,9 @@ export class SamClient {
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, input.concepts.length) }, worker));
 
     tees.sort((a, b) => a.conceptIdx - b.conceptIdx);
+    const ingestStarted = Date.now();
     const ing = await this.d.twin.samIngest({ clipId: input.clipId, scenarioId: input.scenarioId, sources: tees, ...(input.byo ?? {}) }, input.signal);
+    this.d.log?.(`SAM ${input.clipId}: ingest ${Date.now() - ingestStarted} ms; concepts ${input.concepts.length}; records ${ing.records}`);
     for (const w of ing.warnings) this.d.log?.(w);
     return { clipId: input.clipId, csmkPath: ing.csmkPath, records: ing.records, objects: ing.objects, warnings: ing.warnings, marks, fromFixture };
   }

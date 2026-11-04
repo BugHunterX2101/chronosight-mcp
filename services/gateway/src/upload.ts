@@ -37,6 +37,9 @@ export interface ClipRecord {
   height: number;
   durationS: number;
   uploadedAt: number;
+  /** Confidential extracted device sound for FR-DIA-6, when present. */
+  audioPath?: string;
+  audioCommand?: string;
 }
 
 export interface IngestDeps {
@@ -50,13 +53,13 @@ export interface IngestDeps {
 
 /** A person-readable message for each way the body can fail before the worker sees it. */
 const TOO_LARGE = "That file is over 100 MB. Trim it or export a smaller clip.";
-const BAD_MAGIC = "That file is not an MP4 or MOV video. Upload an .mp4 or .mov file.";
+const BAD_MAGIC = "That file is not a supported video. Upload an .mp4, .mov or .webm file.";
 const NEEDS_CONSENT = "Acknowledge the privacy notice before uploading.";
 
 export function checkMagic(head: Buffer): void {
-  if (head.length < 12 || head.toString("latin1", 4, 8) !== "ftyp" || !BRANDS.includes(head.toString("latin1", 8, 12))) {
-    throw new ApiError("MEDIA_BAD_MAGIC", BAD_MAGIC, { stage: "upload" });
-  }
+  const webm = head.length >= 4 && head.readUInt32BE(0) === 0x1a45dfa3;
+  const mp4 = head.length >= 12 && head.toString("latin1", 4, 8) === "ftyp" && BRANDS.includes(head.toString("latin1", 8, 12));
+  if (!webm && !mp4) throw new ApiError("MEDIA_BAD_MAGIC", BAD_MAGIC, { stage: "upload" });
 }
 
 /** Counts and hashes the body as it streams, stops it at the cap, and checks the first 12 bytes once. */
@@ -123,6 +126,8 @@ interface WorkerClip {
   durationS: number;
   path: string;
   command: string;
+  audioPath?: string;
+  audioCommand?: string;
 }
 
 async function normalize(d: IngestDeps, clipId: string): Promise<WorkerClip> {
@@ -181,6 +186,7 @@ export async function ingestUpload(parts: AsyncIterable<Multipart>, d: IngestDep
       return {
         clipId, path: join(dir, "clip.mp4"), sha256: clip.sha256, bytes: clip.bytes, frames: clip.frames, fps: clip.fps,
         width: clip.width, height: clip.height, durationS: clip.durationS, uploadedAt: d.now(),
+        audioPath: clip.audioPath, audioCommand: clip.audioCommand,
       };
     } catch (err) {
       await rm(dir, { recursive: true, force: true });

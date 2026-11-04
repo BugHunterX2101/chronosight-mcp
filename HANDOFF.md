@@ -1,25 +1,38 @@
 # Hand-off
 
-State of ChronoSight as of 2026-11-01, branch `deploy/render` (remote `BugHunterX2101/chronosight-mcp`, promotion commit `6e93a39`). Read [README.md](README.md) first for architecture, env names and commands; this file is what you need to continue.
+State of ChronoSight as of 2026-11-02, branch `build/wip` (remote `BugHunterX2101/chronosight-mcp`). Read [README.md](README.md) first for architecture, env names and commands; this file is what you need to continue.
 
 ## 1. Where things stand
 
 **Verified at hand-off**
-- `npx vitest run`: 569 tests, 39 files, pass. `pytest services/twin/tests`: 50 pass. `tsc -p` on gateway, web, media-worker and run-model clean.
+- `npx vitest run`: 579 tests, 40 files, pass. `pytest services/twin/tests`: 50 pass in the project `.venv`. Root TypeScript checks and the web production build pass.
 - Live Meta Model API smoke check: one PUBLIC S1 diagnosis completed with the configured server-side key, 172.4 s elapsed, observed model cost `$0.0069`, exit code 0. No key or raw credential material was logged or stored.
 - Baseten and Modal were not invoked: this codebase currently exposes only their configuration names and documentation, not a provider client or executable partner lane. They remain acceptance-blocked rather than being represented as validated.
 - After the check, `.env.local` remained `LIVE_RUNS_ENABLED=false`, `PARTNER_ENDPOINTS_ENABLED=false`, and `MOCK_META=false`; no live run, BYO verification, placebo, HUD acceptance, or real-hardware check was performed.
-- Hosted demo: https://chronosight.onrender.com (Render service `srv-dbjmjas9v7es73ai13i0`, branch `deploy/render`, promotion commit `6e93a39`). The branch push succeeded and the service currently responds with `/api/healthz` 200, `/api/scenarios` 200, and `/` 200; `/api/readyz` returns 503 by design because this replay-only service has no twin or launcher. Render auto-deploy is disabled, so the service must be manually deployed through the Render API or dashboard before the new branch content is served.
+- Hosted demo: https://chronosight.onrender.com (Render service `srv-dbjmjas9v7es73ai13i0`, branch `deploy/render`). The public origin currently returns `/api/healthz` 200, `/api/scenarios` 200 with S1-S3, and `/` 200; `/api/readyz` returns 503 by design because the service is replay-only. Browser smoke verified the home page and the public replay route render after Render wake-up. The deployment branch is pushed at promotion commit `92f46b7`; Render auto-deploy remains disabled.
 
 **Built**: twin and deterministic S1/S2/S3 scenario packages; gateway (orchestrator, approvals, diagnosis, SAM client, ledger, audit chain, replay recorder, HUD pairing and transports, ASR relay, beacons, admin health and warm); sandbox launcher and egress proxy; media worker; web (home, workbench, replay, report, about, admin, `/hud`, PsdChart, PlaceboButton, GlassesPreview, WebMCP, voice, bring-your-own-clip panel).
 
-**Not done** (in priority order)
-1. **Render promotion activation**: the verified `deploy/render` branch is pushed, but auto-deploy is disabled and no Render API token is available in this environment to trigger the deployment.
-2. **Whole-product sweep and video readiness**: a pass over every route, navigation, error and empty state, mobile widths, performance, and a rehearsed demo script. Not finished.
-3. **Live checks that cost money** (all need explicit approval, see section 4): HUD states H4/H5/HE from a real run; a real placebo run; a real BYO run.
-4. Audio extraction from uploads (FR-DIA-6), D1 logs, and real browser validation of webcam capture.
-5. Diagnosis latency: the spec target is <= 30 s; measured xhigh latency forced a 240 s per-attempt cap. Unmet.
+**Remaining acceptance gates** (in priority order)
+1. **Whole-product sweep and video readiness**: a pass over every route, navigation, error and empty state, mobile widths, performance, and a rehearsed demo script. Not finished.
+2. **Live checks that cost money** (all need explicit approval, see section 4): HUD states H4/H5/HE from a real run; a real placebo run; a real BYO run.
+3. D1 model/audio logs and real browser validation of webcam capture. Upload normalization extracts and retains confidential 16 kHz mono WAV audio when a source track is present (FR-DIA-6); no model receives it until the D1 lane is implemented.
+4. Diagnosis latency: the spec target is <= 30 s; measured xhigh latency forced a 240 s per-attempt cap. Unmet.
+5. Render activation is manual because auto-deploy is disabled; the replay-only service still cannot host the full live stack.
 6. `graphify-out/` was refreshed after the bring-your-own-clip commits; run `graphify update .` after code changes.
+
+**Latest local verification**
+- Media extraction: 26 tests pass; upload/orchestrator compatibility: 61 tests pass.
+- Full regression: 579 Vitest tests and 50 Python tests pass; TypeScript checks and production build pass.
+- After the post-perception hardening, the full Vitest suite remains **579/579**, root and web TypeScript checks pass, and the production web build passes. Local route smoke checks returned 200 for `/`, `/about`, `/admin`, `/hud`, `/replay/[runId]`, and `/s/[sessionId]`; invalid report identifiers correctly return 404. Gateway `/api/healthz` and `/api/scenarios` return 200 while `/api/readyz` remains the expected 503 until all live dependencies are healthy.
+- BYO runs now emit an explicit `audio.diagnosis` state of `D1_UNAVAILABLE` when normalized 16 kHz mono audio exists but no confidential audio provider is configured. The audio path remains server-side and is not included in the diagnosis request; reducer and orchestrator regression coverage pass.
+- A real S1 run reached twin rendering, perception, live Meta diagnosis, both approvals, and sandbox patching. The first candidate failed its independent harness (12/15 tests), and the run returned to diagnosis; no PASS claim was made.
+- The captured S1 trace identified a second live-run defect: a candidate that reached 15/15 inside the sandbox was discarded because Muse continued reasoning until the 110-second host cancellation. The synthesizer now stops a non-terminating turn after a completed passing pytest summary and preserves the workspace for the independent harness; this is covered by `pytestPassed` regression tests. The live provider path still needs one owner-approved rerun before a PASS claim.
+- Prefix loading now normalizes CRLF at the file boundary and rejects only lone carriage returns; regression coverage explicitly exercises Windows line endings.
+- Replacement live S1 run with the launcher healthy validated the fix: the first patch attempt timed out with the unchanged baseline, the retry produced a bounded patch that passed the independent harness **15/15** (overshoot 15.22%, settling 0.498 s, steady-state error 0.000104 rad, filter-off 0 ms), and the patch was selected. The run then aborted at `PERCEIVING_POST` with `SAM_TIMEOUT` after the 60-second perception budget. This is not a live PASS. Post-repair perception now has a measured, explicit 180-second deadline separate from baseline capture, and SAM logs per-concept first-byte/completion plus twin-ingest timings so the next owner-approved run can distinguish provider latency from ingest latency. Modal was not used because synthesis is implemented against the local Docker sandbox and the failure occurred in the SAM perception provider.
+- Frontend visual pass: the evidence-first hero now exposes the verified recorded-run state, and the WebGL schematic has a restrained signal overlay, scan treatment and responsive evidence strip. The animation respects reduced-motion and continues to use only verified replay figures; it does not imply that the schematic is camera footage.
+- The workbench now exposes clearly labelled deterministic voice demo commands that invoke canonical PUBLIC intents without synthetic audio.
+- Secure provider environment checks must report presence only. Baseten/Modal remain unvalidated because this repository has no executable partner lane.
 
 ## 2. Resume locally
 

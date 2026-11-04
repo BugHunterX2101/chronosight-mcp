@@ -239,6 +239,26 @@ summary:focus-visible {
   padding: 0 24px 64px;
 }
 
+.home::before {
+  content: "";
+  position: fixed;
+  top: 56px;
+  right: -18vw;
+  z-index: -1;
+  width: 58vw;
+  height: 58vw;
+  max-width: 760px;
+  max-height: 760px;
+  pointer-events: none;
+  border: 1px solid rgb(86 180 233 / 0.08);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 54px rgb(86 180 233 / 0.025),
+    0 0 0 108px rgb(204 121 167 / 0.02);
+  transform: rotate(-18deg);
+  opacity: 0.75;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -522,6 +542,42 @@ select {
   color: var(--fail);
 }
 
+.hero-evidence {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  max-width: 560px;
+  padding: 10px 12px;
+  color: var(--text-2);
+  border-left: 2px solid var(--pass);
+  background: linear-gradient(90deg, rgb(0 158 115 / 0.09), transparent 80%);
+  font-size: 13px;
+}
+
+.hero-evidence strong {
+  color: var(--text);
+  font-weight: 650;
+}
+
+.evidence-pulse,
+.scene-signal-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--pass);
+  box-shadow: 0 0 0 4px rgb(0 158 115 / 0.14);
+}
+
+.evidence-hash {
+  margin-left: auto;
+  color: var(--pass);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
 /* The headline block arrives in order, once, on load. Content is fully visible without it. */
 @media (prefers-reduced-motion: no-preference) {
   .hero > * {
@@ -670,6 +726,66 @@ select {
   transform: perspective(1200px) rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg));
   transition: transform 120ms ease-out;
   will-change: transform;
+}
+
+.scene-host::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 0.035), transparent 18%, transparent 78%, rgb(0 0 0 / 0.2)),
+    repeating-linear-gradient(180deg, transparent 0, transparent 5px, rgb(86 180 233 / 0.018) 6px);
+  mix-blend-mode: screen;
+}
+
+.scene-topline {
+  position: absolute;
+  top: 16px;
+  left: 18px;
+  right: 18px;
+  z-index: 4;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font: 600 11px var(--font-num);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scene-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+
+.scene-signal-dot {
+  width: 5px;
+  height: 5px;
+  box-shadow: 0 0 0 3px rgb(0 158 115 / 0.12);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .evidence-pulse,
+  .scene-signal-dot {
+    animation: signal-pulse 2.4s ease-in-out infinite;
+  }
+
+  @keyframes signal-pulse {
+    0%,
+    100% {
+      opacity: 0.55;
+      box-shadow: 0 0 0 3px rgb(0 158 115 / 0.1);
+    }
+
+    50% {
+      opacity: 1;
+      box-shadow: 0 0 0 6px rgb(0 158 115 / 0.02);
+    }
+  }
 }
 
 /* Registration ticks in the four corners, the way a drawing sheet is marked. */
@@ -1493,6 +1609,15 @@ dialog.approval[open] {
 
   .hero-stats dd {
     margin: 0;
+  }
+
+  .hero-evidence {
+    align-items: flex-start;
+  }
+
+  .evidence-hash {
+    width: 100%;
+    margin-left: 19px;
   }
 }
 

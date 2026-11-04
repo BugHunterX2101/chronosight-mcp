@@ -7,7 +7,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { checkContainer, ffmpegArgs, MediaError, normalizeClip, probeClip, uploadPath, type MediaCode } from "../src/media.ts";
+import { audioArgs, checkContainer, ffmpegArgs, MediaError, normalizeClip, probeClip, uploadPath, type MediaCode } from "../src/media.ts";
 
 const ffmpeg = (...args: string[]): void => void execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", ...args], { stdio: "pipe" });
 const src = (spec: string): string[] => ["-f", "lavfi", "-i", spec];
@@ -60,6 +60,8 @@ describe("normalizing a good upload", () => {
     expect(n.frames).toBeGreaterThanOrEqual(118); // 4 s at 30 fps, from a 25 fps source
     expect(n.frames).toBeLessThanOrEqual(122);
     expect(n.hasAudio).toBe(false);
+    expect(n.audioPath).toBe(join(dir, "scratch", "good", "audio.wav"));
+    expect(n.audioCommand).toBe(["ffmpeg", ...audioArgs(uploadPath(join(dir, "scratch"), "good"), join(dir, "scratch", "good", "audio.partial.wav"))].join(" "));
     const bytes = readFileSync(n.path);
     expect(bytes.indexOf("moov")).toBeLessThan(bytes.indexOf("mdat")); // +faststart
     expect(n.sha256).toBe(createHash("sha256").update(bytes).digest("hex"));
@@ -68,6 +70,10 @@ describe("normalizing a good upload", () => {
     const s = (JSON.parse(out) as { streams: { codec_name: string; profile: string; pix_fmt: string; r_frame_rate: string }[] }).streams;
     expect(s).toHaveLength(1);
     expect(s[0]).toMatchObject({ codec_name: "h264", profile: "High", pix_fmt: "yuv420p", r_frame_rate: "30/1" });
+    const audio = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "stream=codec_name,sample_rate,channels", "-of", "json", n.audioPath!]).toString()) as {
+      streams: { codec_name: string; sample_rate: string; channels: number }[];
+    };
+    expect(audio.streams).toEqual([{ codec_name: "pcm_s16le", sample_rate: "16000", channels: 1 }]);
   }, 60_000);
 
   it("logs the exact command line, with the profile's flags", async () => {
@@ -98,6 +104,14 @@ describe("normalizing a good upload", () => {
     expect(a.sha256).toBe(b.sha256);
     expect(() => readFileSync(join(dir, "scratch", "twice", "clip.partial.mp4"))).toThrow();
   }, 90_000);
+
+  it("does not create an audio artifact when the source has no audio", async () => {
+    stage("silent", read("portrait.mp4"));
+    const n = await normalizeClip(join(dir, "scratch"), "silent");
+    expect(n.hasAudio).toBe(false);
+    expect(n.audioPath).toBeUndefined();
+    expect(n.audioCommand).toBeUndefined();
+  }, 60_000);
 });
 
 describe("the malformed corpus (TH-12): each fails, cleanly, with its own code", () => {

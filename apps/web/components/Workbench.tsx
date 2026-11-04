@@ -65,7 +65,9 @@ export function Workbench({ sessionId }: { sessionId: string }) {
       (all) => {
         if (!cancelled) setScenario(all.find((s) => s.id === scenarioId) ?? null);
       },
-      () => undefined,
+      (err: unknown) => {
+        if (!cancelled) setProblem(`Scenario details could not be loaded: ${describe(err)}`);
+      },
     );
     return () => {
       cancelled = true;
@@ -177,6 +179,8 @@ export function Workbench({ sessionId }: { sessionId: string }) {
         case "cancel":
           if (r !== undefined) void act(() => cancelRun(r.runId));
           break;
+        case "help":
+          break;
         case "datasheet":
           document.getElementById("dx-h")?.scrollIntoView({ block: "start" });
           break;
@@ -189,6 +193,12 @@ export function Workbench({ sessionId }: { sessionId: string }) {
       }
     },
     [act, approveNow, rejectNow, runPlacebo, sessionId],
+  );
+  const onDemoVoice = useCallback(
+    (text: string, intent: Extract<RelayMessage, { type: "transcript.final" }>["intent"]) => {
+      onVoiceFinal({ type: "transcript.final", turnId: `demo-${Date.now()}`, text, intent, dataClass: "PUBLIC" });
+    },
+    [onVoiceFinal],
   );
   const voice = useVoice(sessionId, onVoiceFinal);
   speakRef.current = voice.speak;
@@ -327,7 +337,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
         <ByoPanel sessionId={sessionId} busy={busy} onAnalyse={(scale) => void act(() => startPerceive(sessionId, scale))} />
       ) : null}
 
-      <VoiceBar voice={voice} available={voiceAvailable === true} reply={reply} />
+      <VoiceBar voice={voice} available={voiceAvailable === true} reply={reply} onDemo={onDemoVoice} />
 
       {problem !== null ? (
         <p role="alert" className="alert">

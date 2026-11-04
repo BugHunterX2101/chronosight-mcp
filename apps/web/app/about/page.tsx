@@ -44,6 +44,13 @@ export default function AboutPage() {
         <li>This site&apos;s hosted demo has no video processor and no model key, so it plays recorded runs only.</li>
       </ul>
 
+      <h2>Hackathon provenance</h2>
+      <p>
+        The Chronosight application code and the ENCX-14 synthetic engineering corpus were authored for this project during the October 26–November 4, 2026
+        hackathon window. This covers project-authored material in the web app, run model, gateway, media worker, sandbox launcher, sandbox, and corpus; it does
+        not claim ownership of third-party dependencies, SDKs, models, container images, or service infrastructure.
+      </p>
+
       <p>
         <a href="/">Back to the home page</a>
       </p>

@@ -18,6 +18,7 @@ export const TARGET_FPS = 30;
 export const LONG_EDGE_MAX = 1280;
 /** DESIGN §11.2: `ftyp` at offset 4 with one of these major brands. */
 export const BRANDS = ["isom", "iso2", "mp41", "mp42", "avc1", "qt  ", "M4V "] as const;
+const WEBM_MAGIC = 0x1a45dfa3;
 
 const PROBE_TIMEOUT_MS = 20_000;
 const NORMALIZE_TIMEOUT_MS = 180_000;
@@ -43,7 +44,7 @@ export type MediaCode =
 export const MESSAGES: Record<MediaCode, string> = {
   BAD_CLIP_ID: "That clip id is not valid.",
   NOT_FOUND: "No uploaded clip was found to process.",
-  NOT_MP4: "That file is not an MP4 or MOV video. Upload an .mp4 or .mov file.",
+  NOT_MP4: "That file is not a supported video. Upload an .mp4, .mov or .webm file.",
   BRAND_REJECTED: "That video's format is not supported. Export it as H.264 MP4 or MOV and try again.",
   TRUNCATED: "That video is cut short or incomplete. Upload the full file.",
   BOX_SIZE_INVALID: "That video file is damaged: its structure declares an impossible size.",
@@ -83,6 +84,9 @@ export interface Normalized extends Probe {
   frames: number;
   /** The exact ffmpeg command line, logged per clip (FR-CAP-2). */
   command: string;
+  /** Separate confidential device sound for FR-DIA-6, when the upload contains audio. */
+  audioPath?: string;
+  audioCommand?: string;
 }
 
 export interface Tools {
@@ -95,7 +99,8 @@ export const defaultTools = (): Tools => ({ ffmpeg: process.env.FFMPEG_PATH || "
 // ---- container walk -----------------------------------------------------------------------------------------
 
 /**
- * Walks the top-level boxes of the file in plain code. A box that claims more than the upload cap can never be
+ * Walks MP4 top-level boxes of the file in plain code. WebM/EBML is passed to ffprobe for the second opinion.
+ * A box that claims more than the upload cap can never be
  * real; a box that runs past the end of the file is a cut-off upload; and a file with no `moov` has no index.
  */
 export async function checkContainer(file: string): Promise<void> {
@@ -109,6 +114,11 @@ export async function checkContainer(file: string): Promise<void> {
     const size = (await handle.stat()).size;
     if (size === 0) throw new MediaError("NOT_MP4");
     const head = Buffer.alloc(16);
+    const { bytesRead: magicBytes } = await handle.read(head, 0, 4, 0);
+    if (magicBytes === 4 && head.readUInt32BE(0) === WEBM_MAGIC) {
+      await handle.close();
+      return;
+    }
     let offset = 0;
     let sawMoov = false;
     for (let n = 0; offset < size; n += 1) {
@@ -236,6 +246,18 @@ export function ffmpegArgs(input: string, output: string): string[] {
   ];
 }
 
+/** Extracts at most the first five seconds of device sound as 16 kHz mono PCM WAV for FR-DIA-6. */
+export function audioArgs(input: string, output: string): string[] {
+  return [
+    "-hide_banner", "-nostdin", "-y", "-loglevel", "error",
+    "-protocol_whitelist", "file",
+    "-threads", "1", "-i", input,
+    "-map", "0:a:0", "-vn", "-sn", "-dn",
+    "-t", "5", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "-f", "wav",
+    output,
+  ];
+}
+
 const sha256 = (file: string): Promise<string> =>
   new Promise((resolve, reject) => {
     const h = createHash("sha256");
@@ -261,10 +283,12 @@ export async function normalizeClip(scratch: string, clipId: string, tools: Tool
   } catch {
     throw new MediaError("NOT_FOUND");
   }
-  await probeClip(input, tools);
+  const source = await probeClip(input, tools);
 
   const output = clipPath(scratch, clipId);
   const staging = join(scratch, clipId, "clip.partial.mp4");
+  const audioOutput = join(scratch, clipId, "audio.wav");
+  const audioStaging = join(scratch, clipId, "audio.partial.wav");
   const args = ffmpegArgs(input, staging);
   const ran = await run(tools.ffmpeg, args, NORMALIZE_TIMEOUT_MS);
   if (ran.timedOut) {
@@ -276,6 +300,26 @@ export async function normalizeClip(scratch: string, clipId: string, tools: Tool
     throw new MediaError("UNDECODABLE", ran.stderr.trim().split("\n")[0]?.slice(0, 160));
   }
   await rename(staging, output);
+
+  let audioPath: string | undefined;
+  let audioCommand: string | undefined;
+  if (source.hasAudio) {
+    const extracted = audioArgs(input, audioStaging);
+    const audioRun = await run(tools.ffmpeg, extracted, NORMALIZE_TIMEOUT_MS);
+    if (audioRun.timedOut) {
+      await rm(audioStaging, { force: true });
+      await rm(output, { force: true });
+      throw new MediaError("NORMALIZE_TIMEOUT");
+    }
+    if (audioRun.code !== 0) {
+      await rm(audioStaging, { force: true });
+      await rm(output, { force: true });
+      throw new MediaError("UNDECODABLE", audioRun.stderr.trim().split("\n")[0]?.slice(0, 160));
+    }
+    await rename(audioStaging, audioOutput);
+    audioPath = audioOutput;
+    audioCommand = [tools.ffmpeg, ...extracted].join(" ");
+  }
 
   const out = await ffprobe(tools, output, true);
   const video = out.streams.find((s) => s.codec_type === "video");
@@ -294,5 +338,7 @@ export async function normalizeClip(scratch: string, clipId: string, tools: Tool
     fps: TARGET_FPS,
     frames,
     command: [tools.ffmpeg, ...args].join(" "),
+    audioPath,
+    audioCommand,
   };
 }

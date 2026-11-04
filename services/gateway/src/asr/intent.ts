@@ -18,6 +18,7 @@ export type Intent =
   | { kind: "run_test" }
   | { kind: "run_placebo" }
   | { kind: "cancel" }
+  | { kind: "help" }
   | { kind: "free_text"; text: string }
   | { kind: "none" };
 
@@ -119,6 +120,8 @@ export function parseIntent(text: string, state: RunState, opts: IntentOptions =
     const a = approval(state, tokens, norm, text, opts);
     if (a !== null) return a;
   }
+
+  if (/^(help|help me|what can you do|what can i say|commands|show commands|how do i use this)$/.test(norm)) return { kind: "help" };
 
   // Cancel is short on purpose: a question that happens to contain "stop" must not abort the run.
   if (!TERMINAL_STATES.has(state) && tokens.length <= 3 && tokens.some((t) => CANCEL_WORDS.has(t))) return { kind: "cancel" };

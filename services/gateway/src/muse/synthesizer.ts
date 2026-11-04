@@ -154,6 +154,13 @@ export function pytestTally(output: string): string | null {
   return last;
 }
 
+/** A completed pytest run with at least one passing test and no failing/error count. */
+export function pytestPassed(tally: string | null): boolean {
+  return tally !== null
+    && !/(?:^|, )\d+ (?:failed|errors?)(?:,|$)/.test(tally)
+    && /(?:^|, )\d+ passed(?:,|$)/.test(tally);
+}
+
 /**
  * Whether a turn item left an edit in the workspace. Muse reports a file tool's edit only as
  * counts (`patchSummary`), with no path, so the caller reads the paths back from the sandbox.
@@ -222,6 +229,8 @@ interface Live {
   closed: boolean;
   /** the agent's most recent pytest summary, read from its shell output */
   lastTests: string | null;
+  /** the agent completed a passing pytest run; the workspace can now be independently tested */
+  testsPassed: boolean;
   /** each session's latest `session/tokenUsage` running totals, by session ID (§22.2) */
   usage: Map<string, MuseUsage>;
 }
@@ -280,7 +289,7 @@ export class MuseSynthesizer implements PatchSynthesizer {
       patchId: req.patchIds[index - 1]!, candidate: index, model, files: {}, unifiedDiff: "", diffHash: "",
       tests: { passed: 0, total: 0, metrics: null }, boundsCheck: { ok: false, code: null, details: [] }, failure: null, usage: null,
     };
-    const live: Live = { client: null, connection: null, containers: new Set(), closed: false, lastTests: null, usage: new Map() };
+    const live: Live = { client: null, connection: null, containers: new Set(), closed: false, lastTests: null, testsPassed: false, usage: new Map() };
     let synId: string | null = null;
     const touched = new Set<string>();
     let testsRun = 0;
@@ -482,16 +491,23 @@ export class MuseSynthesizer implements PatchSynthesizer {
         session.onApprovalError((f) => audit("muse.approval.error", { kind: f.kind, approvalId: f.approvalId, error: "error" in f ? String(f.error) : null }));
         audit("muse.session", { sessionId: session.sessionId, model, durability: client.durability });
         turn = await raced(session.sendUserTurn({ input: [{ type: "text", text: prompt }] }));
-        void this.tap(turn, audit, started, live, onEdit);
+          const tapped = this.tap(turn, audit, started, live, onEdit, () => cancel("pytest passed"));
 
         let out = await raced(outcome(turn));
-        if (out === "died" || out.kind === "terminalUnknown") {
+          await tapped;
+          // A model can keep reasoning after a successful pytest run and never emit a
+          // terminal turn. The workspace is still authoritative and is independently
+          // tested below, so do not discard it at the wall-clock timeout.
+          if (live.testsPassed) return;
+          if (out === "died" || out.kind === "terminalUnknown") {
           // §18.6: one recovery attempt while there's time left.
           if (recovered || left(this.t.cancelMs) === 0) throw new CandidateFailure("MUSE_TURN_FAILED", "muse serve died with no time or attempt left to recover");
           recovered = true;
           ({ session, turn } = await raced(this.recover(containerId, live, session.sessionId, turn.turnId, onApproval, audit)));
-          void this.tap(turn, audit, started, live, onEdit);
+          const recoveredTap = this.tap(turn, audit, started, live, onEdit, () => cancel("pytest passed"));
           out = await raced(outcome(turn));
+          await recoveredTap;
+          if (live.testsPassed) return;
           if (out === "died" || out.kind === "terminalUnknown") throw new CandidateFailure("MUSE_TURN_FAILED", "muse serve died again after session/resume");
         }
         const r = this.judge(out, session, audit);
@@ -511,7 +527,9 @@ export class MuseSynthesizer implements PatchSynthesizer {
   }
 
   /** Audits each item's status changes, so a slow or stuck turn can be read afterwards. */
-  private async tap(turn: Turn, audit: Audit, started: number, live: Live, onEdit: () => Promise<void>): Promise<void> {
+  private async tap(
+    turn: Turn, audit: Audit, started: number, live: Live, onEdit: () => Promise<void>, onPassed: () => void,
+  ): Promise<void> {
     const seen = new Map<string, string>();
     try {
       for await (const it of turn.items()) {
@@ -519,7 +537,13 @@ export class MuseSynthesizer implements PatchSynthesizer {
         if (it.kind === "userMessage" || seen.get(it.itemId) === status) continue;
         seen.set(it.itemId, status);
         if (it.kind === "toolCall" && it.tool === "bash" && status !== "inProgress") {
-          live.lastTests = pytestTally(String(it.visibleOutput ?? "")) ?? live.lastTests;
+          const tally = pytestTally(String(it.visibleOutput ?? ""));
+          live.lastTests = tally ?? live.lastTests;
+          if (pytestPassed(tally)) {
+            live.testsPassed = true;
+            audit("muse.testsPassed", { tally });
+            onPassed();
+          }
         }
         if (editedWorkspace(it)) void onEdit();
         audit("muse.item", {

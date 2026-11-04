@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadFeatured, residualRatio, type FeaturedFigures, type FeaturedRun } from "../lib/replay/featured.ts";
 import { STAGES, type Stage } from "../lib/scene/stages.ts";
@@ -7,7 +8,11 @@ import { CountUp } from "./CountUp.tsx";
 import { FeaturedReplays } from "./FeaturedReplays.tsx";
 import { StartLive } from "./StartLive.tsx";
 import { HomeWebMcp } from "./WebMcpTools.tsx";
-import { TwinScene } from "./TwinScene.tsx";
+
+// The WebGL renderer is an enhancement, not a prerequisite for reading the evidence-led story or
+// opening a replay. Keeping it out of the initial client bundle makes the landing page usable on
+// slower mobile devices while preserving the same rendered scene once the module is available.
+const TwinScene = dynamic(() => import("./TwinScene.tsx").then((m) => m.TwinScene), { ssr: false });
 
 // The home page: the product loop as a scroll-narrated story beside a live-rendered schematic of the
 // machine. Every number on it comes from a recorded run's bundle, checked against its sha256 before
@@ -192,6 +197,16 @@ export function HomeStory() {
               <p className="muted fine">
                 Recording of a real run, <time dateTime={primary.recordedAt}>{primary.recordedAt.slice(0, 10)}</time>. Every file is checked against its sha256 in your browser.
               </p>
+            ) : null}
+            {primary !== undefined ? (
+              <div className="hero-evidence" role="status">
+                <span className="evidence-pulse" aria-hidden="true" />
+                <span>
+                  <strong>Evidence locked</strong>
+                  <span className="muted"> · recorded run, browser-verified</span>
+                </span>
+                <span className="num evidence-hash">SHA256 / OK</span>
+              </div>
             ) : null}
           </section>
 
