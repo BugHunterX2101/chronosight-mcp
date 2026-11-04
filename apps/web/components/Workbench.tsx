@@ -44,7 +44,7 @@ function describe(err: unknown): string {
 }
 
 export function Workbench({ sessionId }: { sessionId: string }) {
-  const { load, state, link, scenarioId, mode } = useSession(sessionId);
+  const { load, state, link, scenarioId, mode, voiceAvailable } = useSession(sessionId);
   const [scenario, setScenario] = useState<ScenarioInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -327,7 +327,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
         <ByoPanel sessionId={sessionId} busy={busy} onAnalyse={(scale) => void act(() => startPerceive(sessionId, scale))} />
       ) : null}
 
-      <VoiceBar voice={voice} reply={reply} />
+      <VoiceBar voice={voice} available={voiceAvailable === true} reply={reply} />
 
       {problem !== null ? (
         <p role="alert" className="alert">

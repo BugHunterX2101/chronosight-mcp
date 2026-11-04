@@ -18,9 +18,11 @@ const INTENT_LABEL: Record<string, string> = {
   free_text: "a question",
 };
 
-export function VoiceBar({ voice, reply }: { voice: VoiceView; reply: string | null }) {
+export function VoiceBar({ voice, available, reply }: { voice: VoiceView; available: boolean; reply: string | null }) {
   const on = voice.status === "starting" || voice.status === "listening";
-  const state = !voice.supported
+  const state = !available
+    ? "Voice control is unavailable in this replay demo. Try a sample command or type instead."
+    : !voice.supported
     ? "Voice needs a browser with microphone support. Type instead."
     : voice.status === "starting"
       ? "Starting the microphone…"
@@ -34,7 +36,7 @@ export function VoiceBar({ voice, reply }: { voice: VoiceView; reply: string | n
 
   return (
     <section className="voice-bar" aria-label="Voice control">
-      <button type="button" className={on ? "primary" : undefined} aria-pressed={on} disabled={!voice.supported} onClick={voice.toggle}>
+      <button type="button" className={on ? "primary" : undefined} aria-pressed={on} disabled={!voice.supported || !available} onClick={voice.toggle}>
         {on ? "Stop listening" : "Talk to Chronosight"}
       </button>
       <span className="muted" role="status" aria-live="polite">
