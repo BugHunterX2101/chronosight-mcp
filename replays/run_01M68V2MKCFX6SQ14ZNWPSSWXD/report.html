@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>ChronoSight report ses_01M68V2MJB0TTFS7SFQ0WX85P4</title>
+<style nonce="mgUoH8dlUIMXtqYl">
+body{font:14px/1.5 system-ui,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem;color:#111}
+table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #ccc;padding:.25rem .5rem;text-align:left}
+.wait td{color:#666;font-style:italic}.err{color:#a00}small{font-weight:400;color:#555}pre{white-space:pre-wrap;background:#f4f4f4;padding:.5rem}
+</style></head><body>
+<h1>Audit report</h1>
+<p>Session ses_01M68V2MJB0TTFS7SFQ0WX85P4, scenario s1, generated 2026-10-31T17:53:32.027Z.</p>
+<p>Audit chain: verified, 175 lines, head sha256:8dde4e79fd0a4ddd940141ca02d12bbf922dea440dbdabd7b86ae6ef326c4eeb.</p>
+
+<section>
+  <h2>Run run_01M68V2MKCFX6SQ14ZNWPSSWXD <small>PASSED</small></h2>
+  <p>Started 2026-10-31T11:21:19.733Z. Total 343.0 s, machine time 314.7 s (approval waits excluded).
+  Spent $0.2341.</p>
+  <table><thead><tr><th>Span</th><th>Started</th><th>Duration</th></tr></thead><tbody>
+  <tr><td>CAPTURING</td><td>2026-10-31T11:21:19.733Z</td><td>38 ms</td></tr><tr><td>PERCEIVING_PRE</td><td>2026-10-31T11:21:19.771Z</td><td>2 ms</td></tr><tr><td>MEASURING_PRE</td><td>2026-10-31T11:21:19.773Z</td><td>172 ms</td></tr><tr><td>AWAITING_QUESTION</td><td>2026-10-31T11:21:19.945Z</td><td>14 ms</td></tr><tr><td>DIAGNOSING</td><td>2026-10-31T11:21:19.959Z</td><td>127.0 s</td></tr><tr class="wait"><td>AWAITING_APPROVAL_1</td><td>2026-10-31T11:23:27.005Z</td><td>27.5 s</td></tr><tr class="wait"><td>AWAITING_APPROVAL_2</td><td>2026-10-31T11:23:54.527Z</td><td>791 ms</td></tr><tr><td>PATCHING</td><td>2026-10-31T11:23:55.318Z</td><td>133.5 s</td></tr><tr><td>SIMULATING_POST</td><td>2026-10-31T11:26:08.795Z</td><td>8.7 s</td></tr><tr><td>PERCEIVING_POST</td><td>2026-10-31T11:26:17.499Z</td><td>45.0 s</td></tr><tr><td>MEASURING_POST</td><td>2026-10-31T11:27:02.532Z</td><td>228 ms</td></tr><tr><td>PASSED</td><td>2026-10-31T11:27:02.760Z</td><td>0 ms</td></tr>
+  </tbody></table>
+  <p>Diagnosis dia_01M68V2MTNVKYCX85PT287JKNC on contributor-xhigh, spec sha256:d6c78a45492412fb751540c2f28693ba33ee681a29d1bb469202ffa771f1a296.</p>
+  <p>Approval step 1 by click at 2026-10-31T11:23:54.525Z.</p><p>Approval step 2 by click at 2026-10-31T11:23:55.310Z.</p>
+  
+  <pre>{
+  &#34;testId&#34;: &#34;vut_99133a28ad1d7f5f&#34;,
+  &#34;patchId&#34;: &#34;pat_01M68V7CHPEXGC4XX171QXKQN9&#34;,
+  &#34;objectId&#34;: null,
+  &#34;pre&#34;: {
+    &#34;rmsPx&#34;: 7.878902,
+    &#34;rmsMm&#34;: 3.939451,
+    &#34;fStarHz&#34;: 4.027027,
+    &#34;coverage&#34;: 0.993333
+  },
+  &#34;post&#34;: {
+    &#34;rmsPx&#34;: 0.242094,
+    &#34;rmsMm&#34;: 0.121047,
+    &#34;bandPowerDropDb&#34;: 41.245148,
+    &#34;coverage&#34;: 0.96
+  },
+  &#34;noiseFloorPx&#34;: 0.17439,
+  &#34;criteria&#34;: {
+    &#34;coverage&#34;: true,
+    &#34;relative&#34;: true,
+    &#34;absolute&#34;: true,
+    &#34;spectral&#34;: true,
+    &#34;noNewResonance&#34;: true,
+    &#34;confidence&#34;: true
+  },
+  &#34;assertions&#34;: [
+    {
+      &#34;type&#34;: &#34;vibration&#34;,
+      &#34;role&#34;: &#34;fault&#34;,
+      &#34;pass&#34;: true,
+      &#34;reasons&#34;: [],
+      &#34;values&#34;: {
+        &#34;aPreMm&#34;: 3.939451,
+        &#34;aPostMm&#34;: 0.121047,
+        &#34;relRatio&#34;: 0.021318,
+        &#34;dropDb&#34;: 41.245148,
+        &#34;maxNewPeakDb&#34;: null,
+        &#34;newPeakHz&#34;: null,
+        &#34;ceilingMm&#34;: 0.3
+      }
+    }
+  ],
+  &#34;warnings&#34;: [],
+  &#34;verdict&#34;: &#34;PASS&#34;,
+  &#34;groundTruth&#34;: {
+    &#34;rmsMmTrue&#34;: 0.010217,
+    &#34;fStarHzTrue&#34;: 7.305369,
+    &#34;ampErrorPct&#34;: 1084.733158,
+    &#34;freqErrorHz&#34;: 2.483691,
+    &#34;errorPct&#34;: 1084.733158
+  }
+}</pre>
+</section>
+</body></html>

@@ -1,0 +1,15 @@
+[
+  {
+    "clipId": "bl-40023a94988bd7a854da1ef414465ee0",
+    "phase": "pre",
+    "trackKey": "bl-40023a94988bd7a854da1ef414465ee0:fault",
+    "rmsMm": 3.939451,
+    "fStarHz": 4.027027,
+    "coverage": {
+      "fault": 0.993333,
+      "refA": 1,
+      "refB": 1
+    },
+    "final": true
+  }
+]

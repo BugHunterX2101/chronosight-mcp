@@ -1,0 +1,15 @@
+[
+  {
+    "clipId": "po-pat_01M68V7CHPEXGC4XX171QXKQN9",
+    "phase": "post",
+    "trackKey": "po-pat_01M68V7CHPEXGC4XX171QXKQN9:fault",
+    "rmsMm": 0.121047,
+    "fStarHz": 4.821678,
+    "coverage": {
+      "fault": 0.96,
+      "refA": 1,
+      "refB": 1
+    },
+    "final": true
+  }
+]

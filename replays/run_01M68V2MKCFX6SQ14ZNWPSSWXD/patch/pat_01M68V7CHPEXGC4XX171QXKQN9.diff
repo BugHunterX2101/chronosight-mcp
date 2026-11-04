@@ -1,0 +1,59 @@
+diff --git a/controller.py b/controller.py
+index b378adc..db2adc4 100644
+--- a/controller.py
++++ b/controller.py
+@@ -1,7 +1,7 @@
+-"""Elbow joint PD controller, as shipped (faulted baseline)."""
++"""Elbow joint PD controller with EncoderX-14 handling."""
+ import math
+ 
+-from abi import Command, State
++from abi import REG_CONF2, STATUS_RST, Command, State
+ 
+ 
+ class Controller:
+@@ -10,11 +10,19 @@ class Controller:
+         self.kd = float(params["KD"])
+         self.angle_lpf_hz = float(params["ANGLE_LPF_HZ"])
+         self.deriv_lpf_hz = float(params["DERIV_LPF_HZ"])
++        self.enc_filt = int(params["ENC_FILT"])
+         self.q_f = None
+         self.q_prev = None
+         self.dq_f = 0.0
++        self.last_u = 0.0
+ 
+     def step(self, state: State, dt: float) -> Command:
++        writes = [(REG_CONF2, self.enc_filt)]
++        # STATUS is read together with angle every cycle; hold last
++        # command while flags show invalid (reset / field invalid).
++        if state.enc_status != 0:
++            return Command(u=self.last_u, reg_writes=list(writes))
++
+         a_q = 1.0 - math.exp(-2.0 * math.pi * self.angle_lpf_hz * dt)
+         a_d = 1.0 - math.exp(-2.0 * math.pi * self.deriv_lpf_hz * dt)
+ 
+@@ -25,4 +33,6 @@ class Controller:
+         self.dq_f += a_d * (dq - self.dq_f)
+ 
+         u = self.kp * (state.q_ref - self.q_f) + self.kd * (state.qd_ref - self.dq_f)
+-        return Command(u=max(-1.0, min(1.0, u)))
++        u = max(-1.0, min(1.0, u))
++        self.last_u = u
++        return Command(u=u, reg_writes=list(writes))
+diff --git a/params.py b/params.py
+index 9ddded9..9d9c2ea 100644
+--- a/params.py
++++ b/params.py
+@@ -1,7 +1,8 @@
+ # S1 elbow joint controller parameters (units: duty/rad, duty·s/rad, Hz)
+ PARAMS = {
+-    "KP": 3.2,
+-    "KD": 0.0035,
+-    "ANGLE_LPF_HZ": 200.0,
+-    "DERIV_LPF_HZ": 30.0,
++    "KP": 6.0,
++    "KD": 0.25,
++    "ANGLE_LPF_HZ": 60.0,
++    "DERIV_LPF_HZ": 40.0,
++    "ENC_FILT": 3,
+ }
