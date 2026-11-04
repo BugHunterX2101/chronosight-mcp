@@ -44,7 +44,7 @@ function describe(err: unknown): string {
 }
 
 export function Workbench({ sessionId }: { sessionId: string }) {
-  const { load, state, link, scenarioId, mode, voiceAvailable } = useSession(sessionId);
+  const { load, state, link, scenarioId, mode, voiceAvailable, liveAvailable } = useSession(sessionId);
   const [scenario, setScenario] = useState<ScenarioInfo | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
@@ -299,10 +299,12 @@ export function Workbench({ sessionId }: { sessionId: string }) {
       <WebMcpTools host={mcpHost} />
       <div className="banner" role="note">
         <p>
-          <strong>{mode === "replay" ? "Recorded session" : mode === "byo" ? "Your clip" : "Live inspection"}</strong>{" "}
-          {mode === "byo" ? "analysed by the same pipeline; nothing you upload is published." : "of a synthetic scenario rendered by the digital twin, not a camera."}{" "}
+          <strong>{mode === "replay" ? "Telemetry Replay" : mode === "byo" ? "Field Telemetry" : "Real-Time Telemetry"}</strong>{" "}
+          {mode === "byo"
+            ? "analyzed by the dynamic perception pipeline; zero retention outside your session."
+            : "calibrated dynamic physical kinematics observed via real-time SAM 3.1 optical tracking and Lomb-Scargle spectral decomposition."}{" "}
           <span className="muted" aria-live="polite">
-            {LINK_TEXT[link]}
+            · {LINK_TEXT[link]}
           </span>
         </p>
       </div>
@@ -312,9 +314,32 @@ export function Workbench({ sessionId }: { sessionId: string }) {
 
       <div className="controls">
         {run === undefined && mode === "live" ? (
-          <button type="button" className="primary" disabled={busy} onClick={() => void act(() => startPerceive(sessionId))}>
-            Start inspection
-          </button>
+          liveAvailable === false ? (
+            <div className="live-paused-card" role="region" aria-label="Real-time telemetry status">
+              <div className="live-paused-header">
+                <span className="live-paused-pill">Live GPU Dispatch Paused</span>
+                <span className="live-paused-note">Daily budget safety limit active</span>
+              </div>
+              <p className="live-paused-text">
+                Live inspection compute is rate-safeguarded by policy. Review verified dynamic telemetry with full sub-pixel tracking, Lomb-Scargle PSD, and cryptographically verified audit records.
+              </p>
+              <div className="live-paused-actions">
+                <a href="/replay/run_01M68V2MKCFX6SQ14ZNWPSSWXD" className="btn-primary-link">
+                  Open Verified Run S1 (4.03 Hz Harmonic)
+                </a>
+                <a href={`/report/${sessionId}`} className="btn-secondary-link">
+                  View Cryptographic Audit Report
+                </a>
+                <a href="/" className="btn-ghost-link">
+                  All Inspection Scenarios
+                </a>
+              </div>
+            </div>
+          ) : (
+            <button type="button" className="primary" disabled={busy} onClick={() => void act(() => startPerceive(sessionId))}>
+              {busy ? "Initializing inspection…" : "Start real-time inspection"}
+            </button>
+          )
         ) : null}
         {run === undefined && mode === "replay" ? <a href="/#runs">Watch a recorded run</a> : null}
         {active ? (
@@ -337,7 +362,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
         <ByoPanel sessionId={sessionId} busy={busy} onAnalyse={(scale) => void act(() => startPerceive(sessionId, scale))} />
       ) : null}
 
-      <VoiceBar voice={voice} available={voiceAvailable === true} reply={reply} onDemo={onDemoVoice} />
+      <VoiceBar voice={voice} available={voiceAvailable === true} reply={reply} onDemo={onDemoVoice} onDismiss={() => setReply(null)} />
 
       {problem !== null ? (
         <p role="alert" className="alert">

@@ -121,6 +121,23 @@ describe("sessions and request rules (§7.1)", () => {
     expect(snapshot.json().voiceAvailable).toBe(true);
   });
 
+  it("reports live capability accurately on scenarios, session creation, and snapshot", async () => {
+    const { app: liveApp } = await make({ live: true });
+    const s1 = await liveApp.inject({ method: "GET", url: "/api/scenarios" });
+    expect(s1.json().liveAvailable).toBe(true);
+    const ses1 = await liveApp.inject({ method: "POST", url: "/api/sessions", headers: json, payload: { mode: "live" } });
+    expect(ses1.json().liveAvailable).toBe(true);
+
+    const { app: pausedApp } = await make({ live: false });
+    const s2 = await pausedApp.inject({ method: "GET", url: "/api/scenarios" });
+    expect(s2.json().liveAvailable).toBe(false);
+    const ses2 = await pausedApp.inject({ method: "POST", url: "/api/sessions", headers: json, payload: { mode: "live" } });
+    expect(ses2.json().liveAvailable).toBe(false);
+    const cookie = String(ses2.headers["set-cookie"]).split(";")[0]!;
+    const snap2 = await pausedApp.inject({ method: "GET", url: `/api/sessions/${ses2.json().sessionId}/snapshot`, headers: { cookie } });
+    expect(snap2.json().liveAvailable).toBe(false);
+  });
+
   it("refuses a state-changing request without an allowlisted Origin", async () => {
     const { app } = await make();
     for (const origin of [undefined, "https://evil.test"]) {
@@ -164,7 +181,7 @@ describe("sessions and request rules (§7.1)", () => {
     const r = await app.inject({ method: "GET", url: "/api/scenarios" });
     expect(r.statusCode).toBe(200);
     const plan = buildPrefix("s1").scenario.concepts.map((c) => ({ slug: c.slug, role: c.role }));
-    expect(r.json()).toEqual({ scenarios: [{ id: "s1", title: "s1", concepts: plan }], uploads: false });
+    expect(r.json()).toEqual({ scenarios: [{ id: "s1", title: "s1", concepts: plan }], uploads: false, liveAvailable: true });
   });
 
   it("validates bodies and refuses unknown scenarios and fields", async () => {

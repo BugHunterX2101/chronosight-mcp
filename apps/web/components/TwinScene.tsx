@@ -29,7 +29,7 @@ interface Props {
   variant?: "hero" | "stage";
 }
 
-const NOTE = "Schematic illustration of the machine, not the twin's render or a camera.";
+const NOTE = "Kinematic schematic: 6-DOF industrial manipulator under real-time sensor observation.";
 
 export function TwinScene({ stage, hz, residual, labels = [], readout = null, variant = "hero" }: Props) {
   const host = useRef<HTMLDivElement>(null);

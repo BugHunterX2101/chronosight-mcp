@@ -47,12 +47,12 @@ async function call<T>(method: "GET" | "POST", path: string, body?: unknown): Pr
   return parsed as T;
 }
 
-export const listScenarios = () => call<{ scenarios: ScenarioInfo[] }>("GET", "/api/scenarios").then((r) => r.scenarios);
+export const listScenarios = () => call<{ scenarios: ScenarioInfo[]; uploads?: boolean; liveAvailable?: boolean }>("GET", "/api/scenarios").then((r) => r.scenarios);
 
 export const createSession = (scenarioId: string, mode: "live" | "replay" | "byo" = "live") =>
-  call<{ sessionId: string; wsUrl: string; budgetRemaining: number; voiceAvailable: boolean }>("POST", "/api/sessions", { scenarioId, mode });
+  call<{ sessionId: string; wsUrl: string; budgetRemaining: number; voiceAvailable: boolean; liveAvailable?: boolean }>("POST", "/api/sessions", { scenarioId, mode });
 
-export const getSnapshot = (sessionId: string) => call<{ headSeq: number; scenarioId: string; mode: "live" | "replay" | "byo"; state: SessionState; voiceAvailable?: boolean }>("GET", `/api/sessions/${sessionId}/snapshot`);
+export const getSnapshot = (sessionId: string) => call<{ headSeq: number; scenarioId: string; mode: "live" | "replay" | "byo"; state: SessionState; voiceAvailable?: boolean; liveAvailable?: boolean }>("GET", `/api/sessions/${sessionId}/snapshot`);
 
 /** A person's clip has no camera model, so its scale is the reference marker's real size or mm per pixel, if they know it (FR-MEA-2). */
 export interface ClipScale {
@@ -64,6 +64,9 @@ export const startPerceive = (sessionId: string, scale: ClipScale = {}) => call<
 
 /** Whether this gateway takes a person's own clip (a media worker is configured). */
 export const uploadsAvailable = () => call<{ uploads?: boolean }>("GET", "/api/scenarios").then((r) => r.uploads === true);
+
+/** Whether live inspection runs are available or paused by budget/kill-switch policy. */
+export const isLiveAvailable = () => call<{ liveAvailable?: boolean }>("GET", "/api/scenarios").then((r) => r.liveAvailable === true, () => false);
 
 export interface UploadedClip {
   clipId: string;

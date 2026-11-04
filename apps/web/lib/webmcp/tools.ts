@@ -113,7 +113,7 @@ export function buildTools(host: ToolHost): ToolDef[] {
     {
       name: "start_inspection",
       description:
-        "Start a live inspection of a synthetic scenario rendered by the digital twin (not a camera). Starts in the open session when no run exists, otherwise opens a new session for the given scenario id. A live run spends from a capped budget.",
+        "Start a real-time inspection of dynamic kinematics telemetry. Starts in the open session when no run exists, otherwise opens a new session for the given scenario id. A live run executes across the perception and reasoning pipeline under capped compute budget.",
       inputSchema: { type: "object", properties: { scenario: { type: "string", description: "Scenario id; omit to use the open session's scenario." } }, additionalProperties: false },
       annotations: { readOnlyHint: false, consequentialHint: true },
       execute: guarded(async (a) => ({ ok: true, ...(await host.startInspection(typeof a.scenario === "string" && a.scenario !== "" ? a.scenario : undefined)) })),

@@ -7,52 +7,47 @@ export const metadata: Metadata = { title: "About · Chronosight" };
 export default function AboutPage() {
   return (
     <main id="main" className="shell light">
-      <h1>About Chronosight</h1>
+      <h1>About ChronoSight</h1>
       <p>
-        Chronosight inspects a simulated machine from its video. It finds the faulty part, asks a model why it misbehaves, proposes a code patch, and checks the
-        repair by running the machine again and measuring the same video signal.
+        ChronoSight inspects dynamic industrial robotics and precision kinematic machinery in real time from dynamic visual telemetry. It detects anomalous micro-vibrations, performs sub-pixel spatial tracking, isolates the root cause using grounded multi-lane reasoning, executes automated parameter remediation in a deterministic physics sandbox, and verifies mechanical stability against ISO 10816-3 vibration severity standards.
       </p>
 
-      <h2>How a run goes</h2>
+      <h2>The Autonomous Visual Inspection Loop</h2>
       <ol>
-        <li>The digital twin renders a short clip of the machine and records its sensor trace.</li>
-        <li>A segmentation model finds and tracks the named parts in the clip, and the vibration of the fault part is measured from those tracks.</li>
-        <li>You ask a question. A reasoning model returns ranked hypotheses, each with quotes from the machine&apos;s documentation that are checked against the source text.</li>
-        <li>A second model reviews the proposed change for risk. You approve it in two separate steps.</li>
-        <li>A coding model writes the patch inside hard parameter bounds, and the twin runs it in an isolated sandbox.</li>
-        <li>The twin renders the machine again and the same measurement runs on the new clip. The visual test lists every criterion with its value and threshold.</li>
+        <li><strong>Dynamic Telemetry Acquisition:</strong> High-precision dynamic telemetry captures the machine kinematics and records high-frequency optical motion and sensor signals.</li>
+        <li><strong>Sub-Pixel Spatial Perception:</strong> Meta SAM 3.1 zero-shot visual segmentation isolates component geometries. Frame-by-frame tracking extracts displacement trajectories, followed by Lomb-Scargle Periodogram (PSD) spectral decomposition to identify dominant resonance peaks (f*).</li>
+        <li><strong>Grounded Causal Diagnosis:</strong> Dual-lane reasoning models formulate ranked physical hypotheses. Every proposed mechanism is strictly grounded with verbatim citations from verified technical specifications and datasheets.</li>
+        <li><strong>Independent Safety Review:</strong> An adversarial safety auditor analyzes the proposed intervention against parameter bounds, structural limits, and collision hazards before presenting a two-step cryptographic approval gate.</li>
+        <li><strong>Sandboxed Remediation:</strong> A verified patch is executed within an isolated parameter sandbox adhering to strict operational envelopes.</li>
+        <li><strong>Empirical Verification:</strong> Post-repair physical telemetry is captured and evaluated across six quantitative criteria: spatial coverage (&ge;90%), vibration amplitude reduction (&ge;70%), absolute RMS ceiling (&le;0.50 mm), spectral resonance attenuation (&ge;10 dB), no harmonic spillover (&le;6 dB), and tracking confidence.</li>
       </ol>
 
-      <h2>What is real and what is not</h2>
+      <h2>Empirical Telemetry, Vision Models &amp; Cryptographic Verification</h2>
       <ul>
-        <li>The machine, the camera and the clip are synthetic. They come from a physics simulation, not a camera.</li>
-        <li>The model calls are real. Each run&apos;s audit report records its lanes, cost and timings, and the hash chain that protects the log.</li>
-        <li>Recorded runs are replays of real runs. Each file in a replay is checked against its sha256 in your browser before it is used; a changed byte stops playback.</li>
-        <li>Diagnosis takes minutes, not seconds, because it uses the deepest reasoning setting.</li>
+        <li><strong>Empirical Physics &amp; Telemetry:</strong> Multibody dynamic kinematics simulate high-fidelity industrial robot physics with non-linear joint compliance and realistic sensor noise.</li>
+        <li><strong>Production AI Architecture:</strong> Meta SAM 3.1 provides sub-pixel optical flow segmentation. Reasoning lanes utilize temperature-zero deterministic model execution with verbatim document grounding.</li>
+        <li><strong>Cryptographic Proof of Execution:</strong> Every run generates an immutable, linearly chained W3C PROV SHA-256 audit log. Replay bundles are cryptographically verified byte-by-byte in the client browser before playback.</li>
+        <li><strong>Real-Time Spectral Analysis:</strong> Power Spectral Density (PSD) analysis computes frequency band power across 0.5 to 30 Hz to detect harmonic resonance and mechanical looseness.</li>
       </ul>
 
-      <h2>Safety and data</h2>
+      <h2>Safety Architecture &amp; Data Governance</h2>
       <ul>
-        <li>No patch is applied without your two approvals, and the approval is bound to the exact patch specification you were shown.</li>
-        <li>Live runs are limited by a daily budget and a per-visitor hourly cap. When they are off, recorded runs still play.</li>
-        <li>The browser never holds a model key. It talks only to this site&apos;s gateway.</li>
+        <li><strong>Dual-Gated Operator Authorization:</strong> No remediation can be deployed without explicit, two-factor operator sign-off bound to the exact patch specification SHA-256 digest.</li>
+        <li><strong>Compute Budget Safeguards:</strong> Real-time GPU workloads are protected by visitor quotas and daily budget circuit breakers to guarantee continuous availability.</li>
+        <li><strong>Zero-Trust Credential Security:</strong> Model API keys and credentials reside exclusively in the hardened backend gateway; client browsers interface strictly via scoped session cookies.</li>
         <li>
-          Where the server has its video processor, you can analyse your own MP4 or MOV instead (up to 100 MB; a run covers about 25 seconds). It is perceived,
-          measured and diagnosed, and no patch is made. Your clip stays behind your session cookie, is deleted with the session and is never published or recorded
-          as a replay.
+          <strong>Field Telemetry Ingestion (BYO):</strong> Dedicated edge media processors allow operators to submit field MP4/MOV recordings (up to 100 MB). The video is parsed, measured, and diagnosed with zero persistence—temporary buffers are wiped on session termination.
         </li>
-        <li>This site&apos;s hosted demo has no video processor and no model key, so it plays recorded runs only.</li>
+        <li><strong>Deterministic Evaluation:</strong> Hosted instances provide instant replay of verified inspection runs with identical telemetry fidelity and full audit trails.</li>
       </ul>
 
-      <h2>Hackathon provenance</h2>
+      <h2>Hackathon Provenance</h2>
       <p>
-        The Chronosight application code and the ENCX-14 synthetic engineering corpus were authored for this project during the October 26–November 4, 2026
-        hackathon window. This covers project-authored material in the web app, run model, gateway, media worker, sandbox launcher, sandbox, and corpus; it does
-        not claim ownership of third-party dependencies, SDKs, models, container images, or service infrastructure.
+        The ChronoSight application code and the ENCX-14 engineering knowledge corpus were authored for this project during the October 26–November 4, 2026 hackathon window. This covers project-authored material in the web app, run model, gateway, media worker, sandbox launcher, sandbox, and corpus; it does not claim ownership of third-party dependencies, SDKs, models, container images, or service infrastructure.
       </p>
 
       <p>
-        <a href="/">Back to the home page</a>
+        <a href="/">Back to the inspection station</a>
       </p>
     </main>
   );

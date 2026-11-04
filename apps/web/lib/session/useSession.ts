@@ -16,6 +16,8 @@ export interface SessionView {
   mode: "live" | "replay" | "byo" | null;
   /** Whether this deployment configured the server-side voice relay. */
   voiceAvailable: boolean | null;
+  /** Whether live runs are currently available on this gateway. */
+  liveAvailable: boolean | null;
 }
 
 // The per-session store (DESIGN §25.2): the state is only ever the reducer's output over events, the
@@ -28,6 +30,7 @@ export function useSession(sessionId: string): SessionView {
   const [scenarioId, setScenarioId] = useState<string | null>(null);
   const [mode, setMode] = useState<SessionView["mode"]>(null);
   const [voiceAvailable, setVoiceAvailable] = useState<boolean | null>(null);
+  const [liveAvailable, setLiveAvailable] = useState<boolean | null>(null);
   const head = useRef(0);
   const working = useRef(false);
 
@@ -58,6 +61,7 @@ export function useSession(sessionId: string): SessionView {
       setScenarioId(snap.scenarioId);
       setMode(snap.mode);
       setVoiceAvailable(snap.voiceAvailable === true);
+      setLiveAvailable(snap.liveAvailable !== undefined ? snap.liveAvailable : null);
       setState(snap.state);
     };
 
@@ -101,5 +105,5 @@ export function useSession(sessionId: string): SessionView {
     };
   }, [sessionId]);
 
-  return { load, state, link, scenarioId, mode, voiceAvailable };
+  return { load, state, link, scenarioId, mode, voiceAvailable, liveAvailable };
 }

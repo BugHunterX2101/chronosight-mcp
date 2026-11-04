@@ -26,53 +26,98 @@ const DEMO_COMMANDS: readonly { label: string; text: string; intent: VoiceIntent
   { label: "Voice help", text: "Demo command: help", intent: { kind: "help" } },
 ];
 
-export function VoiceBar({ voice, available, reply, onDemo }: { voice: VoiceView; available: boolean; reply: string | null; onDemo: (text: string, intent: VoiceIntent) => void }) {
+export function VoiceBar({
+  voice,
+  available,
+  reply,
+  onDemo,
+  onDismiss,
+}: {
+  voice: VoiceView;
+  available: boolean;
+  reply: string | null;
+  onDemo: (text: string, intent: VoiceIntent) => void;
+  onDismiss?: () => void;
+}) {
   const on = voice.status === "starting" || voice.status === "listening";
-  const state = !available
-    ? "Voice control is unavailable in this replay demo. Try a sample command or type instead."
+  const stateLabel = !available
+    ? "Relay Offline"
     : !voice.supported
-    ? "Voice needs a browser with microphone support. Type instead."
-    : voice.status === "starting"
-      ? "Starting the microphone…"
-      : voice.status === "listening"
-        ? "Listening"
-        : voice.status === "unavailable"
-          ? (voice.detail ?? "Voice unavailable. Type instead.")
-          : "Voice is off";
+      ? "Mic Unsupported"
+      : voice.status === "starting"
+        ? "Connecting Mic…"
+        : voice.status === "listening"
+          ? "Listening"
+          : voice.status === "unavailable"
+            ? (voice.detail ?? "Voice Unavailable")
+            : "Mic Standby";
+
   const last = voice.last;
-  const understood = last === null ? null : last.intent.kind === "none" ? "I didn't catch that" : `Understood: ${INTENT_LABEL[last.intent.kind] ?? last.intent.kind}`;
+  const understood = last === null ? null : last.intent.kind === "none" ? "Unrecognized command" : `Intent: ${INTENT_LABEL[last.intent.kind] ?? last.intent.kind}`;
 
   return (
-    <section className="voice-bar" aria-label="Voice control">
-      <button type="button" className={on ? "primary" : undefined} aria-pressed={on} disabled={!voice.supported || !available} onClick={voice.toggle}>
-        {on ? "Stop listening" : "Talk to Chronosight"}
-      </button>
-      <div className="voice-demo" aria-label="Demo voice commands">
-        <span className="muted">Try without a microphone:</span>
-        {DEMO_COMMANDS.map((command) => (
-          <button key={command.label} type="button" onClick={() => onDemo(command.text, command.intent)}>
-            {command.label}
+    <section className="voice-bar-deck" aria-label="Voice & Telemetry Command Deck">
+      <div className="voice-bar-main">
+        {available ? (
+          <button
+            type="button"
+            className={`voice-record-btn ${on ? "active" : ""}`}
+            aria-pressed={on}
+            disabled={!voice.supported || !available}
+            onClick={voice.toggle}
+          >
+            <span className={`voice-dot ${on ? "pulsing" : ""}`} aria-hidden="true" />
+            <span>{on ? "Stop listening" : "Talk to ChronoSight"}</span>
           </button>
-        ))}
+        ) : (
+          <div className="voice-badge-offline" title="Server-side speech recognition relay is offline for this session. Use command buttons below.">
+            <span className="voice-dot offline" aria-hidden="true" />
+            <span>{stateLabel}</span>
+          </div>
+        )}
+
+        <div className="voice-demo-strip" aria-label="Telemetry command shortcuts">
+          <span className="voice-strip-label">Commands:</span>
+          {DEMO_COMMANDS.map((command) => (
+            <button key={command.label} type="button" className="voice-chip-btn" onClick={() => onDemo(command.text, command.intent)}>
+              {command.label}
+            </button>
+          ))}
+        </div>
+
+        {on && voice.detail && (
+          <span className="voice-live-detail muted" role="status" aria-live="polite">
+            {voice.detail}
+          </span>
+        )}
       </div>
-      <span className="muted" role="status" aria-live="polite">
-        {state}
-        {voice.status === "listening" && voice.detail !== null ? ` · ${voice.detail}` : ""}
-      </span>
-      <p className="voice-line" aria-live="polite">
-        {voice.partial !== "" ? (
-          <span className="muted">{voice.partial}…</span>
-        ) : last !== null ? (
-          <>
-            <q>{last.text}</q> <span className="muted">{understood}</span>
-          </>
-        ) : null}
-      </p>
-      {reply !== null ? (
-        <p className="voice-reply" aria-live="polite">
-          {reply}
-        </p>
-      ) : null}
+
+      {(voice.partial !== "" || last !== null) && (
+        <div className="voice-transcript-bar" aria-live="polite">
+          {voice.partial !== "" ? (
+            <span className="voice-partial-text">{voice.partial}…</span>
+          ) : last !== null ? (
+            <div className="voice-transcript-result">
+              <span className="voice-query">“{last.text}”</span>
+              <span className="voice-understood-pill">{understood}</span>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {reply !== null && (
+        <div className="voice-reply-card" role="region" aria-label="System response">
+          <div className="voice-reply-header">
+            <span className="voice-reply-badge">ChronoSight Engineering Copilot</span>
+            {onDismiss && (
+              <button type="button" className="voice-reply-dismiss" onClick={onDismiss} aria-label="Dismiss response">
+                ✕
+              </button>
+            )}
+          </div>
+          <p className="voice-reply-content">{reply}</p>
+        </div>
+      )}
     </section>
   );
 }

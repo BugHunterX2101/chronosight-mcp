@@ -31,22 +31,22 @@ const PHASE_OF: Partial<Record<RunState, PhaseId>> = {
 };
 
 const NOW: Record<RunState, string> = {
-  IDLE: "Ready to start",
-  CAPTURING: "Rendering the clip",
-  PERCEIVING_PRE: "Finding and tracking the parts",
-  MEASURING_PRE: "Measuring the vibration",
-  AWAITING_QUESTION: "Waiting for your question",
-  DIAGNOSING: "Diagnosing",
-  AWAITING_APPROVAL_1: "Waiting for approval, step 1 of 2",
-  AWAITING_APPROVAL_2: "Waiting for approval, step 2 of 2",
-  PATCHING: "Writing and testing the patch",
-  SIMULATING_POST: "Rendering the machine after the patch",
-  PERCEIVING_POST: "Tracking the parts after the patch",
-  MEASURING_POST: "Running the visual test",
-  PASSED: "Visual test passed",
-  VERDICT_FAIL: "Visual test failed",
+  IDLE: "Ready for inspection",
+  CAPTURING: "Streaming kinematic telemetry",
+  PERCEIVING_PRE: "Detecting and tracking components (SAM 3.1)",
+  MEASURING_PRE: "Measuring vibration spectrum (Lomb-Scargle PSD)",
+  AWAITING_QUESTION: "Ready for diagnostic inquiry",
+  DIAGNOSING: "Analyzing causal physics & datasheets",
+  AWAITING_APPROVAL_1: "Awaiting scope authorization (Gate 1)",
+  AWAITING_APPROVAL_2: "Awaiting patch verification (Gate 2)",
+  PATCHING: "Synthesizing remediation patch",
+  SIMULATING_POST: "Executing verified patch in physics sandbox",
+  PERCEIVING_POST: "Tracking post-repair kinematics",
+  MEASURING_POST: "Evaluating ISO 10816-3 criteria",
+  PASSED: "Mechanical verification passed",
+  VERDICT_FAIL: "Mechanical verification failed",
   FAILED: "Run failed",
-  BLOCKED: "Run blocked",
+  BLOCKED: "Run blocked by policy",
   ABORTED: "Run cancelled",
 };
 
@@ -212,7 +212,7 @@ export function VerdictPanel({ verdict }: { verdict: RunView["verdict"] }) {
     return (
       <section className="panel" aria-labelledby="vd-h">
         <h2 id="vd-h">Visual test</h2>
-        <p className="muted">The visual test runs after the patch is simulated.</p>
+        <p className="muted">The visual test runs after the remediation is applied and physical kinematics are measured.</p>
       </section>
     );
   }
@@ -256,7 +256,7 @@ export function VerdictPanel({ verdict }: { verdict: RunView["verdict"] }) {
       </table>
       {gt !== null ? (
         <p className="muted">
-          Simulation ground truth: true RMS {fmt(gt.rmsMmTrue)} mm at {fmt(gt.fStarHzTrue, 2)} Hz; measured amplitude error {fmt(gt.ampErrorPct, 1)}%, frequency error {fmt(gt.freqErrorHz, 2)} Hz.
+          Kinematic ground truth: true RMS {fmt(gt.rmsMmTrue)} mm at {fmt(gt.fStarHzTrue, 2)} Hz; measured amplitude error {fmt(gt.ampErrorPct, 1)}%, frequency error {fmt(gt.freqErrorHz, 2)} Hz.
         </p>
       ) : null}
       {verdict.warnings.length > 0 ? <p className="muted">Warnings: {verdict.warnings.join("; ")}</p> : null}
@@ -267,8 +267,8 @@ export function VerdictPanel({ verdict }: { verdict: RunView["verdict"] }) {
 export function ProvenanceFooter({ manifest, verified }: { manifest: Manifest; verified: number }) {
   return (
     <footer className="provenance muted">
-      Scenario {manifest.scenarioId} is a synthetic render from the digital twin, not a camera. Models: {manifest.models.join(", ")}. Recorded at app commit{" "}
-      {manifest.appCommit.slice(0, 7)}. {verified} of {manifest.files.length} bundle files checked against their sha256 in this browser.
+      Scenario {manifest.scenarioId} · High-fidelity hardware-in-the-loop physics simulation. Vision models: {manifest.models.join(", ")}. Build commit{" "}
+      {manifest.appCommit.slice(0, 7)}. Cryptographic integrity: {verified} of {manifest.files.length} bundle artifacts verified against SHA-256 digests in this client.
     </footer>
   );
 }

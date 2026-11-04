@@ -57,11 +57,11 @@ export function planIntent(intent: VoiceIntent, ctx: IntentContext): Plan {
     case "cancel":
       return { action: { kind: "cancel" }, reply: "Cancelling the run." };
     case "help":
-      if (ctx.state === "AWAITING_QUESTION") return { action: null, reply: "Ask why the machine is misbehaving, or say inspect followed by a part name." };
-      if (ctx.state === "AWAITING_APPROVAL_1") return { action: null, reply: "Say approve to accept the proposed scope, or reject followed by your concern." };
-      if (ctx.state === "AWAITING_APPROVAL_2") return { action: null, reply: "Say confirm to apply the reviewed patch, or reject followed by your concern." };
-      if (ctx.state === "PASSED" || ctx.state === "VERDICT_FAIL") return { action: null, reply: "You can say show datasheet, run placebo, or start another inspection." };
-      return { action: null, reply: "You can say cancel, inspect a part, or ask me to explain the fault when perception is done." };
+      if (ctx.state === "AWAITING_QUESTION") return { action: null, reply: "Available commands: explain the fault, ask why the machine is misbehaving, or inspect a part." };
+      if (ctx.state === "AWAITING_APPROVAL_1") return { action: null, reply: "Available commands: approve proposed scope, or reject with engineering notes." };
+      if (ctx.state === "AWAITING_APPROVAL_2") return { action: null, reply: "Available commands: confirm verified patch, or reject with reason." };
+      if (ctx.state === "PASSED" || ctx.state === "VERDICT_FAIL") return { action: null, reply: "Available commands: show datasheets, run placebo negative control, or review audit report." };
+      return { action: null, reply: "Available commands: inspect part, show cited datasheets, or explain fault once perception completes." };
     case "show_datasheet":
       return { action: { kind: "datasheet" }, reply: "Showing the cited sources." };
     case "inspect":
