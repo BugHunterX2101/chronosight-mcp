@@ -49,6 +49,12 @@ export interface LedgerOptions {
   visitorRunsPerHour: number;
   /** Boot default of the kill switch; `state/live.json` overrides it once an admin has toggled it. */
   liveDefault: boolean;
+  /**
+   * Identifies one deployment lifetime. It prevents a lock left on persistent storage by a
+   * previous container from being mistaken for a same-PID process in its replacement container.
+   * Omit it for local, single-host use, where a numeric legacy lock remains sufficient.
+   */
+  lockInstanceId?: string;
   now?: () => number;
 }
 
@@ -84,6 +90,7 @@ export class BudgetLedger {
   readonly lockPath: string;
   readonly livePath: string;
   private readonly o: Required<LedgerOptions>;
+  private readonly lockInstanceId: string | null;
   private fd: number | null = null;
   private day = -1;
   private spent = 0;
@@ -98,7 +105,8 @@ export class BudgetLedger {
   private liveAt: string | null = null;
 
   constructor(o: LedgerOptions) {
-    this.o = { now: Date.now, ...o };
+    this.o = { now: Date.now, lockInstanceId: "", ...o };
+    this.lockInstanceId = o.lockInstanceId?.trim() || null;
     this.ledgerPath = join(o.dataDir, "budget", "ledger.jsonl");
     this.lockPath = join(o.dataDir, "budget", "ledger.lock");
     this.livePath = join(o.dataDir, "state", "live.json");
@@ -130,8 +138,8 @@ export class BudgetLedger {
     if (this.fd !== null) closeSync(this.fd);
     this.fd = null;
     try {
-      const held = Number(readFileSync(this.lockPath, "utf8").trim());
-      if (held === process.pid) unlinkSync(this.lockPath);
+      const held = this.readLock();
+      if (held?.pid === process.pid && held.instanceId === this.lockInstanceId) unlinkSync(this.lockPath);
     } catch {
       // already gone
     }
@@ -139,17 +147,40 @@ export class BudgetLedger {
 
   private lock(): void {
     try {
-      writeFileSync(this.lockPath, String(process.pid), { flag: "wx" });
+      writeFileSync(this.lockPath, this.lockContents(), { flag: "wx" });
       return;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "EEXIST") throw e;
     }
-    const held = Number(readFileSync(this.lockPath, "utf8").trim());
-    if (Number.isInteger(held) && held !== process.pid && pidAlive(held)) {
-      throw new LedgerLockedError(`ledger lock ${this.lockPath} is held by running process ${held} (TD-5: one gateway)`);
+    const held = this.readLock();
+    // A deployment instance ID is intentionally random at container start. A matching ID means
+    // this is genuinely a competing process; a different ID means a persistent-volume lock is
+    // from a previous container, whose PID has no meaning in this PID namespace.
+    if (held !== null && held.pid !== process.pid && held.instanceId === this.lockInstanceId && pidAlive(held.pid)) {
+      throw new LedgerLockedError(`ledger lock ${this.lockPath} is held by running process ${held.pid} (TD-5: one gateway)`);
     }
-    // The holder is gone, so the lock is stale.
-    writeFileSync(this.lockPath, String(process.pid));
+    // The holder is gone, or belongs to an earlier deployment lifetime, so the lock is stale.
+    writeFileSync(this.lockPath, this.lockContents());
+  }
+
+  private lockContents(): string {
+    // Retain the original simple format for local installs and existing tooling.
+    return this.lockInstanceId === null ? String(process.pid) : JSON.stringify({ pid: process.pid, instanceId: this.lockInstanceId });
+  }
+
+  private readLock(): { pid: number; instanceId: string | null } | null {
+    try {
+      const raw = readFileSync(this.lockPath, "utf8").trim();
+      const pid = Number(raw);
+      if (Number.isInteger(pid)) return { pid, instanceId: null };
+      const parsed = JSON.parse(raw) as { pid?: unknown; instanceId?: unknown };
+      const candidatePid = parsed.pid;
+      return typeof candidatePid === "number" && Number.isInteger(candidatePid) && typeof parsed.instanceId === "string" && parsed.instanceId.length > 0
+        ? { pid: candidatePid, instanceId: parsed.instanceId }
+        : null;
+    } catch {
+      return null;
+    }
   }
 
   private replay(text: string, now: number): void {

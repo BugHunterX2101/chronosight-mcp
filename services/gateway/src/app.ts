@@ -345,14 +345,14 @@ export async function buildApp(o: AppOptions): Promise<FastifyInstance> {
     hudLogs.set(id, hud);
     const maxAge = Math.floor(o.sessionTtlMs / 1000);
     reply.header("set-cookie", `${COOKIE}=${signSid(id)}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=${maxAge}`);
-    return reply.code(201).send({ sessionId: id, wsUrl: `/ws/sessions/${id}`, budgetRemaining: o.ledger.totals().remainingUsd });
+    return reply.code(201).send({ sessionId: id, wsUrl: `/ws/sessions/${id}`, budgetRemaining: o.ledger.totals().remainingUsd, voiceAvailable: Boolean(o.asr) });
   });
 
   app.get("/api/sessions/:id/snapshot", async (req) => {
     const { s, via } = access(req, "read");
     // The glasses get the run's state and their own projected log, which they fold; never the session state.
     if (via === "hud") return { headSeq: s.headSeq, state: s.runState ?? "IDLE", events: hudLogs.get(s.id)?.all ?? [] };
-    return { headSeq: s.headSeq, scenarioId: s.scenarioId, mode: s.mode, state: s.state };
+    return { headSeq: s.headSeq, scenarioId: s.scenarioId, mode: s.mode, state: s.state, voiceAvailable: Boolean(o.asr) };
   });
 
   app.get("/api/sessions/:id/events", async (req) => {

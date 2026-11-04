@@ -133,6 +133,19 @@ describe("BudgetLedger.boot", () => {
     taker.close();
     expect(existsSync(l.lockPath)).toBe(false);
   });
+
+  it("takes over a persistent-volume lock from a prior deployment, but retains a same-deployment lock", () => {
+    const l = open();
+    const dataDir = join(l.ledgerPath, "..", "..");
+    writeFileSync(l.lockPath, JSON.stringify({ pid: process.ppid, instanceId: "previous-container" }));
+    const next = new BudgetLedger({ dataDir, dailyCapUsd: 3, visitorRunsPerHour: 2, liveDefault: true, lockInstanceId: "new-container" });
+    next.boot();
+    expect(readFileSync(l.lockPath, "utf8")).toContain("new-container");
+    next.close();
+
+    writeFileSync(l.lockPath, JSON.stringify({ pid: process.ppid, instanceId: "same-container" }));
+    expect(() => new BudgetLedger({ dataDir, dailyCapUsd: 3, visitorRunsPerHour: 2, liveDefault: true, lockInstanceId: "same-container" }).boot()).toThrow(LedgerLockedError);
+  });
 });
 
 describe("BudgetLedger.reserve for a placebo child", () => {

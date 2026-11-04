@@ -98,6 +98,7 @@ describe("sessions and request rules (§7.1)", () => {
     expect(r.statusCode).toBe(201);
     expect(r.headers["x-cs-request-id"]).toMatch(/^req_/);
     expect(r.headers["access-control-allow-origin"]).toBe(ORIGIN);
+    expect(r.json().voiceAvailable).toBe(false);
     const body = r.json();
     expect(body.sessionId).toMatch(/^ses_[0-9A-HJKMNP-TV-Z]{26}$/);
     expect(body.wsUrl).toBe(`/ws/sessions/${body.sessionId}`);
@@ -105,6 +106,19 @@ describe("sessions and request rules (§7.1)", () => {
     const cookie = String(r.headers["set-cookie"]);
     expect(cookie).toContain(`cs_sid=${body.sessionId}.`);
     for (const attr of ["Path=/", "HttpOnly", "Secure", "SameSite=Strict", "Max-Age=3600"]) expect(cookie).toContain(attr);
+  });
+
+  it("reports voice capability accurately, so replay-only deployments do not offer an absent relay", async () => {
+    const { app: unavailable } = await make();
+    const off = await unavailable.inject({ method: "POST", url: "/api/sessions", headers: json, payload: { mode: "replay" } });
+    expect(off.json().voiceAvailable).toBe(false);
+
+    const { app: available } = await make({ extra: { asr: { apiKey: "test-key", base: "https://asr.test" } } });
+    const on = await available.inject({ method: "POST", url: "/api/sessions", headers: json, payload: { mode: "live" } });
+    const cookie = String(on.headers["set-cookie"]).split(";")[0]!;
+    expect(on.json().voiceAvailable).toBe(true);
+    const snapshot = await available.inject({ method: "GET", url: `/api/sessions/${on.json().sessionId}/snapshot`, headers: { cookie } });
+    expect(snapshot.json().voiceAvailable).toBe(true);
   });
 
   it("refuses a state-changing request without an allowlisted Origin", async () => {

@@ -26,9 +26,11 @@ const DEMO_COMMANDS: readonly { label: string; text: string; intent: VoiceIntent
   { label: "Voice help", text: "Demo command: help", intent: { kind: "help" } },
 ];
 
-export function VoiceBar({ voice, reply, onDemo }: { voice: VoiceView; reply: string | null; onDemo: (text: string, intent: VoiceIntent) => void }) {
+export function VoiceBar({ voice, available, reply, onDemo }: { voice: VoiceView; available: boolean; reply: string | null; onDemo: (text: string, intent: VoiceIntent) => void }) {
   const on = voice.status === "starting" || voice.status === "listening";
-  const state = !voice.supported
+  const state = !available
+    ? "Voice control is unavailable in this replay demo. Try a sample command or type instead."
+    : !voice.supported
     ? "Voice needs a browser with microphone support. Type instead."
     : voice.status === "starting"
       ? "Starting the microphone…"
@@ -42,7 +44,7 @@ export function VoiceBar({ voice, reply, onDemo }: { voice: VoiceView; reply: st
 
   return (
     <section className="voice-bar" aria-label="Voice control">
-      <button type="button" className={on ? "primary" : undefined} aria-pressed={on} disabled={!voice.supported} onClick={voice.toggle}>
+      <button type="button" className={on ? "primary" : undefined} aria-pressed={on} disabled={!voice.supported || !available} onClick={voice.toggle}>
         {on ? "Stop listening" : "Talk to Chronosight"}
       </button>
       <div className="voice-demo" aria-label="Demo voice commands">

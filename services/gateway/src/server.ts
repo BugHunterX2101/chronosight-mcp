@@ -73,7 +73,7 @@ const breakers = new Map();
 const stats = new Stats();
 const warmLog = (m: string) => app.log.info(m);
 
-const ledger = new BudgetLedger(ledgerOptionsFromEnv(paths.data, env));
+const ledger = new BudgetLedger({ ...ledgerOptionsFromEnv(paths.data, env), lockInstanceId: env.GATEWAY_INSTANCE_ID });
 ledger.boot();
 
 const lastWarm = new Map<string, { at: string; cachedTokens: number; inputTokens: number }>();

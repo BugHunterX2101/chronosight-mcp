@@ -442,7 +442,7 @@ Limits, stated plainly:
 
 Files: `deploy/render/Dockerfile`, `deploy/render/Caddyfile`, `deploy/render/start.sh`, `.dockerignore`. One container runs the gateway (127.0.0.1:8080), Next (127.0.0.1:3000) and Caddy on `$PORT`. Caddy sends `/api/* /media/* /replays/* /sse/* /ws/*` and the gateway's JSON `/admin/*` endpoints to the gateway and everything else to Next. One origin keeps the SameSite=Strict cookie working, and `NEXT_PUBLIC_*` are left empty.
 
-What the hosted demo is: **replay-only**. There is no twin, media worker, sandbox, Docker socket or model key on Render, so live runs, uploads and verify are unavailable and the app boots with `LIVE_RUNS_ENABLED=false` and `MOCK_META=true`. Recorded runs play from `replays/`.
+What the hosted demo is: **replay-only**. There is no twin, media worker, sandbox, Docker socket or model key on Render, so live runs, uploads, verification and the server-side voice relay are unavailable and the app boots with `LIVE_RUNS_ENABLED=false` and `MOCK_META=true`. Recorded runs play from `replays/`; the interface labels voice as unavailable rather than attempting a WebSocket connection that the demo cannot serve.
 
 - The replay bundle (`replays/`, about 18 MB, a PUBLIC run) is gitignored on `build/wip`. It is force-committed only on the branch **`deploy/render`**, which is what Render builds. Do not merge that branch into main.
 - Service: Render team `chronosight-mcp`, Docker runtime, free plan, Oregon, health check `/api/healthz`, auto-deploy off (trigger a deploy from the dashboard or `POST /v1/services/{id}/deploys`).
@@ -450,6 +450,7 @@ What the hosted demo is: **replay-only**. There is no twin, media worker, sandbo
 - Free plan: the instance sleeps when idle (first request is slow) and its disk is ephemeral, so sessions do not survive a restart.
 - `/api/readyz` reports problems on Render because it checks the twin and launcher; use `/api/healthz`.
 - Deploy gotcha already fixed: the official Caddy binary has a file capability that a non-root user cannot exec in Render's container; the Dockerfile rewrites it as a plain file.
+- Startup is intentionally ordered: the gateway and Next server must each answer locally before Caddy binds `$PORT`. A per-container ledger instance ID also prevents a stale PID lock in persistent storage from blocking a replacement container.
 
 To go live (real runs) you need a host that can run the twin, the launcher and Docker, and one registrable domain for web and gateway (TR-2). Do not enable `LIVE_RUNS_ENABLED` on a public host without reviewing the caps.
 
