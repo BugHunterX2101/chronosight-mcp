@@ -278,16 +278,17 @@ flowchart TB
 
 ## Security, Cryptography & Provenance Model
 
-* **Zero Client Secret Exposure:** API credentials (`META_API_KEY`, `BASETEN_API_KEY`) reside exclusively in server-side environment variables. No client-side bundle ever receives model keys.
-* **Strict Cookie Isolation:** Session token `cs_sid` is configured as `HttpOnly; Secure; SameSite=Strict` behind a unified reverse-proxy origin.
+- **Zero Client Secret Exposure:** API credentials (`META_API_KEY`, `BASETEN_API_KEY`) reside exclusively in server-side environment variables. No client-side bundle ever receives model keys.
+- **Strict Cookie Isolation:** Session token `cs_sid` is configured as `HttpOnly; Secure; SameSite=Strict` behind a unified reverse-proxy origin.
 - **Two-Step HMAC-SHA256 Approval Binding:** Approvals are cryptographically bound to the SHA-256 hash of the exact patch AST and numerical parameter boundaries:
 
 $$
-\text{HMAC} = H\left(K_{\text{approval}}, \text{session\_id} \parallel \text{patch\_ast\_hash} \parallel \text{bounds}\right)
+\text{HMAC} = H\left(K_{\text{approval}}, \text{SessionID} \parallel \text{PatchAST} \parallel \text{Bounds}\right)
 $$
-* **Container Hardening & Least Privilege:** Synthesis containers run with `--cap-drop ALL`, `no-new-privileges`, read-only root filesystems, non-root UID 10001, a restrictive custom seccomp profile, and egress proxy domain allowlisting.
-* **RFC 8785 JCS Hash Chain:** Every state mutation, sensor measurement, diagnosis hypothesis, and operator approval is serialized via RFC 8785 Canonical JSON and committed to an append-only cryptographic ledger.
-* **Taint Tracking & Confidentiality:** Telemetry inputs are partitioned into `PUBLIC` and `CONFIDENTIAL`. Confidential plant parameters are cryptographically barred from routing to public contributor or partner endpoints.
+
+- **Container Hardening & Least Privilege:** Synthesis containers run with `--cap-drop ALL`, `no-new-privileges`, read-only root filesystems, non-root UID 10001, a restrictive custom seccomp profile, and egress proxy domain allowlisting.
+- **RFC 8785 JCS Hash Chain:** Every state mutation, sensor measurement, diagnosis hypothesis, and operator approval is serialized via RFC 8785 Canonical JSON and committed to an append-only cryptographic ledger.
+- **Taint Tracking & Confidentiality:** Telemetry inputs are partitioned into `PUBLIC` and `CONFIDENTIAL`. Confidential plant parameters are cryptographically barred from routing to public contributor or partner endpoints.
 
 ---
 
