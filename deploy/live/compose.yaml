@@ -15,9 +15,9 @@ services:
       EGRESS_PROXY_URL: http://egress-proxy:3128
       PUBLIC_ORIGINS: ${PUBLIC_ORIGINS:?set PUBLIC_ORIGINS}
       LIVE_RUNS_ENABLED: ${LIVE_RUNS_ENABLED:-false}
-      # This user-owned live profile intentionally does not impose a count or spend cap on runs.
+      # This user-owned live profile intentionally does not impose a count or spend cap on runs when overridden.
       # Render cannot host this stack; use an operator-controlled Docker host with valid provider credentials.
-      LIVE_RUN_LIMITS_ENABLED: ${LIVE_RUN_LIMITS_ENABLED:-false}
+      LIVE_RUN_LIMITS_ENABLED: ${LIVE_RUN_LIMITS_ENABLED:-true}
       MOCK_META: ${MOCK_META:-true}
       SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-24}
       BUDGET_GLOBAL_DAILY_USD: ${BUDGET_GLOBAL_DAILY_USD:-3}

@@ -10,9 +10,10 @@ export function gatewayOrigin(configured: string, requestHeaders: Headers): stri
   const host = forwardedHost || requestHeaders.get("host")?.trim();
   // This permits DNS hostnames, IPv4 loopback and an optional port, but never a path or userinfo.
   if (!host || !/^[a-z0-9.-]+(?::\d{1,5})?$/i.test(host)) return null;
+  const isLocal = host.startsWith("localhost") || host.startsWith("127.");
   const forwardedProto = requestHeaders.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
-  const proto = forwardedProto === "http" || forwardedProto === "https"
-    ? forwardedProto
-    : host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https";
+  const proto = isLocal
+    ? (forwardedProto === "https" ? "https" : "http")
+    : "https";
   return `${proto}://${host}`;
 }

@@ -1,12 +1,12 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Route } from "@playwright/test";
 
 const SESSION = "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
 test("replay-only deployments explain that server voice is unavailable instead of opening a failing microphone socket", async ({ page }) => {
-  await page.route("**/api/scenarios", async (route) => {
+  await page.route("**/api/scenarios", async (route: Route) => {
     await route.fulfill({ json: { scenarios: [{ id: "s1", title: "S1", concepts: [] }], uploads: false } });
   });
-  await page.route(`**/api/sessions/${SESSION}/snapshot`, async (route) => {
+  await page.route(`**/api/sessions/${SESSION}/snapshot`, async (route: Route) => {
     await route.fulfill({
       json: {
         headSeq: 0,

@@ -8,6 +8,7 @@ describe("gatewayOrigin", () => {
 
   it("derives Render's public same-origin URL for a Server Component", () => {
     expect(gatewayOrigin("", new Headers({ "x-forwarded-host": "chronosight.onrender.com", "x-forwarded-proto": "https" }))).toBe("https://chronosight.onrender.com");
+    expect(gatewayOrigin("", new Headers({ "x-forwarded-host": "chronosight.onrender.com", "x-forwarded-proto": "http" }))).toBe("https://chronosight.onrender.com");
   });
 
   it("uses HTTP for local development and rejects a malformed host", () => {
