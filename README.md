@@ -391,6 +391,7 @@ With `MOCK_META=true` the gateway boots without a Meta key (no real model calls)
 | `PUBLIC_ORIGINS` | gateway | origins allowed to make state-changing requests; required |
 | `ADMIN_TOKEN` | gateway | unset turns the admin API off (404) |
 | `LIVE_RUNS_ENABLED` | gateway | **defaults to true when unset**; set `false` to pause live runs |
+| `LIVE_RUN_LIMITS_ENABLED` | gateway | defaults to `true`; set `false` only on an operator-owned full live stack to allow an unlimited number of live runs without visitor or daily spend caps |
 | `BUDGET_GLOBAL_DAILY_USD` | gateway | default 3 |
 | `BUDGET_PER_VISITOR_RUNS_PER_HOUR` | gateway | default 2 |
 | `SESSION_TTL_HOURS`, `HUD_PAIRING_TTL_S`, `CACHE_WARMER_INTERVAL_H` | gateway | see `server.ts` |
@@ -452,7 +453,7 @@ What the hosted demo is: **replay-only**. There is no twin, media worker, sandbo
 - Deploy gotcha already fixed: the official Caddy binary has a file capability that a non-root user cannot exec in Render's container; the Dockerfile rewrites it as a plain file.
 - Startup is intentionally ordered: the gateway and Next server must each answer locally before Caddy binds `$PORT`. A per-container ledger instance ID also prevents a stale PID lock in persistent storage from blocking a replacement container.
 
-To go live (real runs) you need a host that can run the twin, the launcher and Docker, and one registrable domain for web and gateway (TR-2). Do not enable `LIVE_RUNS_ENABLED` on a public host without reviewing the caps.
+To go live (real runs) you need a host that can run the twin, the launcher and Docker, and one registrable domain for web and gateway (TR-2). The `deploy/live` compose profile sets `LIVE_RUN_LIMITS_ENABLED=false`, so it does not impose a numerical limit on live runs; it still requires an operator-controlled host, `LIVE_RUNS_ENABLED=true`, `MOCK_META=false`, and valid provider credentials.
 
 ## Provider-neutral live Docker stack
 

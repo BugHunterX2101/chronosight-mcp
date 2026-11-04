@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { GATEWAY_ORIGIN } from "../../../lib/config.ts";
+import { gatewayOrigin } from "../../../lib/server/gateway-origin.ts";
 
 export const metadata: Metadata = { title: "Audit report · Chronosight" };
 
@@ -44,8 +45,19 @@ export default async function ReportPage({ params }: { params: Promise<{ session
   if (!/^ses_[0-9A-HJKMNP-TV-Z]{26}$/.test(sessionId)) notFound();
   const sid = (await cookies()).get("cs_sid")?.value;
   if (sid === undefined) notFound();
+  const origin = gatewayOrigin(GATEWAY_ORIGIN, await headers());
+  if (origin === null) {
+    return (
+      <main id="main" className="shell light">
+        <div role="alert" className="alert">
+          <h1>The report could not be built</h1>
+          <p>The server could not determine the gateway origin. Reload and try again.</p>
+        </div>
+      </main>
+    );
+  }
 
-  const res = await fetch(`${GATEWAY_ORIGIN}/api/sessions/${sessionId}/report`, { headers: { cookie: `cs_sid=${sid}` }, cache: "no-store" });
+  const res = await fetch(`${origin}/api/sessions/${sessionId}/report`, { headers: { cookie: `cs_sid=${sid}` }, cache: "no-store" });
   if (res.status === 404) notFound();
   if (!res.ok) {
     return (
