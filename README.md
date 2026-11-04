@@ -2,7 +2,7 @@
 
 **The visual unit test for physical systems.** ChronoSight watches a (simulated) machine misbehave on video, measures the fault from pixels, asks a reasoning model why, has a coding model write a bounded patch, runs the patch in an isolated sandbox, then films the machine again and measures the same signal to check the repair. Nothing is applied without two separate human approvals.
 
-Specs: [PRD.md](PRD.md) (what), [DESIGN.md](DESIGN.md) (how), [TECHNICAL.md](TECHNICAL.md) (stack and contracts). Deviations made while building are listed in [docs/DECISIONS.md](docs/DECISIONS.md) (D-1 to D-11). Hand-off notes for the next developer: [HANDOFF.md](HANDOFF.md).
+Specs: [PRD.md](PRD.md) (what), [DESIGN.md](DESIGN.md) (how), [TECHNICAL.md](TECHNICAL.md) (stack and contracts). Deviations made while building are listed in [docs/DECISIONS.md](docs/DECISIONS.md) (D-1 to D-11).
 
 ## What it does today
 
@@ -467,24 +467,6 @@ docker compose -f deploy/live/compose.yaml up --build
 ```
 
 The default is fixture/mock mode (`LIVE_RUNS_ENABLED=false`, `MOCK_META=true`). Keep that mode until the host, storage retention, sandbox image, egress allowlist, readiness checks, and budget caps have been reviewed. The composition is deployment preparation; it is not live-run acceptance evidence.
-
-## Known gaps and deviations
-
-- Diagnosis uses the deepest reasoning setting; the per-attempt cap is **240 s**. The <= 30 s target in the spec is **not met**.
-- HUD live states H4/H5/HE have not been observed from a real run. WebMCP was verified against a recording shim, not a real agent.
-- The placebo control and BYO verification have not been exercised live, to avoid spend.
-- `/about` carries no validation tables, on purpose. There are no judge-tuning or mutation-run documents; the twin's mutation code is kept.
-- The repository is MIT-licensed; see [LICENSE](LICENSE).
-
-## Hackathon provenance
-
-The ChronoSight application code and the ENCX-14 synthetic engineering corpus
-were authored for this project during the October 26–November 4, 2026
-hackathon window. This statement covers the project-authored material in
-`apps/web`, `packages/run-model`, `services/gateway`, `services/media-worker`,
-`services/sandbox-launcher`, `sandbox`, and `corpus/encx14`; it does not claim
-ownership of third-party dependencies, SDKs, models, container images, or
-service infrastructure.
 
 ## Security reminders for the repo owner
 
