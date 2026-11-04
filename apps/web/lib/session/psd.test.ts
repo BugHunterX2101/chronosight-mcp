@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDifferentialTrajectory, psdModel, psdSummary, readSpectrum, rowOfPhase, toDb } from "./psd.ts";
+import { computeDifferentialTrajectory, computeSnrMetrics, filterOcclusionOutliers, psdModel, psdSummary, readSpectrum, resampleUniformTrajectory, rowOfPhase, toDb } from "./psd.ts";
 
 const f = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
 // A 4 Hz peak of amplitude 2 px before; the same grid, nearly flat, after.
@@ -101,5 +101,80 @@ describe("computeDifferentialTrajectory", () => {
       { frame: 1, conceptIdx: 1, box: [100, 10, 120, 20] as [number, number, number, number] },
     ];
     expect(computeDifferentialTrajectory(records)).toEqual([]);
+  });
+});
+
+
+describe("resampleUniformTrajectory", () => {
+  it("interpolates irregular timestamps onto a uniform 30 Hz grid", () => {
+    // 0ms, 40ms, 70ms (fluctuating frame rate)
+    const raw = [
+      { tMs: 0, x: 0, y: 0, area: 100 },
+      { tMs: 40, x: 40, y: 80, area: 100 },
+      { tMs: 70, x: 70, y: 140, area: 100 },
+    ];
+    // 30 Hz -> step is 33.33ms -> grid points at ~0, 33.33, 66.67
+    const resampled = resampleUniformTrajectory(raw, 30.0);
+    expect(resampled.length).toBeGreaterThanOrEqual(3);
+    expect(resampled[0]!.tMs).toBe(0);
+    expect(resampled[0]!.x).toBe(0);
+    // At ~33.33ms, x should be close to 33.33
+    expect(resampled[1]!.tMs).toBeCloseTo(33.33, 1);
+    expect(resampled[1]!.x).toBeCloseTo(33.33, 1);
+    expect(resampled[1]!.y).toBeCloseTo(66.67, 1);
+  });
+});
+
+describe("filterOcclusionOutliers", () => {
+  it("rejects transient occlusion spikes when mask area deviates by >35%", () => {
+    // 9 normal frames with area 100, 1 occluded frame (technician hand) with area 40 and jittered x
+    const points = Array.from({ length: 9 }, (_, i) => ({
+      tMs: i * 33.33,
+      x: i * 10,
+      y: 0,
+      area: i === 4 ? 40 : 100, // frame 4 is occluded!
+    }));
+    // Introduce jitter on occluded frame
+    points[4]!.x = 999;
+
+    const filtered = filterOcclusionOutliers(points, 9, 0.35);
+    expect(filtered).toHaveLength(9);
+    // Frame 4 should be interpolated between frame 3 (x=30) and frame 5 (x=50) -> x=40
+    expect(filtered[4]!.x).toBeCloseTo(40, 1);
+    expect(filtered[4]!.area).toBe(100);
+  });
+});
+
+describe("computeSnrMetrics", () => {
+  it("computes peak-to-median SNR in dB and identifies high precision locks", () => {
+    // Sharp resonant peak at 4Hz (db = 20), median floor around db = -10 (SNR = 30 dB > 12 dB)
+    const pts = [
+      { f: 1, db: -10 },
+      { f: 2, db: -12 },
+      { f: 3, db: -8 },
+      { f: 4, db: 20 }, // Peak
+      { f: 5, db: -10 },
+    ];
+    const snr = computeSnrMetrics(pts);
+    expect(snr).not.toBeNull();
+    expect(snr!.isLocked).toBe(true);
+    expect(snr!.snrDb).toBe(30);
+    expect(snr!.label).toContain("High Precision Lock");
+  });
+
+  it("identifies stabilizing feed when SNR <= 12 dB", () => {
+    // Flat noisy spectrum (peak = 5 dB, median = 0 dB -> SNR = 5 dB <= 12 dB)
+    const pts = [
+      { f: 1, db: 0 },
+      { f: 2, db: 1 },
+      { f: 3, db: 5 },
+      { f: 4, db: 2 },
+      { f: 5, db: 0 },
+    ];
+    const snr = computeSnrMetrics(pts);
+    expect(snr).not.toBeNull();
+    expect(snr!.isLocked).toBe(false);
+    expect(snr!.snrDb).toBe(4);
+    expect(snr!.label).toContain("Stabilizing Camera Feed");
   });
 });

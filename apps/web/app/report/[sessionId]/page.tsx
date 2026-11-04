@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { GATEWAY_ORIGIN } from "../../../lib/config.ts";
 import { gatewayOrigin } from "../../../lib/server/gateway-origin.ts";
+import { MetaStackMatrix } from "../../../components/panels.tsx";
 
 export const metadata: Metadata = { title: "Audit report · Chronosight" };
 
@@ -153,7 +154,8 @@ export default async function ReportPage({ params }: { params: Promise<{ session
           ) : null}
         </section>
       ))}
-      <p className="muted no-print">
+      <MetaStackMatrix />
+      <p className="muted no-print" style={{ marginTop: "16px" }}>
         <a href={`/s/${report.sessionId}`}>Back to the workbench</a> · print this page to save it
       </p>
     </main>

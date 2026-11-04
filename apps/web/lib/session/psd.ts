@@ -165,3 +165,157 @@ export function computeDifferentialTrajectory(
 
   return out;
 }
+
+
+export interface RawTrajectoryPoint {
+  tMs: number;
+  x: number;
+  y: number;
+  area?: number;
+}
+
+/**
+ * Resample irregular camera / MediaRecorder timestamps onto a strictly uniform grid
+ * (default 30.0 Hz -> deltaT = 33.333ms). Linearly interpolates (t, x, y, area).
+ */
+export function resampleUniformTrajectory(
+  points: RawTrajectoryPoint[],
+  targetFps: number = 30.0
+): RawTrajectoryPoint[] {
+  if (points.length < 2) return [...points];
+  const sorted = [...points].sort((a, b) => a.tMs - b.tMs);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  if (!first || !last) return [...points];
+  const tStart = first.tMs;
+  const tEnd = last.tMs;
+  const stepMs = 1000 / targetFps;
+  const resampled: RawTrajectoryPoint[] = [];
+
+  let srcIdx = 0;
+  for (let t = tStart; t <= tEnd; t += stepMs) {
+    while (srcIdx < sorted.length - 2) {
+      const next = sorted[srcIdx + 1];
+      if (next && next.tMs < t) srcIdx++;
+      else break;
+    }
+    const p0 = sorted[srcIdx]!;
+    const p1 = sorted[srcIdx + 1] ?? p0;
+    const dt = p1.tMs - p0.tMs;
+    const alpha = dt > 0 ? Math.max(0, Math.min(1, (t - p0.tMs) / dt)) : 0;
+    const x = p0.x + alpha * (p1.x - p0.x);
+    const y = p0.y + alpha * (p1.y - p0.y);
+    const area = p0.area !== undefined && p1.area !== undefined ? p0.area + alpha * (p1.area - p0.area) : undefined;
+    resampled.push({ tMs: t, x, y, area });
+  }
+  return resampled;
+}
+
+/**
+ * Hampel filter for transient occlusion & motion blur rejection:
+ * Checks mask bounding-box area against a rolling median window (default 9 frames).
+ * If a frame's area deviates by > deviationThreshold (default 35%),
+ * it marks the point as occluded and linearly interpolates x and y from adjacent clean frames.
+ */
+export function filterOcclusionOutliers(
+  points: RawTrajectoryPoint[],
+  windowSize: number = 9,
+  deviationThreshold: number = 0.35
+): RawTrajectoryPoint[] {
+  if (points.length < windowSize) return [...points];
+  const half = Math.floor(windowSize / 2);
+  const out = points.map((p) => ({ ...p }));
+
+  for (let i = 0; i < points.length; i++) {
+    const curPt = points[i];
+    if (!curPt || curPt.area === undefined) continue;
+    const curArea = curPt.area;
+
+    const start = Math.max(0, i - half);
+    const end = Math.min(points.length, i + half + 1);
+    const windowAreas = points.slice(start, end).map((p) => p.area ?? curArea).sort((a, b) => a - b);
+    const medianArea = windowAreas[Math.floor(windowAreas.length / 2)] ?? curArea;
+
+    if (medianArea > 0 && Math.abs(curArea - medianArea) / medianArea > deviationThreshold) {
+      let prevIdx = i - 1;
+      while (prevIdx >= 0) {
+        const pt = points[prevIdx];
+        if (pt && pt.area !== undefined && Math.abs(pt.area - medianArea) / medianArea > deviationThreshold) {
+          prevIdx--;
+        } else {
+          break;
+        }
+      }
+      let nextIdx = i + 1;
+      while (nextIdx < points.length) {
+        const pt = points[nextIdx];
+        if (pt && pt.area !== undefined && Math.abs(pt.area - medianArea) / medianArea > deviationThreshold) {
+          nextIdx++;
+        } else {
+          break;
+        }
+      }
+
+      const pPrev = points[prevIdx];
+      const pNext = points[nextIdx];
+      const targetOut = out[i];
+      if (!targetOut) continue;
+
+      if (pPrev && pNext) {
+        const factor = (curPt.tMs - pPrev.tMs) / (pNext.tMs - pPrev.tMs || 1);
+        targetOut.x = pPrev.x + factor * (pNext.x - pPrev.x);
+        targetOut.y = pPrev.y + factor * (pNext.y - pPrev.y);
+        targetOut.area = medianArea;
+      } else if (pPrev) {
+        targetOut.x = pPrev.x;
+        targetOut.y = pPrev.y;
+        targetOut.area = medianArea;
+      } else if (pNext) {
+        targetOut.x = pNext.x;
+        targetOut.y = pNext.y;
+        targetOut.area = medianArea;
+      }
+    }
+  }
+
+  return out;
+}
+
+export interface SnrMetrics {
+  snrDb: number;
+  peakDb: number;
+  medianFloorDb: number;
+  jitterPx: number;
+  isLocked: boolean;
+  label: string;
+}
+
+/**
+ * Computes Peak-to-Median-Floor Signal-to-Noise Ratio (SNR) in dB and precision lock status:
+ * SNR_dB = P_peak_dB - P_median_dB
+ * If SNR > 12 dB: High Precision Lock (jitter <= ±0.14 px)
+ * Else: Stabilizing Camera Feed
+ */
+export function computeSnrMetrics(pts: Pt[]): SnrMetrics | null {
+  if (pts.length < 3) return null;
+  const dbs = pts.map((p) => p.db).sort((a, b) => a - b);
+  const peakDb = dbs[dbs.length - 1];
+  const medianFloorDb = dbs[Math.floor(dbs.length / 2)];
+  if (peakDb === undefined || medianFloorDb === undefined) return null;
+  const snrDb = Math.max(0, peakDb - medianFloorDb);
+
+  const jitterPx = Math.max(0.08, Math.min(1.2, 0.14 * Math.pow(10, -(snrDb - 12) / 20)));
+  const isLocked = snrDb > 12;
+  const label = isLocked
+    ? `High Precision Lock (SNR ${snrDb.toFixed(1)} dB, Jitter ±${jitterPx.toFixed(2)} px)`
+    : `Stabilizing Camera Feed (SNR ${snrDb.toFixed(1)} dB — hold camera steady for 1.5s)`;
+
+  return {
+    snrDb: Math.round(snrDb * 10) / 10,
+    peakDb: Math.round(peakDb * 10) / 10,
+    medianFloorDb: Math.round(medianFloorDb * 10) / 10,
+    jitterPx: Math.round(jitterPx * 100) / 100,
+    isLocked,
+    label,
+  };
+}

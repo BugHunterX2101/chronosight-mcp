@@ -18,7 +18,7 @@ import { GlassesPanel } from "./GlassesPanel.tsx";
 import { PlaceboButton } from "./PlaceboButton.tsx";
 import { PsdChart } from "./PsdChart.tsx";
 import { ByoPanel } from "./ByoPanel.tsx";
-import { CostMeter, DiagnosisPane, LoopStepper, RepairPane, VerdictPanel } from "./panels.tsx";
+import { CostMeter, DiagnosisPane, LoopStepper, MetaStackMatrix, RepairPane, VerdictPanel } from "./panels.tsx";
 import { VideoStage } from "./VideoStage.tsx";
 import { VoiceBar } from "./VoiceBar.tsx";
 import { WebMcpTools } from "./WebMcpTools.tsx";
@@ -41,6 +41,133 @@ function describe(err: unknown): string {
     return `${err.code}: ${err.message}`;
   }
   return err instanceof Error ? err.message : String(err);
+}
+
+
+function WorkflowStepper({
+  state,
+  onAction,
+  busy,
+  liveAvailable,
+}: {
+  state: string;
+  onAction: (action: "perceive" | "diagnose" | "approve" | "placebo") => void;
+  busy: boolean;
+  liveAvailable: boolean | null;
+}) {
+  const steps = [
+    {
+      num: "①",
+      label: "Perceiving",
+      engine: "SAM 3.1 + PSD",
+      detail: "16-target multiplex · sub-pixel tracking",
+      isCurrent: ["CAPTURING", "PERCEIVING_PRE", "MEASURING_PRE"].includes(state),
+      isDone: !["IDLE", "CAPTURING", "PERCEIVING_PRE", "MEASURING_PRE"].includes(state) && state !== "BLOCKED",
+      action: "perceive" as const,
+      canTrigger: state === "IDLE" && liveAvailable !== false,
+      triggerLabel: "Start Perception",
+    },
+    {
+      num: "②",
+      label: "Reasoning",
+      engine: "Muse Spark 1.3 (70B)",
+      detail: "1M-token datasheet pin · character citations",
+      isCurrent: ["AWAITING_QUESTION", "DIAGNOSING"].includes(state),
+      isDone: ["AWAITING_APPROVAL_1", "AWAITING_APPROVAL_2", "PATCHING", "SIMULATING_POST", "PERCEIVING_POST", "MEASURING_POST", "PASSED", "VERDICT_FAIL"].includes(state),
+      action: "diagnose" as const,
+      canTrigger: state === "AWAITING_QUESTION",
+      triggerLabel: "Execute Diagnosis",
+    },
+    {
+      num: "③",
+      label: "Safety Gate",
+      engine: "Muse Wonder 1.0",
+      detail: "Human operator voltage / probe HMAC signoff",
+      isCurrent: ["AWAITING_APPROVAL_1", "AWAITING_APPROVAL_2"].includes(state),
+      isDone: ["PATCHING", "SIMULATING_POST", "PERCEIVING_POST", "MEASURING_POST", "PASSED", "VERDICT_FAIL"].includes(state),
+      action: "approve" as const,
+      canTrigger: ["AWAITING_APPROVAL_1", "AWAITING_APPROVAL_2"].includes(state),
+      triggerLabel: "Review Patch",
+    },
+    {
+      num: "④",
+      label: "Self-Healing",
+      engine: "@muse-code/sdk",
+      detail: "Docker sandbox compile · Placebo counterfactual",
+      isCurrent: ["PATCHING", "SIMULATING_POST", "PERCEIVING_POST", "MEASURING_POST"].includes(state),
+      isDone: ["PASSED", "VERDICT_FAIL"].includes(state),
+      action: "placebo" as const,
+      canTrigger: ["PASSED", "VERDICT_FAIL"].includes(state),
+      triggerLabel: "Run Counterfactual",
+    },
+  ];
+
+  return (
+    <div className="workflow-stepper" style={{ marginBottom: "16px", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "8px" }}>
+      {steps.map((st) => {
+        const bg = st.isCurrent
+          ? "rgba(86, 180, 233, 0.15)"
+          : st.isDone
+          ? "rgba(46, 160, 67, 0.1)"
+          : "rgba(255, 255, 255, 0.02)";
+        const border = st.isCurrent
+          ? "1px solid rgba(86, 180, 233, 0.5)"
+          : st.isDone
+          ? "1px solid rgba(46, 160, 67, 0.3)"
+          : "1px solid rgba(255, 255, 255, 0.08)";
+        const statusColor = st.isCurrent ? "#56b4e9" : st.isDone ? "#3fb950" : "#a0a7b0";
+        return (
+          <div
+            key={st.label}
+            style={{
+              padding: "10px 12px",
+              borderRadius: "8px",
+              backgroundColor: bg,
+              border,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              gap: "6px",
+            }}
+          >
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                <span style={{ fontSize: "12px", fontWeight: 700, color: statusColor }}>
+                  {st.num} {st.label}
+                </span>
+                <span style={{ fontSize: "10px", fontWeight: 600, color: statusColor, textTransform: "uppercase" }}>
+                  {st.isCurrent ? "Active" : st.isDone ? "Done ✓" : "Pending"}
+                </span>
+              </div>
+              <div style={{ fontSize: "11px", fontWeight: 600, color: "#e8eaed" }}>{st.engine}</div>
+              <div className="muted" style={{ fontSize: "10px", marginTop: "2px" }}>{st.detail}</div>
+            </div>
+            {st.canTrigger ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => onAction(st.action)}
+                style={{
+                  fontSize: "11px",
+                  padding: "4px 8px",
+                  marginTop: "4px",
+                  borderRadius: "4px",
+                  border: "1px solid rgba(86, 180, 233, 0.4)",
+                  backgroundColor: "rgba(86, 180, 233, 0.12)",
+                  color: "#56b4e9",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  width: "100%",
+                }}
+              >
+                {st.triggerLabel}
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export function Workbench({ sessionId }: { sessionId: string }) {
@@ -400,6 +527,16 @@ export function Workbench({ sessionId }: { sessionId: string }) {
       ) : null}
       {state.violation !== null ? <p role="alert" className="alert">The event stream broke an invariant ({state.violation.message}). Reload to resync.</p> : null}
 
+      <WorkflowStepper
+        state={state_}
+        busy={busy}
+        liveAvailable={liveAvailable}
+        onAction={(action) => {
+          if (action === "perceive") void act(() => startPerceive(sessionId));
+          else if (action === "diagnose") void act(() => diagnose(sessionId, {}));
+          else if (action === "placebo") void runPlacebo();
+        }}
+      />
       <div className="grid">
         <div>
           <VideoStage
@@ -436,6 +573,7 @@ export function Workbench({ sessionId }: { sessionId: string }) {
           <PsdChart run={run} />
           <PlaceboButton placebo={placebo} ready={placeboReady} busy={busy} onRun={() => void runPlacebo()} />
           {mode !== "replay" ? <GlassesPanel sessionId={sessionId} /> : null}
+          <MetaStackMatrix />
         </div>
       </div>
 

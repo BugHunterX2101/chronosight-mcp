@@ -44,11 +44,11 @@ export function StartLive() {
     };
   }, []);
 
-  const open = (mode: "live" | "byo") => {
+  const open = (mode: "live" | "byo", query = "") => {
     setBusy(true);
     setProblem(null);
     createSession(pick, mode).then(
-      (s) => router.push(`/s/${s.sessionId}`),
+      (s) => router.push(`/s/${s.sessionId}${query}`),
       (err: unknown) => {
         setBusy(false);
         setProblem(err instanceof ApiError ? `${err.code}: ${err.message}` : err instanceof Error ? err.message : String(err));
@@ -85,6 +85,19 @@ export function StartLive() {
             Analyse your own clip
           </button>
         ) : null}
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => open("byo", "?preset=sample")}
+          style={{
+            backgroundColor: "rgba(86, 180, 233, 0.12)",
+            color: "#56b4e9",
+            border: "1px solid rgba(86, 180, 233, 0.4)",
+            fontWeight: 600,
+          }}
+        >
+          ⚡ Load Sample Raw Hardware Clip (Test Live Pipeline)
+        </button>
       </div>
       {liveAvailable === false && (
         <p className="start-live-status-note">

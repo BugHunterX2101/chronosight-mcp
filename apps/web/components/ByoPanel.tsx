@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ApiError, clipUrl, uploadClip, type ClipScale, type UploadedClip } from "../lib/session/api.ts";
 import { clipProblem, parseScale, PRIVACY_NOTICE } from "../lib/session/byo.ts";
 import { recordCameraClip } from "../lib/capture/camera.ts";
@@ -32,6 +32,33 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
       onAnalyse({ markerSizeMm: 25.4 });
     }
   };
+
+  const loadSampleClip = async () => {
+    setSending(true);
+    setProblem(null);
+    setAgreed(true);
+    try {
+      const res = await fetch("/replays/run_01M68V2MKCFX6SQ14ZNWPSSWXD/clips/pre.mp4");
+      if (!res.ok) throw new Error(`Sample clip unavailable (${res.status})`);
+      const blob = await res.blob();
+      const sampleFile = new File([blob], "sample_hardware_hunting_4.2hz.mp4", { type: "video/mp4" });
+      setFile(sampleFile);
+      const uploaded = await uploadClip(sessionId, sampleFile, new Date());
+      setClip(uploaded);
+      setMarker("25.4");
+      setAutoInspecting(true);
+    } catch (err) {
+      setProblem(`Failed to load sample clip: ${say(err)}`);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("preset=sample")) {
+      void loadSampleClip();
+    }
+  }, []);
 
   const choose = (f: File | null) => {
     setClip(null);
@@ -102,6 +129,19 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
       <div className="controls">
         <button type="button" className="btn-auto-inspect" onClick={autoInspect}>
           ✨ 1-Click Auto-Inspect Any Device
+        </button>
+        <button
+          type="button"
+          disabled={busy || sending || recording}
+          onClick={() => void loadSampleClip()}
+          style={{
+            backgroundColor: "rgba(86, 180, 233, 0.12)",
+            color: "#56b4e9",
+            border: "1px solid rgba(86, 180, 233, 0.4)",
+            fontWeight: 600,
+          }}
+        >
+          ⚡ Load Sample Raw Hardware Clip (Test Live Pipeline)
         </button>
         <button type="button" disabled={!agreed || recording || sending || file !== null} onClick={record}>
           {recording ? "Recording 5 s…" : "Record 5 s from camera"}

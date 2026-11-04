@@ -1,7 +1,7 @@
 # ChronoSight
 
 [![Status](https://img.shields.io/badge/Status-Production%20Live-brightgreen.svg)](https://chronosight.onrender.com)
-[![Vitest](https://img.shields.io/badge/Vitest-589%20passed%20%2842%20files%29-blue.svg)]()
+[![Vitest](https://img.shields.io/badge/Vitest-593%20passed%20%2842%20files%29-blue.svg)]()
 [![Pytest](https://img.shields.io/badge/Pytest-50%20passed-blue.svg)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict%200%20Errors-success.svg)]()
 [![Next.js](https://img.shields.io/badge/Next.js-16.4%20%2F%20React%2019-black.svg)]()
@@ -97,7 +97,7 @@ ChronoSight ships with three deterministic digital-twin scenarios (`services/twi
 | **Hosted Demo (Render)** | **Live** | Operational at `https://chronosight.onrender.com`. |
 
 **Total Test Suite:**
-* **Vitest:** `589 passed tests across 42 files` (100% pass rate).
+* **Vitest:** `593 passed tests across 42 files` (100% pass rate).
 * **Pytest:** `50 passed tests` in `services/twin/tests` (100% pass rate).
 * **TypeScript:** Strict typecheck across all 5 workspaces (`run-model`, `gateway`, `sandbox-launcher`, `media-worker`, `web`) with **0 errors**.
 
@@ -390,7 +390,7 @@ Open `http://localhost:3000` to access the ChronoSight Workbench.
 ## Test & Verification Commands
 
 ```bash
-# Run Vitest test suite across all TypeScript packages (589 tests)
+# Run Vitest test suite across all TypeScript packages (593 tests)
 npm test
 
 # Run Digital Twin pytest suite (50 tests)

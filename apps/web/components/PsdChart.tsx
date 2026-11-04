@@ -2,7 +2,7 @@
 
 import { type RunView } from "@chronosight/run-model/browser";
 import { useEffect, useMemo, useRef } from "react";
-import { psdModel, psdSummary, readSpectrum, rowOfPhase, type PsdModel } from "../lib/session/psd.ts";
+import { computeSnrMetrics, psdModel, psdSummary, readSpectrum, rowOfPhase, type PsdModel } from "../lib/session/psd.ts";
 
 // DESIGN §25.5: before and after on the same dB axis, f* and its ±0.5 Hz band shaded, drawn on canvas with no
 // chart library. The two curves differ by dash as well as hue (Okabe–Ito), and the summary sentence below the
@@ -112,11 +112,38 @@ export function PsdChart({ run }: { run: RunView | undefined }) {
     return () => ro.disconnect();
   }, [model]);
 
+  const snr = useMemo(() => {
+    if (!model) return null;
+    return computeSnrMetrics(model.pre.length > 0 ? model.pre : model.post);
+  }, [model]);
+
   if (model === null) return null;
   const summary = psdSummary(model);
   return (
     <section className="panel" aria-labelledby="psd-h">
-      <h2 id="psd-h">Lomb-Scargle PSD Frequency Spectrum</h2>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
+        <h2 id="psd-h" style={{ margin: 0 }}>Lomb-Scargle PSD Frequency Spectrum</h2>
+        {snr ? (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "4px 10px",
+              borderRadius: "999px",
+              fontSize: "11px",
+              fontFamily: "ui-monospace, Consolas, monospace",
+              fontWeight: 600,
+              backgroundColor: snr.isLocked ? "rgba(46, 160, 67, 0.15)" : "rgba(210, 153, 34, 0.15)",
+              color: snr.isLocked ? "#3fb950" : "#d29922",
+              border: `1px solid ${snr.isLocked ? "rgba(46, 160, 67, 0.4)" : "rgba(210, 153, 34, 0.4)"}`,
+            }}
+          >
+            <span>{snr.isLocked ? "🟢" : "🟡"}</span>
+            <span>{snr.label}</span>
+          </span>
+        ) : null}
+      </div>
       <canvas ref={ref} role="img" aria-label={summary} style={{ width: "100%", height: H, display: "block" }} />
       <ul className="plain legend" aria-hidden="true">
         <li style={{ color: PRE }}>── Pre-remediation spectrum</li>
