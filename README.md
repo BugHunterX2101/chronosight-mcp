@@ -9,112 +9,98 @@
 
 **The visual unit test for physical cyber-physical systems.**
 
-ChronoSight continuously monitors electromechanical machinery on video, measures physical failure modes directly from raw pixel trajectories, performs grounded reasoning over comprehensive hardware manuals using **Meta Muse 70B** and **Meta SAM 3.1**, synthesizes bounded real-time controller patches inside a hardened multi-container sandbox, and verifies the repair by simulating the physical plant again and measuring the identical spectral signal. Every state mutation is cryptographically sealed via **RFC 8785 JSON Canonicalization Scheme (JCS)** and protected by a two-stage HMAC approval gate.
+ChronoSight continuously monitors electromechanical machinery on video, measures physical failure modes directly from pixel trajectories, diagnoses root causes via character-grounded reasoning over 60-page hardware manuals using **Meta Muse 70B** and **Meta SAM 3.1**, synthesizes bounded controller patches inside an isolated Docker sandbox, and verifies repairs by re-measuring physical plant kinematics. Every state transition is cryptographically sealed via **RFC 8785 JSON Canonicalization Scheme (JCS)** and gated by a two-stage HMAC approval.
 
-- **Hosted Live Demo:** [https://chronosight.onrender.com](https://chronosight.onrender.com)
-- **Architecture Specifications:** [PRD.md](PRD.md) (Requirements), [DESIGN.md](DESIGN.md) (System Architecture), [TECHNICAL.md](TECHNICAL.md) (Contracts & Protocols), [docs/DECISIONS.md](docs/DECISIONS.md) (Architecture Decisions D-1 through D-11).
-- **Datasheet Provenance & Compliance:** [corpus/vendor-manifest.json](corpus/vendor-manifest.json) (EncoderX-14 60-page manual, CC-BY-4.0).
+- **Hosted Production URL:** [https://chronosight.onrender.com](https://chronosight.onrender.com)
+- **Technical Specifications:** [PRD.md](PRD.md) · [DESIGN.md](DESIGN.md) · [TECHNICAL.md](TECHNICAL.md) · [DECISIONS.md](docs/DECISIONS.md)
+- **Hardware Datasheet Corpus:** [corpus/vendor-manifest.json](corpus/vendor-manifest.json) (EncoderX-14 60-page manual, CC-BY-4.0)
 
 ---
 
-## Stage 2 & Stage 3 Judging Showcase: Core Architectural Pillars
+## Core Engineering Innovations
 
-ChronoSight directly satisfies and exceeds the Stage 2/3 hackathon evaluation rubrics through five core engineering pillars:
-
-### 1. Sub-Pixel Precision via Differential Anchor Subtraction (`psd.ts` & `csmk.ts`)
-* **Real-World Problem:** When technicians evaluate machinery using handheld smartphones or smart glasses (`apps/web/lib/capture/camera.ts`), natural human hand and head tremor (typically 2–8 Hz) injects low-frequency noise across the entire video frame, corrupting raw pixel centroids and causing false vibration failures.
-* **Engineering Solution:** ChronoSight leverages SAM 3.1 Object Multiplexing (tracking up to 16 objects simultaneously) by designating Object ID 0 as a Static Board Fiducial / Mounting Corner Anchor $(x^{\text{anchor}}_t, y^{\text{anchor}}_t)$ and Object ID 1..N as dynamic target components $(x^{\text{target}}_t, y^{\text{target}}_t)$.
-* **Differential Homography Transformation:**
+### 1. Sub-Pixel Precision via Differential Anchor Subtraction (`psd.ts`)
+* **Physical Failure:** Handheld camera tremor and smart-glasses head movements (2–8 Hz) introduce broadband noise that corrupts raw mask centroids and triggers false vibration failures.
+* **Homography-Stabilized Differential Formulation:** Designates Object ID 0 as a static fiducial anchor $(x^{\text{anchor}}_t, y^{\text{anchor}}_t)$ and Objects 1..N as dynamic target components $(x^{\text{target}}_t, y^{\text{target}}_t)$ via SAM 3.1 16-object multiplexing:
   $$\Delta x_t = (x^{\text{target}}_t - x^{\text{anchor}}_t) \cdot \frac{W_{\text{ref}}}{W^{\text{anchor}}_t}, \quad \Delta y_t = (y^{\text{target}}_t - y^{\text{anchor}}_t) \cdot \frac{W_{\text{ref}}}{W^{\text{anchor}}_t}$$
-  Normalizing by the instantaneous anchor bounding-box width $W^{\text{anchor}}_t$ eliminates camera shake, perspective drift, and distance changes. The resulting scale-invariant trajectory feeds a Lomb-Scargle Periodogram (`apps/web/lib/session/psd.ts`) achieving **sub-0.2 mm vibration precision** without high-latency optical flow smoothing.
+  Normalizing by the instantaneous anchor bounding-box width $W^{\text{anchor}}_t$ converts pixel displacement into scale-invariant millimeters and cancels camera translation.
+* **Hampel Filter & Uniform Grid Resampling:**
+  * Rejects transient occlusions and motion blur: frames with mask bounding-box area deviating $>35\%$ from a 9-frame rolling median are replaced via linear interpolation.
+  * Resamples fluctuating browser camera frame rates (22–30 FPS) onto a strictly uniform 30.0 Hz ($\Delta t = 33.33\text{ ms}$) grid prior to Lomb-Scargle spectral decomposition.
+* **Live SNR & Precision Gate:** Displays real-time Peak-to-Median Signal-to-Noise Ratio ($\text{SNR}_{\text{dB}} = P_{\text{peak}} - P_{\text{median}}$) directly on `PsdChart.tsx`:
+  * 🟢 **High Precision Lock:** $\text{SNR} > 12\text{ dB}$, Jitter $\pm 0.14\text{ px}$.
+  * 🟡 **Stabilizing Camera Feed:** $\text{SNR} \le 12\text{ dB}$ (prompts operator to stabilize feed).
 
-### 2. Zero-Setup "1-Click Auto-Inspect Any Hardware" (BYO Mode in `ByoPanel.tsx`)
-* **Frictionless Evaluation:** Evaluators can upload any electromechanical equipment video or point their webcam directly at hardware on their desk.
-* **Frame-0 Vision Discovery:** Clicking `✨ 1-Click Auto-Inspect Any Device` extracts keyframe 0 (`services/media-worker/src/media.ts`) and submits it to `muse-spark-1.3-contributor` to automatically discover the device type, package markings, and top 6 segmentable components (e.g., `["microcontroller package", "voltage regulator", "status LED", "capacitor bank", "connector header"]`).
-* **Dynamic Web Grounding:** If no local schematic PDF is provided, ChronoSight invokes web search grounding to retrieve operating tolerances and pinouts, seeding SAM 3.1 multiplex masks with zero manual configuration.
+### 2. Zero-Hardware "1-Click Auto-Inspect" & Presets (`ByoPanel.tsx`, `StartLive.tsx`)
+* **Frame-0 Vision Discovery:** Submits keyframe 0 to `muse-spark-1.3-contributor` to automatically identify equipment IC packages, seed 6 dynamic component contours, and auto-provision SAM 3.1 tracking multiplexing.
+* **Automated Web-Grounding:** Resolves electrical pinouts and operating tolerances dynamically when local schematic PDFs are absent.
+* **Zero-Hardware Evaluation Preset:** Evaluators without physical hardware on their desk can click **"⚡ Load Sample Raw Hardware Clip"** to immediately stream the unindexed 4.2 Hz hunting clip through the live BYO perception pipeline.
 
-### 3. Frictionless Evaluator UX: Cockpit Telemetry Strip & Voice Command Chips (`Workbench.tsx` & `VoiceBar.tsx`)
-* **Live Cockpit Telemetry Strip:** Sits persistently at the top of the workbench displaying:
-  * Active Session ID with live connection state
-  * Dual-Model Consensus status (Meta Muse 70B + Baseten Partner Lane)
-  * Real-time Token Ledger spend against the hard USD cap
-  * Cryptographic RFC 8785 JCS SHA-256 provenance hash
-* **Instant Voice Command Chips:** To eliminate friction in noisy rooms or environments where microphone access is declined, `apps/web/components/VoiceBar.tsx` features three one-click voice command chips:
-  * 🎙️ *"Isolate encoder drift & check datasheet"*
-  * 🎙️ *"Render pinout probe overlay"*
-  * 🎙️ *"Approve voltage gate & flash compensation patch"*
-  Clicking any chip streams authentic 16 kHz PCM audio into the `/ws/asr` WebSocket relay (`services/gateway/src/asr/relay.ts`), driving the exact live Meta ASR and intent parsing pipeline without needing a physical microphone.
+### 3. Frictionless Evaluator UX & Live Cockpit (`Workbench.tsx`, `VoiceBar.tsx`)
+* **Interactive 4-Pill Workflow Stepper:** Directly tracks and triggers all 4 pipeline phases above `VideoStage.tsx`:
+  * ① **Perceiving:** SAM 3.1 + PSD (16-target multiplex · sub-pixel tracking)
+  * ② **Reasoning:** Muse Spark 1.3 (1M-token datasheet pin · character citations)
+  * ③ **Safety Gate:** Muse Wonder 1.0 (Human operator voltage/probe HMAC signoff)
+  * ④ **Self-Healing:** @muse-code/sdk (Docker sandbox compile · Placebo counterfactual)
+* **Persistent Cockpit Telemetry Strip:** Displays active Session ID, Dual-Model Consensus state, real-time compute ledger spend vs. cap, and RFC 8785 JCS SHA-256 provenance hash.
+* **Instant Voice Command Chips:** One-click chips stream 16 kHz PCM audio into the `/ws/asr` WebSocket relay, exercising the live Meta ASR and intent parser even when browser microphone permissions are declined.
 
-### 4. Complete 7-Model Meta & Partner Architecture Showcase
-ChronoSight integrates and visibly activates Meta models and partner infrastructure across all four operational stages:
+### 4. Full 7-Model Meta Stack & Partner Infrastructure Matrix
+Every model is visibly auditable in the live Workbench and exported audit reports:
 
 | Capability | Model / Engine | Role & Implementation | Data Class |
 | :--- | :--- | :--- | :--- |
 | **Spatial Perception** | **Meta SAM 3.1** | Multiplex object segmentation (up to 16 objects), sub-pixel centroid tracking, binary CSMK streaming. | PUBLIC, CONFIDENTIAL |
-| **Root Cause Reasoning** | **Meta Muse Spark 1.3** (`70B`) | Hypothesis generation, parameter boundary derivation, and character-exact citation retrieval. | PUBLIC, CONFIDENTIAL |
-| **Cost-Efficient Reasoning** | **Meta Muse Spark 1.3 Contributor** | Routine triage and Frame-0 zero-setup hardware discovery ($0.10/Mtok). | PUBLIC |
-| **Pre-Flight Risk Review** | **Meta Muse Wonder 1.0** | Independent safety auditing, power dissipation review, and thermal runaway prevention. | PUBLIC, CONFIDENTIAL |
-| **Autonomous Synthesis** | **Meta Muse Code 1.0** | AST-validated, parameter-bounded control patch synthesis inside Docker sandboxes. | PUBLIC, CONFIDENTIAL |
-| **Real-Time ASR** | **Meta Muse Voice Transcribe 1.0** | Low-latency 16/24 kHz streaming PCM speech-to-intent pipeline. | PUBLIC, CONFIDENTIAL |
-| **Dual-Model Consensus** | **Baseten Partner Lane** (`muse-spark-open-1026`) | Independent secondary consensus verification with transparent expandable trace audit. | PUBLIC |
+| **Causal Reasoning** | **Meta Muse Spark 1.3 (70B)** | Parameter boundary derivation; character-exact citation retrieval over 60-page manual. | PUBLIC, CONFIDENTIAL |
+| **Rapid Discovery** | **Meta Muse Spark 1.3 Contributor** | Frame-0 automated device discovery and web search grounding ($0.10/Mtok). | PUBLIC |
+| **Pre-Flight Risk Gate** | **Meta Muse Wonder 1.0** | Independent safety auditing, thermal runaway check, and policy gating. | PUBLIC, CONFIDENTIAL |
+| **Autonomous Synthesis** | **Meta Muse Code 1.0** | AST-validated, parameter-bounded patch synthesis executed inside Docker sandbox. | PUBLIC, CONFIDENTIAL |
+| **Streaming Speech** | **Meta Muse Voice Transcribe 1.0** | Low-latency 16/24 kHz streaming PCM speech-to-intent pipeline. | PUBLIC, CONFIDENTIAL |
+| **Consensus Lane** | **Baseten (`muse-spark-open-1026`)** | Independent secondary validation route with expandable trace auditing. | PUBLIC |
 
-* **AR Schematic Probe Guide:** Interactive multimeter reticles, test-point crosshairs, and dynamic pinout overlays directly rendered over the live video canvas (`apps/web/components/VideoStage.tsx`).
-* **Scientific Counterfactual Split-Testing:** `apps/web/components/PlaceboButton.tsx` executes side-by-side verification comparing a Placebo Patch (Rejected by digital twin unit test) against the Remediated Muse Code Patch (Passed).
-
-### 5. Rigorous Character-Level Datasheet Grounding & Compliance Manifest (`corpus/vendor-manifest.json`)
-* Every claim, pin specification, and register threshold generated by Muse is cross-referenced with exact character-offset verification against the 60-page bundled hardware manual (`corpus/encx14/encx14.pdf`).
-* Full legal and provenance compliance: CC-BY-4.0 license, SHA-256 digest (`e3b0c442...`), and page count verified by automated checks (`npm run corpus:check`).
+* **AR Multimeter Probe Guide:** Interactive multimeter reticles, test-point crosshairs, and dynamic pinouts on `VideoStage.tsx`.
+* **Scientific Counterfactual Split-Testing:** `PlaceboButton.tsx` executes side-by-side verification proving the digital twin unit test rejects no-op placebo patches while passing verified Muse Code patches.
 
 ---
 
-## Deterministic Physical Scenarios
+## Deterministic Physical Failure Scenarios
 
-ChronoSight ships with three deterministic digital-twin scenarios (`services/twin/twin/scenarios/`):
-
-1. **S1: Robot-Arm Elbow Hunting** (`s1`):
-   * *Physical Fault:* Optical encoder drift and derivative filter phase lag induce a 4.2 Hz hunting limit cycle in a 2-DOF robotic manipulator.
-   * *Visual Unit Test:* Peak spectral power density $\leq 0.05\text{ mm}^2/\text{Hz}$ at $4.2\text{ Hz}$, steady-state tracking error $\leq 0.2\text{ mm}$.
-2. **S2: Solar Microinverter Thermal Derating** (`s2`):
-   * *Physical Fault:* Ambient temperature surge combined with MOSFET switching losses trigger aggressive thermal throttling and power drop.
-   * *Visual Unit Test:* Operating temperature $\leq 85^\circ\text{C}$ under full 350W load; MPPT efficiency $\geq 98.2\%$.
-3. **S3: CNC Stepper-Axis Resonance** (`s3`):
+1. **S1: Robot-Arm Elbow Hunting (`s1`)**
+   * *Physical Fault:* Optical encoder drift and derivative phase lag create a 4.2 Hz hunting limit cycle in a 2-DOF manipulator.
+   * *Visual Unit Test:* Spectral power density $\leq 0.05\text{ mm}^2/\text{Hz}$ at $4.2\text{ Hz}$, tracking jitter $\leq 0.2\text{ mm}$.
+2. **S2: Solar Microinverter Thermal Derating (`s2`)**
+   * *Physical Fault:* Ambient temperature surge combined with MOSFET switching losses trigger thermal throttling and power drop.
+   * *Visual Unit Test:* Core operating temperature $\leq 85^\circ\text{C}$ under 350W load; MPPT efficiency $\geq 98.2\%$.
+3. **S3: CNC Stepper-Axis Resonance (`s3`)**
    * *Physical Fault:* Mid-band mechanical resonance in lead-screw linear actuator causing skipped steps and auditory chatter.
    * *Visual Unit Test:* Centroid trajectory jitter $\leq 0.08\text{ mm}$, velocity ripple $\leq 1.5\%$.
 
 ---
 
-## System Status & Verification
+## System Verification
 
-| Area | Status | Verified Metrics |
+| Suite | Result | Scope |
 | :--- | :--- | :--- |
-| **Digital Twin** (FastAPI :8090) | **Production-Ready** | 50 Pytest tests passing; deterministic simulation, rendering, and visual unit test evaluation. |
-| **Gateway Orchestrator** (Fastify 5 :8080) | **Production-Ready** | Full state-machine orchestrator, two-step HMAC gate, budget ledger, audit chain, replay recorder. |
-| **Web Application** (Next.js 16.4 :3000) | **Production-Ready** | Clean production build; 19 test suites (156 tests passing); zero TypeScript compiler errors. |
-| **Hardened Sandbox** | **Production-Ready** | Docker launcher with seccomp profile, cap-drop ALL, read-only root, allowlist egress proxy. |
-| **Media Worker** (:8091) | **Production-Ready** | Untrusted video probe, MP4/MOV normalization, and 16 kHz mono WAV audio extraction. |
-| **Differential Sub-Pixel Tracking** | **Production-Ready** | 11 unit tests passing; homography-stabilized Lomb-Scargle PSD frequency analysis. |
-| **Cryptographic Provenance** | **Production-Ready** | RFC 8785 JSON Canonicalization Scheme (JCS) SHA-256 linear hash-chained audit log. |
-| **Hosted Demo (Render)** | **Live** | Operational at `https://chronosight.onrender.com`. |
-
-**Total Test Suite:**
-* **Vitest:** `593 passed tests across 42 files` (100% pass rate).
-* **Pytest:** `50 passed tests` in `services/twin/tests` (100% pass rate).
-* **TypeScript:** Strict typecheck across all 5 workspaces (`run-model`, `gateway`, `sandbox-launcher`, `media-worker`, `web`) with **0 errors**.
+| **Vitest** | **593 passed / 0 failed** (42 files) | Full coverage: gateway, run-model, web, media-worker, launcher |
+| **Pytest** | **50 passed / 0 failed** | Digital Twin physics simulation, rendering, and visual unit testing |
+| **TypeScript** | **0 errors** across 5 workspaces | Strict mode across `run-model`, `gateway`, `sandbox-launcher`, `media-worker`, `web` |
+| **Next.js Build** | **Clean production build** | All 8 routes compiled with Turbopack |
+| **Datasheet Corpus** | **Verified Character Offsets** | Checked via `npm run corpus:check` against 60-page EncoderX-14 manual |
 
 ---
 
 ## Architecture
 
-### System Topology
+### 1. System Topology
 
 ```mermaid
 flowchart LR
     subgraph clients["Clients"]
-        BR["Browser<br/>Workbench, Replay, Audit, Admin"]
-        HUD["Smart-Glasses HUD<br/>/hud, 600x600"]
+        BR["Browser Workbench<br/>Replay · Audit · AR Overlays"]
+        HUD["Smart-Glasses HUD<br/>/hud (600x600)"]
     end
 
-    subgraph web["apps/web - Next.js 16 :3000"]
+    subgraph web["apps/web - Next.js 16.4 :3000"]
         PAGES["Routes<br/>/ /s/id /replay/id /report/id /about /admin"]
         HUDB["/hud Route<br/>Bundled Wearable HUD"]
         PX["proxy.ts<br/>CSP Nonce Proxy"]
@@ -164,7 +150,7 @@ flowchart LR
     AUD --> DISK
 ```
 
-### End-to-End Visual Unit Test Sequence
+### 2. End-to-End Visual Unit Test Sequence
 
 ```mermaid
 sequenceDiagram
@@ -211,9 +197,7 @@ sequenceDiagram
     end
 ```
 
-### Run State Machine
-
-Defined and enforced by `packages/run-model/src/state-machine.ts`:
+### 3. Run State Machine
 
 ```mermaid
 stateDiagram-v2
@@ -249,185 +233,66 @@ stateDiagram-v2
     ABORTED --> [*]
 ```
 
----
+### 4. Untrusted Input Containment & Isolation
 
-## File Structure
+```mermaid
+flowchart TB
+    subgraph untrusted["Untrusted Input"]
+        UPF["Uploaded MP4 / MOV"]
+        LLM["Model-Written Patch"]
+    end
 
-Tracked repository layout:
+    UPF -->|"100 MB cap, consent first"| MWK["Media Worker<br/>ffprobe, then ffmpeg on normalized file"]
+    MWK -->|"normalized clip"| GWY["Gateway Orchestrator"]
 
-```text
-chronosight/
-├── PRD.md  DESIGN.md  TECHNICAL.md          System specifications & protocols
-├── README.md  HANDOFF.md                    System overview & operator runbooks
-├── package.json  package-lock.json          npm workspaces configuration
-├── pyproject.toml  uv.lock                  Python environment specification
-├── tsconfig.base.json  vitest.config.ts     TypeScript & Vitest test runners
-├── .env.example                             Environment variable template
-│
-├── apps/web/                                Next.js 16.4 + React 19 Frontend
-│   ├── app/                                 App Router
-│   │   ├── page.tsx                         Landing page with WebGL2 twin animation
-│   │   ├── s/[sessionId]/page.tsx           Live workbench & telemetry hub
-│   │   ├── replay/[runId]/page.tsx          SHA-256 verified replay player
-│   │   ├── report/[sessionId]/page.tsx      RFC 8785 JCS audit trail viewer
-│   │   ├── about/  admin/                   Product documentation & admin console
-│   │   ├── hud/route.ts                     Smart-glasses 600x600 wearable route
-│   │   └── layout.tsx  globals.css          Global styling and font tokens
-│   ├── components/                          Workbench, VideoStage (AR reticles),
-│   │                                        ByoPanel (1-Click Auto-Inspect),
-│   │                                        VoiceBar (1-Click Voice Pills),
-│   │                                        PsdChart (Differential Lomb-Scargle),
-│   │                                        PlaceboButton (Counterfactual Split-Test),
-│   │                                        ApprovalDialog, GlassesPanel, ...
-│   ├── lib/
-│   │   ├── session/                         psd.ts (differential tracking), REST & WS client
-│   │   ├── replay/                          csmk.ts (binary mask decode), bundle verification
-│   │   ├── hud/                             Wearable pairing, navigation, and speech
-│   │   ├── voice/                           16/24 kHz PCM capture & worklet streaming
-│   │   └── webmcp/                          In-browser agent tool registrations
-│   └── proxy.ts  next.config.ts             CSP nonce proxy & Next configuration
-│
-├── packages/run-model/src/                  Shared TypeScript/Zod Contracts
-│   ├── state-machine.ts  reducer.ts         Deterministic run lifecycle & reducer
-│   ├── envelope.ts  jcs.ts  taint.ts        Cryptographic envelopes & RFC 8785 JCS
-│   └── schemas/diagnosis.ts  visual-test.ts Zod contracts for diagnoses and test criteria
-│
-├── services/
-│   ├── gateway/                             Fastify 5 Orchestrator (Node 24)
-│   │   ├── src/
-│   │   │   ├── server.ts  app.ts            Fastify server bootstrap & REST/WS routes
-│   │   │   ├── orchestrator/run.ts          Run lifecycle execution engine
-│   │   │   ├── gate/approval.ts  risk.ts    Two-stage HMAC approval & Muse Wonder review
-│   │   │   ├── diagnosis.ts  citations.ts   Muse 70B reasoning & character citation verification
-│   │   │   ├── sam/client.ts  csmk.ts       SAM 3.1 client & binary CSMK encoder
-│   │   │   ├── muse/synthesizer.ts          Bounded synthesis orchestration
-│   │   │   ├── asr/relay.ts  intent.ts      Meta ASR WebSocket relay & intent grammar
-│   │   │   ├── budget.ts  ledger.ts         Real-time cost ledger & kill switch
-│   │   │   └── audit.ts  report.ts          Hash-chained audit log generator
-│   │   └── test/                            Vitest suites
-│   ├── sandbox-launcher/src/                Container launcher & Docker socket isolation
-│   ├── media-worker/src/                    Video probing, normalization & audio extraction
-│   └── twin/                                Python 3.12 Digital Twin (FastAPI :8090)
-│       ├── twin/sim/                        Physics plants (S1, S2, S3)
-│       ├── twin/render/                     Headless OpenGL/Software renderer
-│       ├── twin/metrics/                    Lomb-Scargle spectrum & ISO vibration metrics
-│       ├── twin/hotload/                    AST bounds checks & hot-reload runner
-│       ├── twin/vut/                        Visual unit test evaluator
-│       └── tests/                           50 pytest unit tests
-│
-├── config/                                  routing.yaml, prices.json, buckets.yaml
-├── corpus/encx14/                           EncoderX-14 60-page manual & character manifest
-├── sandbox/policies/                        seccomp-default.json, allowlist.yaml
-└── deploy/                                  Render (hosted demo) & Live Docker Compose
+    LLM --> VAL["Parameter bounds + AST checks<br/>(twin hotload/bounds.py)"]
+    VAL --> SBX["Docker Container<br/>seccomp, cap-drop ALL, no-new-privileges, read-only root, UID 10001"]
+    SBX -->|"HTTP via allowlist only"| PROXY["Egress Proxy<br/>sandbox/policies/allowlist.yaml"]
+    GWY -->|"socket, no Docker access itself"| LAUNCH["Sandbox Launcher<br/>sole Docker socket holder"]
+    LAUNCH --> SBX
+
+    GWY --> GATE["Two-Step Approvals<br/>HMAC over exact patch spec"]
+    GATE --> TWIN2["Twin Hot-Load<br/>and Visual Unit Test"]
 ```
 
 ---
 
 ## Security & Provenance Model
 
-* **Zero Browser Key Exposure:** API keys (`META_API_KEY`, `BASETEN_API_KEY`) reside exclusively in server-side environment variables. The client never touches raw model credentials.
-* **Strict Cookie Isolation:** Session authentication uses `cs_sid` set to `HttpOnly; Secure; SameSite=Strict`. Both the web interface and API share a single origin.
-* **Cryptographic Two-Step Approval Gate:**
-  1. Step 1: Human engineer confirms intent to patch based on telemetry and risk score.
-  2. Step 2: Human engineer signs off with an HMAC-SHA256 signature cryptographically bound to the exact patch Abstract Syntax Tree (AST) and parameter bounds.
-* **Hardened Sandbox Isolation:** Code synthesis occurs inside dedicated Docker containers configured with `--cap-drop ALL`, `no-new-privileges`, read-only root filesystem, non-root UID 10001, custom seccomp filtering, and strict egress proxy allowlisting.
-* **RFC 8785 JCS Provenance:** Every run transition, metric measurement, model hypothesis, human approval, and test verdict is serialized using RFC 8785 JSON Canonicalization Scheme (JCS) and appended to a linear SHA-256 hash chain (`services/gateway/src/audit.ts`).
-* **Data Classification & Taint Tracking:** Inputs are partitioned into `PUBLIC` and `CONFIDENTIAL`. Confidential customer telemetry is cryptographically forbidden from routing to Contributor or third-party partner endpoints.
+* **Zero Client Secret Exposure:** API credentials (`META_API_KEY`, `BASETEN_API_KEY`) reside exclusively in server-side environment variables.
+* **Strict Cookie Isolation:** Session token `cs_sid` is `HttpOnly; Secure; SameSite=Strict` behind a unified origin.
+* **Two-Step HMAC-SHA256 Approval Binding:** Approvals are cryptographically bound to the SHA-256 hash of the exact patch AST and parameter bounds.
+* **Container Hardening:** Synthesis containers run with `--cap-drop ALL`, `no-new-privileges`, read-only rootfs, non-root UID 10001, custom seccomp profile, and egress proxy allowlisting.
+* **RFC 8785 JCS Hash Chain:** Every state mutation, measurement, hypothesis, and approval is serialized via RFC 8785 Canonical JSON and committed to an immutable SHA-256 hash chain.
+* **Data Classification & Taint Tracking:** Inputs are partitioned into `PUBLIC` and `CONFIDENTIAL`. Confidential customer telemetry is cryptographically prevented from routing to contributor or partner endpoints.
 
 ---
 
-## Quickstart: Local Development
+## Quickstart
 
-### Prerequisites
-* **Node.js:** `>=24.0.0`
-* **Python:** `3.12` with `uv`
-* **Docker:** Required for live patch synthesis
-* **FFmpeg / FFprobe:** On system `PATH` (for media worker uploads)
-
-### 1. Installation
 ```bash
 git clone https://github.com/BugHunterX2101/chronosight-mcp.git
 cd chronosight-mcp
-npm ci
-uv sync
-cp .env.example .env.local
-```
+npm ci && uv sync
+cp .env.example .env.local  # Set SESSION_SIGNING_KEY and APPROVAL_HMAC_KEY
 
-### 2. Configure Environment (`.env.local`)
-```env
-META_API_KEY=your_meta_api_key           # Or leave unset with MOCK_META=true
-MOCK_META=true                           # Set to false for live Meta model calls
-SESSION_SIGNING_KEY=generate_a_random_32_character_string
-APPROVAL_HMAC_KEY=generate_another_random_32_character_string
-PUBLIC_ORIGINS=http://localhost:3000
-LIVE_RUNS_ENABLED=true
-```
+# Run verification test suites
+npm test                                         # 593 Vitest unit tests
+uv run pytest services/twin/tests -q             # 50 Pytest physics twin tests
+npm run typecheck                                # Strict typecheck (0 errors)
+npm run corpus:check                             # Verify 60-page datasheet offsets
 
-### 3. Launch Services
-Start each service in a dedicated terminal:
-
-```bash
-# Terminal 1: Digital Twin (Python 3.12)
+# Launch local stack
 cd services/twin && uv run uvicorn twin.app.main:app --host 127.0.0.1 --port 8090
-
-# Terminal 2: Gateway Orchestrator (:8080)
-npm run dev:gateway
-
-# Terminal 3: Media Worker (:8091 - Optional for uploads)
-npm run start -w services/media-worker
-
-# Terminal 4: Sandbox Launcher (Optional for live synthesis)
-npm run start -w services/sandbox-launcher
-
-# Terminal 5: Web Application (:3000)
-npm run dev:web
+npm run dev:gateway                              # :8080 Fastify gateway
+npm run dev:web                                  # :3000 Next.js frontend
 ```
 
-Open `http://localhost:3000` to access the ChronoSight Workbench.
-
----
-
-## Test & Verification Commands
-
-```bash
-# Run Vitest test suite across all TypeScript packages (593 tests)
-npm test
-
-# Run Digital Twin pytest suite (50 tests)
-uv run pytest services/twin/tests -q
-
-# Run strict TypeScript typecheck across all 5 workspaces
-npm run typecheck
-
-# Verify datasheet corpus character offsets & manifest digests
-npm run corpus:check
-
-# Production Next.js build
-npm run build -w apps/web
-```
-
----
-
-## Production Deployment
-
-### 1. Hosted Live Demo on Render
-The repository includes a single-container supervisor deployment (`deploy/render/`):
-* Caddy reverse proxy terminates TLS and routes traffic between Gateway (`:8080`) and Next.js (`:3000`) on a unified origin.
-* High-availability replay player serves verified historical inspection bundles with client-side SHA-256 validation.
-* Live hosted URL: [https://chronosight.onrender.com](https://chronosight.onrender.com)
-
-### 2. Provider-Neutral Live Docker Stack
-To run the full end-to-end live synthesis stack on any GPU/CPU Docker host:
-```bash
-cp .env.example .env
-# Provide valid META_API_KEY, SESSION_SIGNING_KEY, and APPROVAL_HMAC_KEY
-docker compose -f deploy/live/compose.yaml up --build
-```
-This composition places the web and gateway behind a unified Caddy edge, isolates the digital twin and media worker on internal bridge networks, and mounts the Docker socket exclusively to the sandbox launcher.
+*Access the live workbench at `http://localhost:3000` or explore the production deployment at [https://chronosight.onrender.com](https://chronosight.onrender.com).*
 
 ---
 
 ## License & Attribution
 
-* **Software:** Licensed under the [Apache License, Version 2.0](LICENSE).
-* **Hardware Corpus:** The EncoderX-14 Precision Optical Encoder Technical Reference Manual (`corpus/encx14/`) is licensed under [Creative Commons Attribution 4.0 International (CC-BY-4.0)](https://creativecommons.org/licenses/by/4.0/). See [corpus/vendor-manifest.json](corpus/vendor-manifest.json) for full provenance documentation.
+* **Software:** [Apache License 2.0](LICENSE).
+* **Hardware Corpus:** EncoderX-14 Technical Reference Manual (`corpus/encx14/`) licensed under [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). See [corpus/vendor-manifest.json](corpus/vendor-manifest.json).
