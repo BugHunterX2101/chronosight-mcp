@@ -116,12 +116,12 @@ export function PsdChart({ run }: { run: RunView | undefined }) {
   const summary = psdSummary(model);
   return (
     <section className="panel" aria-labelledby="psd-h">
-      <h2 id="psd-h">Spectrum</h2>
+      <h2 id="psd-h">Lomb-Scargle PSD Frequency Spectrum</h2>
       <canvas ref={ref} role="img" aria-label={summary} style={{ width: "100%", height: H, display: "block" }} />
       <ul className="plain legend" aria-hidden="true">
-        <li style={{ color: PRE }}>── before</li>
-        {model.post.length > 0 ? <li style={{ color: POST }}>╌╌ after</li> : null}
-        {model.band ? <li className="muted">shaded: f* ± 0.5 Hz</li> : null}
+        <li style={{ color: PRE }}>── Pre-remediation spectrum</li>
+        {model.post.length > 0 ? <li style={{ color: POST }}>╌╌ Post-remediation spectrum</li> : null}
+        {model.band ? <li className="muted">Resonance band (f* ± 0.5 Hz)</li> : null}
       </ul>
       <p className="muted">{summary}</p>
     </section>

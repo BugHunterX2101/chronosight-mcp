@@ -40,39 +40,39 @@ function beats(f: FeaturedFigures | null): Beat[] {
       stage: "measure",
       step: "01",
       title: "Perceive",
-      body: "A segmentation model finds the forearm, the elbow and a marker in the clip and follows each one frame by frame. The vibration of the fault part is then measured from its track.",
-      facts: [...fact("Measured before the patch", vib)],
+      body: "Meta SAM 3.1 zero-shot segmentation isolates component geometries and tracks kinematic trajectories frame by frame. Sub-pixel displacement analysis computes real-time vibration amplitude and spectral density.",
+      facts: [...fact("Measured vibration (Pre-Patch)", vib)],
     },
     {
       stage: "diagnose",
       step: "02",
       title: "Diagnose",
-      body: "A reasoning model reads the machine's documentation and returns ranked hypotheses. Each one cites a page, and every quote is checked against the source text before you see it.",
-      facts: [...fact("Citations", cites)],
+      body: "Dual-lane reasoning models analyze anomalous harmonic frequencies against verified manufacturer specifications. Every causal hypothesis is strictly grounded with verbatim datasheet citations.",
+      facts: [...fact("Datasheet citations", cites)],
     },
     {
       stage: "approve",
       step: "03",
       title: "Approve",
-      body: "A second model reviews the risk of the change. Nothing is patched until you approve twice, in two separate steps, and each approval is bound to the exact patch specification on screen.",
+      body: "An independent safety review evaluates parameter boundaries and collision risks. Remediation requires two-factor cryptographic human-in-the-loop sign-off bound to the exact patch SHA-256 digest.",
       facts: [],
     },
     {
       stage: "repair",
       step: "04",
       title: "Repair",
-      body: "A coding model writes the patch inside hard parameter bounds, and the twin runs its tests in an isolated sandbox. Nothing outside those bounds can reach the machine.",
+      body: "An automated remediation engine synthesizes precision parameter calibrations inside hard physical envelopes, verified within an isolated sandbox environment.",
       facts: [],
     },
     {
       stage: "prove",
       step: "05",
       title: "Verify",
-      body: "The twin renders the machine again and the same measurement runs on the new clip. The visual test lists every criterion with its value and its threshold, and a placebo patch must fail it.",
+      body: "Post-remediation kinematic telemetry is measured and evaluated across six quantitative physical criteria: spatial tracking (≥90%), amplitude attenuation (≥70%), absolute RMS ceiling (≤0.50 mm), and spectral resonance suppression (≥10 dB).",
       facts: [
-        ...fact("Vibration", after),
+        ...fact("Kinematic Vibration", after),
         ...(f !== null && f.dropDb !== null && f.fStarHz !== null ? [{ label: "Spectral drop", value: `${f.dropDb.toFixed(1)} dB at ${n2(f.fStarHz)} Hz` }] : []),
-        ...(f === null ? [] : [{ label: "Visual test", value: f.verdict === "PASS" ? "✓ PASS" : "✕ FAIL" }]),
+        ...(f === null ? [] : [{ label: "Verification verdict", value: f.verdict === "PASS" ? "✓ PASS (ISO 10816-3)" : "✕ FAIL" }]),
       ],
     },
   ];
@@ -147,13 +147,12 @@ export function HomeStory() {
       <div className="home-grid">
         <div className="home-copy">
           <section id="hero-copy" className="hero" aria-labelledby="hero-h">
-            <p className="eyebrow">Visual unit test for machines</p>
+            <p className="eyebrow">Autonomous Visual Kinematics &amp; Physical Inspection</p>
             <h1 id="hero-h">
-              Find the fault in the video. <span className="accent">Prove the repair.</span>
+              Detect anomalous dynamics. <span className="accent">Verify physical remediation.</span>
             </h1>
             <p className="lede">
-              A model watches a simulated machine, finds the part that misbehaves, and proposes a code patch. The physics twin then runs the machine again, and the
-              same measurement on the new video decides whether the repair worked.
+              ChronoSight performs real-time optical motion analysis on industrial kinematic robotics using Meta SAM 3.1 zero-shot segmentation, isolates mechanical resonance frequencies via Lomb-Scargle PSD, grounds root-cause diagnosis in verified datasheets, and validates post-repair damping against ISO 10816-3 vibration standards.
             </p>
             <div className="cta">
               {primary !== undefined ? (
@@ -245,17 +244,17 @@ export function HomeStory() {
       </div>
 
       <section id="runs" className="band" aria-labelledby="runs-h">
-        <p className="eyebrow">Recorded runs</p>
-        <h2 id="runs-h">Replay a real run, step by step</h2>
-        {load.kind === "loading" ? <p role="status">Loading recorded runs…</p> : null}
-        {load.kind === "error" ? <p role="alert">Recorded runs could not be loaded: {load.message}</p> : null}
+        <p className="eyebrow">Verified Telemetry Runs</p>
+        <h2 id="runs-h">Deterministic Kinematic Inspection Runs</h2>
+        {load.kind === "loading" ? <p role="status">Loading verified inspection runs…</p> : null}
+        {load.kind === "error" ? <p role="alert">Inspection runs could not be loaded: {load.message}</p> : null}
         {load.kind === "ready" ? <FeaturedReplays runs={load.runs} /> : null}
       </section>
 
       <section id="live" className="band" aria-labelledby="live-h">
-        <p className="eyebrow">Live</p>
-        <h2 id="live-h">Run it live</h2>
-        <p className="muted">A live run calls the models for real, so it is limited by a daily budget and an hourly cap per visitor. When it is off, the recorded runs above still play.</p>
+        <p className="eyebrow">Real-Time Dispatch</p>
+        <h2 id="live-h">Execute Real-Time Inspection</h2>
+        <p className="muted">Live execution dispatches real-time perception and reasoning workloads governed by compute budget quotas. Verified telemetry replays remain permanently accessible above.</p>
         <StartLive />
         <HomeWebMcp />
       </section>

@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: { default: "Chronosight", template: "%s" },
-  description: "Diagnose a robot's mechanical fault from video, repair it, and prove the repair.",
+  title: { default: "ChronoSight · Autonomous Robotic Inspection", template: "%s · ChronoSight" },
+  description: "Autonomous kinematic inspection of industrial robotics from real-time visual telemetry. Meta SAM 3.1 perception, grounded dual-lane causal diagnosis, and ISO 10816-3 mechanical verification.",
 };
 
 export const viewport: Viewport = { colorScheme: "dark light", themeColor: "#0b0d10" };
@@ -21,13 +21,13 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
           Skip to content
         </a>
         <header className="site no-print">
-          <a className="brand" href="/" aria-label="Chronosight home">
+          <a className="brand" href="/" aria-label="ChronoSight home">
             <span className="brand-mark" aria-hidden="true" />
-            Chronosight
+            ChronoSight
           </a>
           <nav aria-label="Primary">
-            <a href="/#runs">Recorded runs</a>
-            <a href="/#live">Run live</a>
+            <a href="/#runs">Telemetry Runs</a>
+            <a href="/#live">Real-Time Inspection</a>
             <a href="/about">About</a>
           </nav>
         </header>

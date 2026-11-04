@@ -114,8 +114,8 @@ export function DiagnosisPane({ run }: { run: RunView | undefined }) {
   const phase = d === undefined || run === undefined ? "idle" : d.final !== null ? "success" : run.state === "DIAGNOSING" ? "streaming" : "idle";
   return (
     <section className="panel" aria-labelledby="dx-h">
-      <h2 id="dx-h">Diagnosis</h2>
-      {phase === "idle" ? <p className="muted">Waiting for the diagnosis step.</p> : null}
+      <h2 id="dx-h">Grounded Causal Diagnosis</h2>
+      {phase === "idle" ? <p className="muted">Waiting for perception phase completion.</p> : null}
       {phase === "streaming" && d !== undefined ? (
         <>
           <p role="status">Thinking… {d.progress.length > 0 ? d.progress[d.progress.length - 1] : ""}</p>
@@ -189,7 +189,7 @@ export function RepairPane({ run }: { run: RunView | undefined }) {
   const candidates = run === undefined ? [] : Object.values(run.repair.candidates);
   return (
     <section className="panel" aria-labelledby="rp-h">
-      <h2 id="rp-h">Repair</h2>
+      <h2 id="rp-h">Calibrated Parameter Remediation</h2>
       {run !== undefined && run.approval.recorded.length > 0 ? (
         <ul className="plain" aria-label="Approvals">
           {run.approval.recorded.map((a) => (

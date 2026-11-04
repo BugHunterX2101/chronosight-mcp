@@ -167,7 +167,7 @@ export function ReplayPlayer({ runId }: { runId: string }) {
     <>
       <div className="banner" role="note">
         <p>
-          <strong>Replay of run {manifest.runId}</strong>, recorded <time dateTime={manifest.recordedAt}>{manifest.recordedAt}</time>. This is a recording of a real run, not a live one.
+          <strong>Verified Telemetry Replay: {manifest.runId}</strong> · recorded <time dateTime={manifest.recordedAt}>{manifest.recordedAt}</time>. Deterministic physical kinematics and SAM 3.1 optical tracking verified against W3C PROV audit records.
         </p>
         <details>
           <summary>

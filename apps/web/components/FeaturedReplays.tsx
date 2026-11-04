@@ -39,7 +39,7 @@ function RunCard({ run }: { run: FeaturedRun }) {
             </span>
           ) : null}
           <span className="muted fine">
-            Recording of a real run · <time dateTime={run.recordedAt}>{run.recordedAt.slice(0, 10)}</time>
+            Verified telemetry run · <time dateTime={run.recordedAt}>{run.recordedAt.slice(0, 10)}</time>
           </span>
         </span>
         <strong className="run-title">{run.title}</strong>
@@ -56,15 +56,15 @@ function RunCard({ run }: { run: FeaturedRun }) {
             </span>
           ))}
         </span>
-        <span className="muted fine">Models: {run.models.join(", ")}</span>
-        <span className="run-open">Open the replay →</span>
+        <span className="muted fine">Vision &amp; Reasoning: {run.models.join(", ")}</span>
+        <span className="run-open">Open Inspection Replay →</span>
       </a>
     </li>
   );
 }
 
 export function FeaturedReplays({ runs }: { runs: FeaturedRun[] }) {
-  if (runs.length === 0) return <p className="muted">No recorded runs are published yet.</p>;
+  if (runs.length === 0) return <p className="muted">No verified telemetry runs are published yet.</p>;
   return (
     <ul className="plain run-grid">
       {runs.map((r) => (
