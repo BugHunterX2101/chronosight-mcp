@@ -49,6 +49,8 @@ export interface LedgerOptions {
   visitorRunsPerHour: number;
   /** Boot default of the kill switch; `state/live.json` overrides it once an admin has toggled it. */
   liveDefault: boolean;
+  /** Set false only for an explicitly unmetered, operator-owned live deployment. */
+  runLimitsEnabled?: boolean;
   /**
    * Identifies one deployment lifetime. It prevents a lock left on persistent storage by a
    * previous container from being mistaken for a same-PID process in its replacement container.
@@ -71,6 +73,7 @@ export function ledgerOptionsFromEnv(dataDir: string, env: NodeJS.ProcessEnv = p
     dailyCapUsd: num("BUDGET_GLOBAL_DAILY_USD", 3),
     visitorRunsPerHour: num("BUDGET_PER_VISITOR_RUNS_PER_HOUR", 2),
     liveDefault: (env.LIVE_RUNS_ENABLED?.trim() || "true").toLowerCase() !== "false",
+    runLimitsEnabled: (env.LIVE_RUN_LIMITS_ENABLED?.trim() || "true").toLowerCase() !== "false",
   };
 }
 
@@ -105,7 +108,7 @@ export class BudgetLedger {
   private liveAt: string | null = null;
 
   constructor(o: LedgerOptions) {
-    this.o = { now: Date.now, lockInstanceId: "", ...o };
+    this.o = { now: Date.now, lockInstanceId: "", runLimitsEnabled: true, ...o };
     this.lockInstanceId = o.lockInstanceId?.trim() || null;
     this.ledgerPath = join(o.dataDir, "budget", "ledger.jsonl");
     this.lockPath = join(o.dataDir, "budget", "ledger.lock");
@@ -237,11 +240,11 @@ export class BudgetLedger {
     if (!this.live) return { ok: false, code: "LIVE_PAUSED", message: "Live runs paused. Watch a replay.", retryable: false };
     // A placebo child (§8.3) belongs to a run that already took a slot, so it does not count against the
     // visitor's hourly runs; the pause and the daily cap still apply to it.
-    if (!opts.child && this.runsInLastHour(visitorKey, now) >= this.o.visitorRunsPerHour) {
+    if (this.o.runLimitsEnabled && !opts.child && this.runsInLastHour(visitorKey, now) >= this.o.visitorRunsPerHour) {
       return { ok: false, code: "VISITOR_CAP", message: `${this.o.visitorRunsPerHour} live runs in the last hour`, retryable: true };
     }
     const r = toMicros(RESERVE_USD);
-    if (this.spent + this.reserved + r > toMicros(this.o.dailyCapUsd)) {
+    if (this.o.runLimitsEnabled && this.spent + this.reserved + r > toMicros(this.o.dailyCapUsd)) {
       return { ok: false, code: "DAILY_CAP", message: "The reservation would exceed the daily cap", retryable: true };
     }
     this.reserved += r;

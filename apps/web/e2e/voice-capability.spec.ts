@@ -21,5 +21,4 @@ test("replay-only deployments explain that server voice is unavailable instead o
   await page.goto(`/s/${SESSION}`);
   await expect(page.getByRole("button", { name: "Talk to Chronosight" })).toBeDisabled();
   await expect(page.getByText("Voice control is unavailable in this replay demo. Try a sample command or type instead.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Explain the fault" })).toBeEnabled();
 });

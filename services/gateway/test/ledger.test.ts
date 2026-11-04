@@ -30,6 +30,13 @@ const reopen = (l: BudgetLedger, o: Partial<LedgerOptions> = {}) => {
 const sumLedger = (l: BudgetLedger) => readFileSync(l.ledgerPath, "utf8").trim().split("\n").map((x) => JSON.parse(x));
 
 describe("BudgetLedger.reserve", () => {
+  it("does not impose visitor or daily-count limits when the deployment explicitly disables run limits", () => {
+    const l = open({ dailyCapUsd: 0, visitorRunsPerHour: 0, runLimitsEnabled: false });
+    expect(l.reserve("v", "run_a").ok).toBe(true);
+    expect(l.reserve("v", "run_b").ok).toBe(true);
+    expect(l.reserve("v", "run_c").ok).toBe(true);
+  });
+
   it("never reserves past the daily cap under a burst (§33: 20 calls, room for 3)", () => {
     clock = Date.parse("2026-10-31T12:00:00.000Z");
     const l = open({ dailyCapUsd: 1.8 });
