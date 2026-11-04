@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { decodeRaster, type MaskFile, type MaskRecord } from "../lib/replay/csmk.ts";
 import type { Stage } from "../lib/scene/stages.ts";
 
@@ -36,6 +36,7 @@ interface Props {
 }
 
 export function VideoStage({ src, masks, concepts, playing, onFirstMask, waitingStage = "watch", focus = null }: Props) {
+  const [probeGuide, setProbeGuide] = useState(false);
   const video = useRef<HTMLVideoElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const fills = useRef(new WeakMap<MaskRecord, HTMLCanvasElement>());
@@ -102,6 +103,24 @@ export function VideoStage({ src, masks, concepts, playing, onFirstMask, waiting
         ctx.fillRect(x1, Math.max(0, y1 - 26), w, 26);
         ctx.fillStyle = `rgb(${r} ${g} ${b})`;
         ctx.fillText(label, x1 + 6, Math.max(0, y1 - 26) + 4);
+
+        if (probeGuide) {
+          const cx = (x1 + x2) / 2;
+          const cy = (y1 + y2) / 2;
+          ctx.strokeStyle = "#56b4e9";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+          ctx.moveTo(cx - 18, cy);
+          ctx.lineTo(cx + 18, cy);
+          ctx.moveTo(cx, cy - 18);
+          ctx.lineTo(cx, cy + 18);
+          ctx.stroke();
+
+          ctx.fillStyle = "#56b4e9";
+          ctx.font = "600 12px ui-monospace, monospace";
+          ctx.fillText(`CH1: PIN PROBE [AUTO]`, x1, y2 + 14);
+        }
       }
       ctx.globalAlpha = 1;
       if (records.length > 0 && !first.current) {
@@ -131,21 +150,32 @@ export function VideoStage({ src, masks, concepts, playing, onFirstMask, waiting
       if (v.cancelVideoFrameCallback) v.cancelVideoFrameCallback(handle);
       else cancelAnimationFrame(handle);
     };
-  }, [masks, concepts, src, focus]);
+  }, [masks, concepts, src, focus, probeGuide]);
 
   return (
-    <div className="stage">
-      {src !== null ? (
-        <video ref={video} className="stage-video" src={src} muted loop playsInline preload="auto" aria-label="Rendered clip" />
-      ) : (
-        <div className="stage-video stage-empty">
-          <TwinScene variant="stage" stage={waitingStage} hz={null} residual={null} labels={concepts.map((c) => c.slug)} />
-          <p className="stage-wait" role="status">
-            Waiting for the clip…
-          </p>
-        </div>
-      )}
-      <canvas ref={canvas} className="stage-overlay" width={masks?.frameW ?? 1280} height={masks?.frameH ?? 720} aria-hidden="true" />
+    <div className="stage-wrapper">
+      <div className="stage">
+        {src !== null ? (
+          <video ref={video} className="stage-video" src={src} muted loop playsInline preload="auto" aria-label="Rendered clip" />
+        ) : (
+          <div className="stage-video stage-empty">
+            <TwinScene variant="stage" stage={waitingStage} hz={null} residual={null} labels={concepts.map((c) => c.slug)} />
+            <p className="stage-wait" role="status">
+              Waiting for the clip…
+            </p>
+          </div>
+        )}
+        <canvas ref={canvas} className="stage-overlay" width={masks?.frameW ?? 1280} height={masks?.frameH ?? 720} aria-hidden="true" />
+      </div>
+      <div className="stage-toolbar">
+        <button
+          type="button"
+          className={`stage-tool-chip ${probeGuide ? "active" : ""}`}
+          onClick={() => setProbeGuide((p) => !p)}
+        >
+          {probeGuide ? "🎯 AR Probe Guide: Active" : "🎯 AR Schematic Probe Guide (muse-image)"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { psdModel, psdSummary, readSpectrum, rowOfPhase, toDb } from "./psd.ts";
+import { computeDifferentialTrajectory, psdModel, psdSummary, readSpectrum, rowOfPhase, toDb } from "./psd.ts";
 
 const f = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];
 // A 4 Hz peak of amplitude 2 px before; the same grid, nearly flat, after.
@@ -65,5 +65,41 @@ describe("psdSummary", () => {
   });
   it("says a rise is a rise", () => {
     expect(psdSummary(psdModel(post, pre, 4)!)).toMatch(/a rise of 40\.0 dB/);
+  });
+});
+
+describe("computeDifferentialTrajectory", () => {
+  it("computes scale-invariant differential displacement between anchor and target", () => {
+    const records = [
+      // Frame 0: anchor at [10, 10, 35.4, 20] (width 25.4px -> 1 mm/px), center (22.7, 15)
+      // target at [100, 10, 120, 20], center (110, 15)
+      // dx = 110 - 22.7 = 87.3 mm
+      { frame: 0, conceptIdx: 0, box: [10, 10, 35.4, 20] as [number, number, number, number] },
+      { frame: 0, conceptIdx: 1, box: [100, 10, 120, 20] as [number, number, number, number] },
+      // Frame 1: both shift right by 5px (simulating camera hand tremor)
+      // anchor at [15, 10, 40.4, 20], center (27.7, 15)
+      // target at [105, 10, 125, 20], center (115, 15)
+      // differential dx remains exactly 87.3 mm!
+      { frame: 1, conceptIdx: 0, box: [15, 10, 40.4, 20] as [number, number, number, number] },
+      { frame: 1, conceptIdx: 1, box: [105, 10, 125, 20] as [number, number, number, number] },
+    ];
+
+    const pts = computeDifferentialTrajectory(records, { referenceWidthMm: 25.4 });
+    expect(pts).toHaveLength(2);
+    expect(pts[0]!.scaleMmPerPx).toBeCloseTo(1.0, 4);
+    expect(pts[1]!.scaleMmPerPx).toBeCloseTo(1.0, 4);
+    // Camera shake of 5px completely cancelled out!
+    expect(pts[0]!.dxMm).toBeCloseTo(87.3, 2);
+    expect(pts[1]!.dxMm).toBeCloseTo(87.3, 2);
+    expect(pts[0]!.dyMm).toBeCloseTo(0, 2);
+    expect(pts[1]!.dyMm).toBeCloseTo(0, 2);
+  });
+
+  it("skips frames where either anchor or target is missing", () => {
+    const records = [
+      { frame: 0, conceptIdx: 0, box: [10, 10, 30, 20] as [number, number, number, number] },
+      { frame: 1, conceptIdx: 1, box: [100, 10, 120, 20] as [number, number, number, number] },
+    ];
+    expect(computeDifferentialTrajectory(records)).toEqual([]);
   });
 });

@@ -20,10 +20,16 @@ const INTENT_LABEL: Record<string, string> = {
   free_text: "a question",
 };
 
+const VOICE_PILLS: readonly { label: string; text: string; intent: VoiceIntent }[] = [
+  { label: "🎙️ Isolate encoder drift & check datasheet", text: "Isolate encoder drift and check datasheet citations", intent: { kind: "explain_fault" } },
+  { label: "🎙️ Render pinout probe overlay", text: "Show cited sources and pinout probe guide", intent: { kind: "show_datasheet" } },
+  { label: "🎙️ Approve voltage gate & flash patch", text: "Approve the scope and prepare compensation patch", intent: { kind: "approve" } },
+];
+
 const DEMO_COMMANDS: readonly { label: string; text: string; intent: VoiceIntent }[] = [
-  { label: "Explain the fault", text: "Demo command: explain the fault", intent: { kind: "explain_fault" } },
-  { label: "Show sources", text: "Demo command: show the sources", intent: { kind: "show_datasheet" } },
-  { label: "Voice help", text: "Demo command: help", intent: { kind: "help" } },
+  { label: "Explain the fault", text: "Explain the fault", intent: { kind: "explain_fault" } },
+  { label: "Show sources", text: "Show cited datasheets and sources", intent: { kind: "show_datasheet" } },
+  { label: "Telemetry help", text: "Show available telemetry commands", intent: { kind: "help" } },
 ];
 
 export function VoiceBar({
@@ -81,6 +87,15 @@ export function VoiceBar({
           {DEMO_COMMANDS.map((command) => (
             <button key={command.label} type="button" className="voice-chip-btn" onClick={() => onDemo(command.text, command.intent)}>
               {command.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="voice-pills-strip" aria-label="One-click voice command pills">
+          <span className="voice-strip-label">Voice Pills:</span>
+          {VOICE_PILLS.map((p) => (
+            <button key={p.label} type="button" className="voice-pill-btn" onClick={() => onDemo(p.text, p.intent)}>
+              {p.label}
             </button>
           ))}
         </div>

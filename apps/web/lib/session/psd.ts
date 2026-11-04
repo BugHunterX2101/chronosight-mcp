@@ -97,3 +97,71 @@ export function psdSummary(m: PsdModel): string {
   if (m.preBandPeakDb !== null) return `Vibration spectrum before the patch: a peak of ${r1(m.preBandPeakDb)} dB ${at}. The after clip is not measured yet.`;
   return `Vibration spectrum ${at}.`;
 }
+
+/**
+ * Sub-Pixel Differential Anchor Trajectory:
+ * Eliminates camera shake, hand tremor, and smart glasses head drift by subtracting
+ * the base/anchor centroid (Object ID 0 / anchor) from the target component (Object ID 1..N):
+ *   Δx_t = x^target_t - x^anchor_t
+ *   Δy_t = y^target_t - y^anchor_t
+ * Normalizes by anchor width (W^anchor_t) to convert pixels into scale-invariant millimeters.
+ */
+export interface DifferentialPoint {
+  frame: number;
+  dxMm: number;
+  dyMm: number;
+  distanceMm: number;
+  scaleMmPerPx: number;
+}
+
+export interface DifferentialTrackOptions {
+  anchorConceptIdx?: number;
+  targetConceptIdx?: number;
+  referenceWidthMm?: number; // Default 25.4mm standard fiducial
+}
+
+export function computeDifferentialTrajectory(
+  records: Array<{ frame: number; conceptIdx: number; box: [number, number, number, number] }>,
+  options: DifferentialTrackOptions = {}
+): DifferentialPoint[] {
+  const anchorIdx = options.anchorConceptIdx ?? 0;
+  const targetIdx = options.targetConceptIdx ?? 1;
+  const refWidthMm = options.referenceWidthMm ?? 25.4;
+
+  const byFrame = new Map<number, { anchor?: [number, number, number, number]; target?: [number, number, number, number] }>();
+  for (const r of records) {
+    let entry = byFrame.get(r.frame);
+    if (!entry) {
+      entry = {};
+      byFrame.set(r.frame, entry);
+    }
+    if (r.conceptIdx === anchorIdx) entry.anchor = r.box;
+    else if (r.conceptIdx === targetIdx) entry.target = r.box;
+  }
+
+  const out: DifferentialPoint[] = [];
+  const frames = Array.from(byFrame.keys()).sort((a, b) => a - b);
+  for (const frame of frames) {
+    const pair = byFrame.get(frame);
+    if (!pair?.anchor || !pair?.target) continue;
+
+    const [ax1, ay1, ax2, ay2] = pair.anchor;
+    const [tx1, ty1, tx2, ty2] = pair.target;
+
+    const ax = (ax1 + ax2) / 2;
+    const ay = (ay1 + ay2) / 2;
+    const tx = (tx1 + tx2) / 2;
+    const ty = (ty1 + ty2) / 2;
+
+    const anchorWidthPx = Math.max(1, ax2 - ax1);
+    const mmPerPx = refWidthMm / anchorWidthPx;
+
+    const dxMm = (tx - ax) * mmPerPx;
+    const dyMm = (ty - ay) * mmPerPx;
+    const distanceMm = Math.hypot(dxMm, dyMm);
+
+    out.push({ frame, dxMm, dyMm, distanceMm, scaleMmPerPx: mmPerPx });
+  }
+
+  return out;
+}

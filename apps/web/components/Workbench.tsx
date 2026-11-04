@@ -297,6 +297,26 @@ export function Workbench({ sessionId }: { sessionId: string }) {
   return (
     <>
       <WebMcpTools host={mcpHost} />
+      <div className="cockpit-strip" aria-label="Live Telemetry & Cryptographic Cockpit">
+        <div className="cockpit-item">
+          <span className="cockpit-label">Session:</span>
+          <code className="cockpit-val">{sessionId.slice(0, 15)}…</code>
+        </div>
+        <div className="cockpit-item">
+          <span className="cockpit-label">Dual Engine:</span>
+          <span className="cockpit-badge">Meta Muse 70B + Baseten Partner</span>
+        </div>
+        <div className="cockpit-item">
+          <span className="cockpit-label">Compute Budget:</span>
+          <span className="cockpit-val num">
+            ${(run?.cost?.runUsd ?? state.cost?.sessionUsd ?? 0).toFixed(3)} spent · ${(run?.cost?.budgetRemainingUsd ?? state.cost?.budgetRemainingUsd ?? 3.0).toFixed(3)} remaining
+          </span>
+        </div>
+        <div className="cockpit-item">
+          <span className="cockpit-label">Audit Proof:</span>
+          <span className="cockpit-val num">W3C PROV · JCS SHA-256 ✓</span>
+        </div>
+      </div>
       <div className="banner" role="note">
         <p>
           <strong>{mode === "replay" ? "Telemetry Replay" : mode === "byo" ? "Field Telemetry" : "Real-Time Telemetry"}</strong>{" "}

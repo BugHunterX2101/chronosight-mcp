@@ -1,3 +1,22 @@
 {
-  "documents": []
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "hackathonWindow": "2026-10-26T00:00:00Z to 2026-11-04T21:00:00Z",
+  "project": "ChronoSight MCP",
+  "complianceNotice": "All documents, models, and assets listed in this manifest were authored specifically during the Hackathon window or operate under verified open permissive licenses (CC-BY-4.0 / Apache-2.0 / MIT). No proprietary, undocumented, or unlicensed third-party assets are utilized.",
+  "documents": [
+    {
+      "docId": "encx14",
+      "title": "EncoderX-14 Precision Optical Rotary Encoder Reference Manual",
+      "version": "1.2",
+      "licence": "CC-BY-4.0",
+      "author": "ChronoSight Engineering & Hardware Corpus Team",
+      "creationDate": "2026-10-30",
+      "pages": 60,
+      "sha256": "b317ff9fe3d669e3dbfcb732cfe97ad00f9efd3707c3c055daccda4e93c365d4",
+      "pdfPath": "corpus/encx14/encx14.pdf",
+      "markdownDirectory": "corpus/encx14/pages",
+      "description": "60-page comprehensive hardware reference specification for high-precision optical rotary encoders, detailing harmonic vibration modes, thermal derating curves, SPI communication registers, PID tuning parameters, and ISO 10816-3 mechanical tolerance tables.",
+      "intendedUse": "1M-Token prefix-cached datasheet pinning, verbatim excerpt citation verification, and causal diagnostic reasoning."
+    }
+  ]
 }

@@ -1640,6 +1640,235 @@ select {
   color: var(--text);
 }
 
+/* ───────── Unified Cockpit Strip ───────── */
+.cockpit-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 16px;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+
+.cockpit-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cockpit-label {
+  color: var(--muted);
+  font: 500 11px var(--font-num);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cockpit-val {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.cockpit-badge {
+  font: 600 11px var(--font-num);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--obj-1) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--obj-1) 35%, transparent);
+  color: var(--obj-1);
+}
+
+/* ───────── Voice Command Pills ───────── */
+.voice-pills-strip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+
+.voice-pill-btn {
+  background: color-mix(in srgb, var(--obj-2) 15%, var(--raise));
+  border: 1px solid color-mix(in srgb, var(--obj-2) 40%, transparent);
+  color: var(--text);
+  border-radius: 9999px;
+  padding: 4px 12px;
+  font: 500 12px var(--font-ui);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.voice-pill-btn:hover {
+  background: color-mix(in srgb, var(--obj-2) 30%, var(--raise));
+  border-color: var(--obj-1);
+  transform: translateY(-1px);
+}
+
+/* ───────── Auto-Inspect & BYO ───────── */
+.btn-auto-inspect {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--obj-2) 60%, var(--raise)), var(--raise));
+  border: 1px solid color-mix(in srgb, var(--obj-1) 40%, transparent);
+  color: #fff;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font: 600 13px var(--font-ui);
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: all var(--dur) var(--ease);
+}
+.btn-auto-inspect:hover {
+  border-color: var(--obj-1);
+  box-shadow: 0 4px 12px rgba(86, 180, 233, 0.2);
+}
+
+.byo-auto-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: color-mix(in srgb, var(--obj-1) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--obj-1) 30%, transparent);
+  border-left: 3px solid var(--obj-1);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin: 10px 0;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.byo-auto-sparkle {
+  font-size: 16px;
+}
+
+/* ───────── AR Probe Guide Toolbar ───────── */
+.stage-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stage-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stage-tool-chip {
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  color: var(--text-2);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font: 500 12px var(--font-ui);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.stage-tool-chip:hover,
+.stage-tool-chip.active {
+  background: color-mix(in srgb, var(--obj-1) 20%, var(--surface));
+  border-color: var(--obj-1);
+  color: var(--text);
+}
+
+/* ───────── Dual-Model Consensus ───────── */
+.consensus-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 600 12px var(--font-num);
+  color: var(--pass);
+  background: color-mix(in srgb, var(--pass) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--pass) 35%, transparent);
+  padding: 5px 12px;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.consensus-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pass);
+}
+
+.consensus-drawer {
+  margin: 8px 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: var(--deep);
+  font-size: 13px;
+}
+
+.consensus-summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+.consensus-summary:hover {
+  color: var(--text);
+}
+
+.consensus-trace {
+  margin: 8px 0 0;
+  padding: 8px;
+  background: #000;
+  border-radius: 4px;
+  font: 400 11px var(--font-num);
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+
+/* ───────── Scientific Control & Split Test ───────── */
+.btn-scientific-control {
+  background: color-mix(in srgb, var(--pending) 15%, var(--raise));
+  border: 1px solid color-mix(in srgb, var(--pending) 45%, transparent);
+  color: var(--text);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font: 600 13px var(--font-ui);
+  cursor: pointer;
+  transition: all var(--dur) var(--ease);
+}
+.btn-scientific-control:hover {
+  background: color-mix(in srgb, var(--pending) 25%, var(--raise));
+  border-color: var(--pending);
+}
+
+.placebo-split-result {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.placebo-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.placebo-card {
+  padding: 10px 14px;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+.placebo-card-fail {
+  background: color-mix(in srgb, var(--fail) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--fail) 30%, transparent);
+  border-left: 3px solid var(--fail);
+}
+.placebo-card-pass {
+  background: color-mix(in srgb, var(--pass) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--pass) 30%, transparent);
+  border-left: 3px solid var(--pass);
+}
+
 .voice-transcript-bar {
   padding: 6px 10px;
   background: var(--deep);

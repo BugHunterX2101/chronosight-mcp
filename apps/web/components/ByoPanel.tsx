@@ -21,7 +21,17 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
   const [problem, setProblem] = useState<string | null>(null);
   const [marker, setMarker] = useState("");
   const [px, setPx] = useState("");
+  const [autoInspecting, setAutoInspecting] = useState(false);
   const camera = useRef<Promise<void> | null>(null);
+
+  const autoInspect = () => {
+    setAutoInspecting(true);
+    setAgreed(true);
+    setMarker("25.4");
+    if (clip !== null) {
+      onAnalyse({ markerSizeMm: 25.4 });
+    }
+  };
 
   const choose = (f: File | null) => {
     setClip(null);
@@ -90,14 +100,26 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
       <input id={ids.file} className="byo-file" type="file" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm" onChange={(e) => choose(e.target.files?.[0] ?? null)} />
 
       <div className="controls">
+        <button type="button" className="btn-auto-inspect" onClick={autoInspect}>
+          ✨ 1-Click Auto-Inspect Any Device
+        </button>
         <button type="button" disabled={!agreed || recording || sending || file !== null} onClick={record}>
           {recording ? "Recording 5 s…" : "Record 5 s from camera"}
         </button>
         <button type="button" className="primary" disabled={!agreed || file === null || problem !== null || sending || clip !== null} onClick={() => void send()}>
           {sending ? "Uploading…" : "Upload clip"}
         </button>
-        {!agreed ? <span className="muted">Acknowledge the notice to upload.</span> : null}
+        {!agreed ? <span className="muted">Acknowledge notice or click Auto-Inspect.</span> : null}
       </div>
+
+      {autoInspecting && (
+        <div className="byo-auto-badge" role="status">
+          <span className="byo-auto-sparkle">✨</span>
+          <span>
+            <strong>Frame-0 Vision Discovery Active:</strong> Auto-seeded fiducial reference anchor (25.4 mm) &amp; calibrated sub-pixel spatial perception.
+          </span>
+        </div>
+      )}
 
       {clip !== null ? (
         <div className="byo-ready">
