@@ -28,13 +28,13 @@ Other surfaces: replay player for recorded runs (each file sha256-verified in th
 | Sandbox launcher + egress proxy + Muse synthesis | Built (local Docker only) |
 | Media worker (probe + normalize untrusted uploads) | Built |
 | Web (home, `/s/[id]` workbench, `/replay/[id]`, `/report/[id]`, `/about`, `/admin`, `/hud`, PsdChart, PlaceboButton, GlassesPreview, WebMCP, voice) | Built |
-| Bring-your-own clip (gateway + web) | Built; needs a media worker; see limits below |
+| Bring-your-own clip (gateway + web) | Built; accepts MP4, MOV and WebM, including a consent-gated five-second browser camera capture; needs a media worker; see limits below |
 | Replay **publisher** (push bundles to a CDN) | Built as an opt-in immutable HTTP PUT publisher; local recording remains the default |
 | Hosted demo on Render | Replay-only, see *Deploy on Render* |
 | Provider-neutral live stack | Docker Compose under `deploy/live`; fixture/mock mode is the safe default |
 | Whole-product sweep and video readiness | Not finished; see HANDOFF.md |
 
-Test totals at the last full run: `npx vitest run` = **579 tests in 40 files, all pass**; `pytest services/twin/tests` = **50 pass**. Typechecks (`tsc -p` on gateway, web, media-worker, run-model) are clean.
+Latest local verification: `npx vitest run --pool=threads` = **571 passing tests in 40 files** (11 Docker-hardening checks skipped when their container prerequisite is absent); `pytest services/twin/tests` = **50 passed**. The browser E2E suite validates the consent gate plus native Chromium `getUserMedia` and `MediaRecorder` capture against a virtual camera. Typechecks (`tsc -p` on gateway, web, media-worker, run-model) and the production web build are clean.
 
 ## Architecture
 
@@ -419,7 +419,7 @@ The sandbox hardening tests need Docker. Modal is used for tests only; synthesis
 
 ## Bring your own clip
 
-The workbench offers "Analyse your own clip" when `/api/scenarios` reports `uploads:true`. Flow: acknowledge the privacy notice (PRD 17.4; the gateway records `consentAt`) -> `POST /api/sessions/:id/clips` (MP4/MOV, <= 100 MB) -> optional scale (marker width in mm or mm/px) -> `perceive` -> `diagnose`. The run ends **ABORTED with reason `BYO_DIAGNOSED`**: measured and diagnosed, no patch.
+The workbench offers "Analyse your own clip" when `/api/scenarios` reports `uploads:true`. Flow: acknowledge the privacy notice (PRD 17.4; the gateway records `consentAt`) -> upload an MP4, MOV or WebM (or record a five-second camera clip) -> `POST /api/sessions/:id/clips` (<= 100 MB) -> optional scale (marker width in mm or mm/px) -> `perceive` -> `diagnose`. Camera access is same-origin only and still requires the browser's permission prompt and a user gesture. The run ends **ABORTED with reason `BYO_DIAGNOSED`**: measured and diagnosed, no patch.
 
 Limits, stated plainly:
 - Uploads are processed inline by the media worker, not through the Files API; a run is capped at 750 frames (25 s) for three concepts.

@@ -40,7 +40,9 @@ export function proxy(request: NextRequest): NextResponse {
   response.headers.set("content-security-policy", policy);
   response.headers.set("x-content-type-options", "nosniff");
   response.headers.set("referrer-policy", "strict-origin-when-cross-origin");
-  response.headers.set("permissions-policy", "camera=(), microphone=(self), geolocation=()");
+  // The BYO workbench records a user-initiated five-second camera clip. Keep the capability
+  // same-origin only; the browser still requires a permission grant and a user gesture.
+  response.headers.set("permissions-policy", "camera=(self), microphone=(self), geolocation=()");
   response.headers.set("cross-origin-opener-policy", "same-origin");
   return response;
 }

@@ -7,9 +7,9 @@ describe("clipProblem", () => {
     expect(clipProblem({ name: "ARM.MOV", size: MAX_CLIP_BYTES })).toBeNull();
   });
 
-  it("refuses other formats, an empty file and a file over 100 MB", () => {
-    expect(clipProblem({ name: "arm.avi", size: 10 })).toMatch(/MP4 or MOV/);
-    expect(clipProblem({ name: "arm", size: 10 })).toMatch(/MP4 or MOV/);
+  it("refuses unsupported formats, an empty file and a file over 100 MB", () => {
+    expect(clipProblem({ name: "arm.avi", size: 10 })).toMatch(/MP4, MOV or WebM/);
+    expect(clipProblem({ name: "arm", size: 10 })).toMatch(/MP4, MOV or WebM/);
     expect(clipProblem({ name: "arm.mp4", size: 0 })).toMatch(/empty/);
     expect(clipProblem({ name: "arm.mp4", size: MAX_CLIP_BYTES + 1 })).toMatch(/over 100 MB/);
   });

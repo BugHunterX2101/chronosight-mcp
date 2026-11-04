@@ -2,7 +2,8 @@ import { expect, test } from "@playwright/test";
 
 const SESSION = "ses_01ARZ3NDEKTSV4RRFFQ69G5FAV";
 
-test("BYO camera flow requires consent and accepts browser WebM capture", async ({ page }) => {
+test("BYO camera flow requires consent and accepts browser camera capture", async ({ page, context }) => {
+  test.setTimeout(60_000);
   await page.route("**/api/scenarios", async (route) => {
     await route.fulfill({ json: { scenarios: [{ id: "s1", title: "S1", concepts: [] }], uploads: true } });
   });
@@ -23,34 +24,15 @@ test("BYO camera flow requires consent and accepts browser WebM capture", async 
       },
     });
   });
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "mediaDevices", {
-      configurable: true,
-      value: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) },
-    });
-    class FakeRecorder extends EventTarget {
-      state = "inactive";
-      mimeType = "video/webm";
-      start() {
-        this.state = "recording";
-        setTimeout(() => {
-          this.dispatchEvent(new MessageEvent("dataavailable", { data: new Blob(["webm"], { type: this.mimeType }) }));
-          this.state = "inactive";
-          this.dispatchEvent(new Event("stop"));
-        }, 10);
-      }
-      stop() {}
-    }
-    Object.defineProperty(window, "MediaRecorder", { configurable: true, value: FakeRecorder });
-  });
-
+  await context.grantPermissions(["camera"], { origin: "http://127.0.0.1:3000" });
   await page.goto("/");
   await page.getByRole("button", { name: "Analyse your own clip" }).click();
-  await expect(page).toHaveURL(new RegExp(`/s/${SESSION}$`));
-  await expect(page.getByRole("heading", { name: "Your clip" })).toBeVisible();
+  // The first client-side route can compile in development after the session request resolves.
+  await expect(page).toHaveURL(new RegExp(`/s/${SESSION}$`), { timeout: 20_000 });
+  await expect(page.getByText("Your clip", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Record 5 s from camera" })).toBeDisabled();
   await page.getByLabel("I have read this notice").check();
   await page.getByRole("button", { name: "Record 5 s from camera" }).click();
-  await expect(page.getByText(/camera-\d+\.webm/)).toBeVisible();
+  await expect(page.getByText(/camera-\d+\.(mp4|webm)/)).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Upload clip" })).toBeEnabled();
 });
