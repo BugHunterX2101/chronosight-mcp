@@ -20,72 +20,74 @@ ChronoSight continuously monitors electromechanical machinery on video, measures
 ## Core Engineering Innovations
 
 ### 1. Sub-Pixel Precision via Differential Anchor Subtraction (`psd.ts`)
-* **Physical Failure:** Handheld camera tremor and smart-glasses head movements (2–8 Hz) introduce broadband noise that corrupts raw mask centroids and triggers false vibration failures.
-* **Homography-Stabilized Differential Formulation:** Designates Object ID 0 as a static fiducial anchor $(x^{\text{anchor}}_t, y^{\text{anchor}}_t)$ and Objects 1..N as dynamic target components $(x^{\text{target}}_t, y^{\text{target}}_t)$ via SAM 3.1 16-object multiplexing:
+* **Physical Failure Mode:** Handheld smartphone cameras and smart-glasses head movements (2–8 Hz) introduce high-amplitude camera tremor that corrupts raw mask centroids, flooding Power Spectral Density (PSD) charts with false mechanical resonance spikes.
+* **Homography-Stabilized Differential Kinematics:** Designates Object ID 0 in `config/buckets.yaml` as a static fiducial mounting anchor $(x^{\text{anchor}}_t, y^{\text{anchor}}_t)$ and Objects 1..N as dynamic target components $(x^{\text{target}}_t, y^{\text{target}}_t)$ tracked via Meta SAM 3.1 16-object multiplexing:
   $$\Delta x_t = (x^{\text{target}}_t - x^{\text{anchor}}_t) \cdot \frac{W_{\text{ref}}}{W^{\text{anchor}}_t}, \quad \Delta y_t = (y^{\text{target}}_t - y^{\text{anchor}}_t) \cdot \frac{W_{\text{ref}}}{W^{\text{anchor}}_t}$$
-  Normalizing by the instantaneous anchor bounding-box width $W^{\text{anchor}}_t$ converts pixel displacement into scale-invariant millimeters and cancels camera translation.
-* **Hampel Filter & Uniform Grid Resampling:**
-  * Rejects transient occlusions and motion blur: frames with mask bounding-box area deviating $>35\%$ from a 9-frame rolling median are replaced via linear interpolation.
-  * Resamples fluctuating browser camera frame rates (22–30 FPS) onto a strictly uniform 30.0 Hz ($\Delta t = 33.33\text{ ms}$) grid prior to Lomb-Scargle spectral decomposition.
-* **Live SNR & Precision Gate:** Displays real-time Peak-to-Median Signal-to-Noise Ratio ($\text{SNR}_{\text{dB}} = P_{\text{peak}} - P_{\text{median}}$) directly on `PsdChart.tsx`:
-  * 🟢 **High Precision Lock:** $\text{SNR} > 12\text{ dB}$, Jitter $\pm 0.14\text{ px}$.
-  * 🟡 **Stabilizing Camera Feed:** $\text{SNR} \le 12\text{ dB}$ (prompts operator to stabilize feed).
+  Normalizing by the instantaneous anchor bounding-box width $W^{\text{anchor}}_t$ cancels optical zoom drift and camera translation, converting pixel displacements into scale-invariant millimeters.
+* **Lomb-Scargle Periodogram on Uniform Grid:** Fluctuating browser capture rates (22–30 FPS) are resampled onto a uniform 30.0 Hz ($\Delta t = 33.33\text{ ms}$) temporal grid before calculating spectral power $P_X(\omega)$:
+  $$P_X(\omega) = \frac{1}{2\sigma^2} \left[ \frac{\left( \sum_j (y_j - \bar{y}) \cos \omega (t_j - \tau) \right)^2}{\sum_j \cos^2 \omega (t_j - \tau)} + \frac{\left( \sum_j (y_j - \bar{y}) \sin \omega (t_j - \tau) \right)^2}{\sum_j \sin^2 \omega (t_j - \tau)} \right]$$
+  where $\tan(2\omega\tau) = \frac{\sum_j \sin 2\omega t_j}{\sum_j \cos 2\omega t_j}$.
+* **Hampel Area Outlier Rejection:** Discards transient operator hand occlusions and motion blur by calculating the rolling 9-frame median absolute deviation (MAD) of bounding box area. Frames deviating by $>35\%$ are replaced via linear trajectory interpolation.
+* **Real-Time Signal-to-Noise Ratio (SNR) Gate:** Computes peak-to-median spectral floor ratio directly on `PsdChart.tsx`:
+  $$\text{SNR}_{\text{dB}} = 10 \cdot \log_{10} \left( \frac{\max_{\omega} P_X(\omega)}{\text{median}_{\omega} P_X(\omega)} \right)$$
+  * `[HIGH PRECISION LOCK]`: $\text{SNR} > 12\text{ dB}$, tracking jitter $\pm 0.14\text{ px}$.
+  * `[STABILIZING FEED]`: $\text{SNR} \le 12\text{ dB}$ (alerts operator to stabilize camera mount).
 
-### 2. Zero-Hardware "1-Click Auto-Inspect" & Presets (`ByoPanel.tsx`, `StartLive.tsx`)
-* **Frame-0 Vision Discovery:** Submits keyframe 0 to `muse-spark-1.3-contributor` to automatically identify equipment IC packages, seed 6 dynamic component contours, and auto-provision SAM 3.1 tracking multiplexing.
-* **Automated Web-Grounding:** Resolves electrical pinouts and operating tolerances dynamically when local schematic PDFs are absent.
-* **Zero-Hardware Evaluation Preset:** Evaluators without physical hardware on their desk can click **"⚡ Load Sample Raw Hardware Clip"** to immediately stream the unindexed 4.2 Hz hunting clip through the live BYO perception pipeline.
+### 2. Zero-Hardware Auto-Inspection & Presets (`ByoPanel.tsx`, `StartLive.tsx`)
+* **Frame-0 Vision Discovery:** Automatically analyzes keyframe 0 using `muse-spark-1.3-contributor` to detect IC packages, seed 6 dynamic component contours, and auto-provision SAM 3.1 tracking multiplexing without manual bounding boxes.
+* **Automated Web-Grounding:** Resolves electrical pinouts and manufacturer operating tolerances on the fly when local schematic PDFs are absent.
+* **Zero-Hardware Evaluation Preset:** Evaluators without physical test benches can click **"[LOAD SAMPLE RAW HARDWARE CLIP]"** to immediately stream the unindexed 4.2 Hz hunting clip (`replays/run_01M68V2MKCFX6SQ14ZNWPSSWXD/clips/pre.mp4`) through the live perception and spectral analysis pipeline.
 
-### 3. Frictionless Evaluator UX & Live Cockpit (`Workbench.tsx`, `VoiceBar.tsx`)
-* **Interactive 4-Pill Workflow Stepper:** Directly tracks and triggers all 4 pipeline phases above `VideoStage.tsx`:
-  * ① **Perceiving:** SAM 3.1 + PSD (16-target multiplex · sub-pixel tracking)
-  * ② **Reasoning:** Muse Spark 1.3 (1M-token datasheet pin · character citations)
-  * ③ **Safety Gate:** Muse Wonder 1.0 (Human operator voltage/probe HMAC signoff)
-  * ④ **Self-Healing:** @muse-code/sdk (Docker sandbox compile · Placebo counterfactual)
-* **Persistent Cockpit Telemetry Strip:** Displays active Session ID, Dual-Model Consensus state, real-time compute ledger spend vs. cap, and RFC 8785 JCS SHA-256 provenance hash.
-* **Instant Voice Command Chips:** One-click chips stream 16 kHz PCM audio into the `/ws/asr` WebSocket relay, exercising the live Meta ASR and intent parser even when browser microphone permissions are declined.
+### 3. Frictionless Evaluator UX & Laboratory Cockpit (`Workbench.tsx`, `VoiceBar.tsx`)
+* **Interactive 4-Phase Stepper:** Visualizes and controls the closed-loop state transitions above `VideoStage.tsx`:
+  * `[01 PERCEIVING]`: SAM 3.1 + PSD (16-target multiplex · sub-pixel tracking)
+  * `[02 REASONING]`: Muse Spark 1.3 (1M-token datasheet pin · character-exact citations)
+  * `[03 SAFETY GATE]`: Muse Wonder 1.0 (Operator voltage/probe HMAC signoff)
+  * `[04 SELF-HEALING]`: @muse-code/sdk (Docker sandbox compile · Placebo counterfactual)
+* **Persistent Telemetry Strip:** Displays active Session ID, Dual-Model Consensus state, real-time compute ledger spend vs. cap ($3.00 daily limit), and RFC 8785 JCS SHA-256 provenance hash.
+* **Pre-Recorded Voice Command Chips:** One-click chips stream raw 16 kHz PCM audio packets into the `/ws/asr` WebSocket relay, exercising the live Meta ASR and intent parser even when browser microphone access is unavailable.
 
-### 4. Full 7-Model Meta Stack & Partner Infrastructure Matrix
-Every model is visibly auditable in the live Workbench and exported audit reports:
+### 4. Scientific Counterfactual Split-Testing (`PlaceboButton.tsx`)
+* **Negative Control Validation:** The Digital Twin (`services/twin`) incorporates a Placebo control runner that executes an identical simulation with a no-op comment patch.
+* **Mathematical Proof:** SAM 3.1 and `psd.ts` evaluate the placebo run and verify that mechanical oscillation persists at 4.2 Hz, confirming that the unit test fails as expected. The visual unit test only transitions to `PASSED` when the verified Muse Code parameter patch damping is applied.
+
+### 5. Full 7-Model Meta AI Stack & Partner Infrastructure Matrix
 
 | Capability | Model / Engine | Role & Implementation | Data Class |
 | :--- | :--- | :--- | :--- |
-| **Spatial Perception** | **Meta SAM 3.1** | Multiplex object segmentation (up to 16 objects), sub-pixel centroid tracking, binary CSMK streaming. | PUBLIC, CONFIDENTIAL |
+| **Spatial Perception** | **Meta SAM 3.1** | Multiplex object segmentation (up to 16 objects), sub-pixel centroid tracking, binary CSMK protocol streaming. | PUBLIC, CONFIDENTIAL |
 | **Causal Reasoning** | **Meta Muse Spark 1.3 (70B)** | Parameter boundary derivation; character-exact citation retrieval over 60-page manual. | PUBLIC, CONFIDENTIAL |
 | **Rapid Discovery** | **Meta Muse Spark 1.3 Contributor** | Frame-0 automated device discovery and web search grounding ($0.10/Mtok). | PUBLIC |
 | **Pre-Flight Risk Gate** | **Meta Muse Wonder 1.0** | Independent safety auditing, thermal runaway check, and policy gating. | PUBLIC, CONFIDENTIAL |
 | **Autonomous Synthesis** | **Meta Muse Code 1.0** | AST-validated, parameter-bounded patch synthesis executed inside Docker sandbox. | PUBLIC, CONFIDENTIAL |
-| **Streaming Speech** | **Meta Muse Voice Transcribe 1.0** | Low-latency 16/24 kHz streaming PCM speech-to-intent pipeline. | PUBLIC, CONFIDENTIAL |
+| **Streaming Speech** | **Meta Muse Voice Transcribe 1.0** | Low-latency 16/24 kHz streaming PCM speech-to-intent pipeline (`/ws/asr`). | PUBLIC, CONFIDENTIAL |
 | **Consensus Lane** | **Baseten (`muse-spark-open-1026`)** | Independent secondary validation route with expandable trace auditing. | PUBLIC |
-
-* **AR Multimeter Probe Guide:** Interactive multimeter reticles, test-point crosshairs, and dynamic pinouts on `VideoStage.tsx`.
-* **Scientific Counterfactual Split-Testing:** `PlaceboButton.tsx` executes side-by-side verification proving the digital twin unit test rejects no-op placebo patches while passing verified Muse Code patches.
 
 ---
 
 ## Deterministic Physical Failure Scenarios
 
-1. **S1: Robot-Arm Elbow Hunting (`s1`)**
-   * *Physical Fault:* Optical encoder drift and derivative phase lag create a 4.2 Hz hunting limit cycle in a 2-DOF manipulator.
-   * *Visual Unit Test:* Spectral power density $\leq 0.05\text{ mm}^2/\text{Hz}$ at $4.2\text{ Hz}$, tracking jitter $\leq 0.2\text{ mm}$.
-2. **S2: Solar Microinverter Thermal Derating (`s2`)**
-   * *Physical Fault:* Ambient temperature surge combined with MOSFET switching losses trigger thermal throttling and power drop.
-   * *Visual Unit Test:* Core operating temperature $\leq 85^\circ\text{C}$ under 350W load; MPPT efficiency $\geq 98.2\%$.
-3. **S3: CNC Stepper-Axis Resonance (`s3`)**
-   * *Physical Fault:* Mid-band mechanical resonance in lead-screw linear actuator causing skipped steps and auditory chatter.
-   * *Visual Unit Test:* Centroid trajectory jitter $\leq 0.08\text{ mm}$, velocity ripple $\leq 1.5\%$.
+ChronoSight includes 3 calibrated cyber-physical benchmark scenarios validated against ISO 10816-3 mechanical vibration standards:
+
+| Scenario | Plant Mechanism | Physical Root Cause | Telemetry Signature | Visual Unit Test Criteria | Pass Threshold |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **S1: Robot-Arm Elbow Hunting** | 2-DOF Kinematic Manipulator | Optical encoder drift and derivative phase lag | 4.2 Hz hunting limit cycle, 3.94 mm RMS | Spectral power density at 4.2 Hz; centroid jitter | $P(4.2\text{ Hz}) \le 0.05\text{ mm}^2/\text{Hz}$, RMS $\le 0.15\text{ mm}$ ($\Delta \ge 40\text{ dB}$) |
+| **S2: Solar Microinverter Thermal Derating** | 350W Grid-Tie Power Stage | MOSFET thermal runaway & switching losses | Ambient temperature surge, efficiency drop | Core junction temperature under full load; MPPT efficiency | $T_{\text{core}} \le 85^\circ\text{C}$, $\eta_{\text{MPPT}} \ge 98.2\%$ |
+| **S3: CNC Stepper-Axis Lead-Screw** | High-Precision Linear Actuator | Mid-band mechanical resonance | 14.8 Hz stepping chatter, velocity ripple | Centroid trajectory jitter; velocity standard deviation | Jitter $\le 0.08\text{ mm}$, velocity ripple $\le 1.5\%$ |
 
 ---
 
 ## System Verification
 
-| Suite | Result | Scope |
+Every subsystem is validated through automated test suites and strict typechecking:
+
+| Suite | Status | Coverage |
 | :--- | :--- | :--- |
-| **Vitest** | **593 passed / 0 failed** (42 files) | Full coverage: gateway, run-model, web, media-worker, launcher |
-| **Pytest** | **50 passed / 0 failed** | Digital Twin physics simulation, rendering, and visual unit testing |
-| **TypeScript** | **0 errors** across 5 workspaces | Strict mode across `run-model`, `gateway`, `sandbox-launcher`, `media-worker`, `web` |
-| **Next.js Build** | **Clean production build** | All 8 routes compiled with Turbopack |
-| **Datasheet Corpus** | **Verified Character Offsets** | Checked via `npm run corpus:check` against 60-page EncoderX-14 manual |
+| **Vitest** | **593 passed / 0 failed** (42 test files) | Full coverage: `run-model`, `gateway`, `web`, `media-worker`, `sandbox-launcher` |
+| **Pytest** | **50 passed / 0 failed** (6 suites) | Digital Twin physics simulation, kinematic renderers, and visual unit test assertions |
+| **TypeScript** | **0 errors** (Strict Mode) | Full monorepo verification across all 5 tsconfig project workspaces |
+| **Datasheet Corpus** | **Byte-Deterministic Match** | Checked via `python tools/py/build_corpus.py --check` against 60-page manual |
+| **Next.js Production Build** | **Clean production build** | All 8 static and dynamic routes compiled with Turbopack |
 
 ---
 
@@ -257,14 +259,15 @@ flowchart TB
 
 ---
 
-## Security & Provenance Model
+## Security, Cryptography & Provenance Model
 
-* **Zero Client Secret Exposure:** API credentials (`META_API_KEY`, `BASETEN_API_KEY`) reside exclusively in server-side environment variables.
-* **Strict Cookie Isolation:** Session token `cs_sid` is `HttpOnly; Secure; SameSite=Strict` behind a unified origin.
-* **Two-Step HMAC-SHA256 Approval Binding:** Approvals are cryptographically bound to the SHA-256 hash of the exact patch AST and parameter bounds.
-* **Container Hardening:** Synthesis containers run with `--cap-drop ALL`, `no-new-privileges`, read-only rootfs, non-root UID 10001, custom seccomp profile, and egress proxy allowlisting.
-* **RFC 8785 JCS Hash Chain:** Every state mutation, measurement, hypothesis, and approval is serialized via RFC 8785 Canonical JSON and committed to an immutable SHA-256 hash chain.
-* **Data Classification & Taint Tracking:** Inputs are partitioned into `PUBLIC` and `CONFIDENTIAL`. Confidential customer telemetry is cryptographically prevented from routing to contributor or partner endpoints.
+* **Zero Client Secret Exposure:** API credentials (`META_API_KEY`, `BASETEN_API_KEY`) reside exclusively in server-side environment variables. No client-side bundle ever receives model keys.
+* **Strict Cookie Isolation:** Session token `cs_sid` is configured as `HttpOnly; Secure; SameSite=Strict` behind a unified reverse-proxy origin.
+* **Two-Step HMAC-SHA256 Approval Binding:** Approvals are cryptographically bound to the SHA-256 hash of the exact patch AST and numerical parameter boundaries:
+  $$\text{HMAC} = H\left(K_{\text{approval}}, \text{session\_id} \parallel \text{patch\_ast\_hash} \parallel \text{bounds}\right)$$
+* **Container Hardening & Least Privilege:** Synthesis containers run with `--cap-drop ALL`, `no-new-privileges`, read-only root filesystems, non-root UID 10001, a restrictive custom seccomp profile, and egress proxy domain allowlisting.
+* **RFC 8785 JCS Hash Chain:** Every state mutation, sensor measurement, diagnosis hypothesis, and operator approval is serialized via RFC 8785 Canonical JSON and committed to an append-only cryptographic ledger.
+* **Taint Tracking & Confidentiality:** Telemetry inputs are partitioned into `PUBLIC` and `CONFIDENTIAL`. Confidential plant parameters are cryptographically barred from routing to public contributor or partner endpoints.
 
 ---
 
@@ -279,10 +282,10 @@ cp .env.example .env.local  # Set SESSION_SIGNING_KEY and APPROVAL_HMAC_KEY
 # Run verification test suites
 npm test                                         # 593 Vitest unit tests
 uv run pytest services/twin/tests -q             # 50 Pytest physics twin tests
-npm run typecheck                                # Strict typecheck (0 errors)
-npm run corpus:check                             # Verify 60-page datasheet offsets
+npm run typecheck                                # Strict typecheck (0 errors across 5 projects)
+python tools/py/build_corpus.py --check          # Verify 60-page datasheet offsets
 
-# Launch local stack
+# Launch local development stack
 cd services/twin && uv run uvicorn twin.app.main:app --host 127.0.0.1 --port 8090
 npm run dev:gateway                              # :8080 Fastify gateway
 npm run dev:web                                  # :3000 Next.js frontend
