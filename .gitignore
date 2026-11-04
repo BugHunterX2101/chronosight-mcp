@@ -40,3 +40,8 @@ Thumbs.db
 
 # graphify knowledge graph (local)
 graphify-out/
+
+# Test artifacts
+test-results/
+apps/web/test-results/
+playwright-report/
