@@ -139,7 +139,18 @@ export function PsdChart({ run }: { run: RunView | undefined }) {
               border: `1px solid ${snr.isLocked ? "rgba(46, 160, 67, 0.4)" : "rgba(210, 153, 34, 0.4)"}`,
             }}
           >
-            <span>{snr.isLocked ? "🟢" : "🟡"}</span>
+            <span
+              style={{
+                width: "7px",
+                height: "7px",
+                borderRadius: "50%",
+                backgroundColor: snr.isLocked ? "#3fb950" : "#d29922",
+                boxShadow: `0 0 6px ${snr.isLocked ? "rgba(63, 185, 80, 0.7)" : "rgba(210, 153, 34, 0.7)"}`,
+                display: "inline-block",
+                flexShrink: 0,
+              }}
+              aria-hidden="true"
+            />
             <span>{snr.label}</span>
           </span>
         ) : null}

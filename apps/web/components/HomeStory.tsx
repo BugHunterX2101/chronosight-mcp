@@ -147,8 +147,13 @@ export function HomeStory() {
       <div className="home-grid">
         <div className="home-copy">
           <section id="hero-copy" className="hero" aria-labelledby="hero-h">
-            <p className="eyebrow">Autonomous Visual Kinematics &amp; Physical Inspection</p>
-            <h1 id="hero-h">
+            <div className="hero-eyebrow-capsule" role="doc-subtitle">
+              <span className="hero-radar-dot" aria-hidden="true" />
+              <span className="hero-eyebrow-text">AUTONOMOUS OPTICAL MOTION ANALYSIS</span>
+              <span className="hero-eyebrow-sep">/</span>
+              <span className="hero-eyebrow-sub">ISO 10816-3 VERIFIED</span>
+            </div>
+            <h1 id="hero-h" className="hero-title">
               Detect anomalous dynamics. <span className="accent">Verify physical remediation.</span>
             </h1>
             <p className="lede">
@@ -157,7 +162,10 @@ export function HomeStory() {
             <div className="cta">
               {primary !== undefined ? (
                 <a className="btn primary" href={`/replay/${primary.runId}`}>
-                  Watch the recorded run
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style={{ marginRight: "6px", flexShrink: 0 }}>
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                  Watch verified run
                 </a>
               ) : (
                 <span className="btn primary" role="status" aria-disabled="true">
@@ -165,7 +173,14 @@ export function HomeStory() {
                 </span>
               )}
               <a className="btn" href="#live">
-                Run it live
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ marginRight: "6px", flexShrink: 0 }}>
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="22" y1="12" x2="18" y2="12" />
+                  <line x1="6" y1="12" x2="2" y2="12" />
+                  <line x1="12" y1="6" x2="12" y2="2" />
+                  <line x1="12" y1="22" x2="12" y2="18" />
+                </svg>
+                Run live inspection
               </a>
             </div>
             {figures !== null && figures.preRmsMm !== null && figures.postRmsMm !== null ? (

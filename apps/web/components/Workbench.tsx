@@ -57,7 +57,7 @@ function WorkflowStepper({
 }) {
   const steps = [
     {
-      num: "①",
+      num: "01",
       label: "Perceiving",
       engine: "SAM 3.1 + PSD",
       detail: "16-target multiplex · sub-pixel tracking",
@@ -68,7 +68,7 @@ function WorkflowStepper({
       triggerLabel: "Start Perception",
     },
     {
-      num: "②",
+      num: "02",
       label: "Reasoning",
       engine: "Muse Spark 1.3 (70B)",
       detail: "1M-token datasheet pin · character citations",
@@ -79,7 +79,7 @@ function WorkflowStepper({
       triggerLabel: "Execute Diagnosis",
     },
     {
-      num: "③",
+      num: "03",
       label: "Safety Gate",
       engine: "Muse Wonder 1.0",
       detail: "Human operator voltage / probe HMAC signoff",
@@ -90,7 +90,7 @@ function WorkflowStepper({
       triggerLabel: "Review Patch",
     },
     {
-      num: "④",
+      num: "04",
       label: "Self-Healing",
       engine: "@muse-code/sdk",
       detail: "Docker sandbox compile · Placebo counterfactual",
@@ -136,7 +136,7 @@ function WorkflowStepper({
                   {st.num} {st.label}
                 </span>
                 <span style={{ fontSize: "10px", fontWeight: 600, color: statusColor, textTransform: "uppercase" }}>
-                  {st.isCurrent ? "Active" : st.isDone ? "Done ✓" : "Pending"}
+                  {st.isCurrent ? "ACTIVE" : st.isDone ? "COMPLETED" : "STANDBY"}
                 </span>
               </div>
               <div style={{ fontSize: "11px", fontWeight: 600, color: "#e8eaed" }}>{st.engine}</div>

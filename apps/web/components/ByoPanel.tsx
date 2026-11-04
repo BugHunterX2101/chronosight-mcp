@@ -128,7 +128,7 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
 
       <div className="controls">
         <button type="button" className="btn-auto-inspect" onClick={autoInspect}>
-          ✨ 1-Click Auto-Inspect Any Device
+          Auto-Inspect Hardware Target
         </button>
         <button
           type="button"
@@ -141,7 +141,7 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
             fontWeight: 600,
           }}
         >
-          ⚡ Load Sample Raw Hardware Clip (Test Live Pipeline)
+          Load Hardware Clip (Pre-Patch Preset)
         </button>
         <button type="button" disabled={!agreed || recording || sending || file !== null} onClick={record}>
           {recording ? "Recording 5 s…" : "Record 5 s from camera"}
@@ -154,7 +154,7 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
 
       {autoInspecting && (
         <div className="byo-auto-badge" role="status">
-          <span className="byo-auto-sparkle">✨</span>
+          <span className="byo-auto-sparkle" aria-hidden="true">[TARGET ACQUIRED]</span>
           <span>
             <strong>Frame-0 Vision Discovery Active:</strong> Auto-seeded fiducial reference anchor (25.4 mm) &amp; calibrated sub-pixel spatial perception.
           </span>

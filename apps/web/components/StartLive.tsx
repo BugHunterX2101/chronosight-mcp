@@ -96,7 +96,7 @@ export function StartLive() {
             fontWeight: 600,
           }}
         >
-          ⚡ Load Sample Raw Hardware Clip (Test Live Pipeline)
+          Load Hardware Clip (Pre-Patch Preset)
         </button>
       </div>
       {liveAvailable === false && (

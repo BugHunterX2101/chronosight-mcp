@@ -21,9 +21,9 @@ const INTENT_LABEL: Record<string, string> = {
 };
 
 const VOICE_PILLS: readonly { label: string; text: string; intent: VoiceIntent }[] = [
-  { label: "🎙️ Isolate encoder drift & check datasheet", text: "Isolate encoder drift and check datasheet citations", intent: { kind: "explain_fault" } },
-  { label: "🎙️ Render pinout probe overlay", text: "Show cited sources and pinout probe guide", intent: { kind: "show_datasheet" } },
-  { label: "🎙️ Approve voltage gate & flash patch", text: "Approve the scope and prepare compensation patch", intent: { kind: "approve" } },
+  { label: "Isolate encoder drift & check datasheet", text: "Isolate encoder drift and check datasheet citations", intent: { kind: "explain_fault" } },
+  { label: "Render pinout probe overlay", text: "Show cited sources and pinout probe guide", intent: { kind: "show_datasheet" } },
+  { label: "Approve voltage gate & flash patch", text: "Approve the scope and prepare compensation patch", intent: { kind: "approve" } },
 ];
 
 const DEMO_COMMANDS: readonly { label: string; text: string; intent: VoiceIntent }[] = [

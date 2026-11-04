@@ -14,13 +14,13 @@ export function PlaceboButton({ placebo, ready, busy, onRun }: { placebo: RunVie
   const v = placebo?.verdict ?? null;
   return (
     <section className="panel" aria-labelledby="pl-h">
-      <h2 id="pl-h">🧪 Scientific Control: Placebo vs. Remediation Patch</h2>
+      <h2 id="pl-h">Scientific Control: Placebo vs. Remediation Patch</h2>
       <p className="muted">
         Runs counterfactual verification on an un-remediated controller (comment-only change). A valid visual test must reject it to prove the repair verdict is non-trivial. Renders one verification clip (compute cost ~$0.09).
       </p>
       {ready ? (
         <button type="button" className="btn-scientific-control" disabled={busy} onClick={onRun}>
-          {placebo === undefined ? "🧪 Run Counterfactual Placebo Split-Test" : "🧪 Run Placebo Control Again"}
+          {placebo === undefined ? "Run Counterfactual Placebo Split-Test" : "Run Placebo Control Again"}
         </button>
       ) : null}
       {outcome === "running" ? (
