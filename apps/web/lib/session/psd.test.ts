@@ -163,7 +163,7 @@ describe("computeSnrMetrics", () => {
   });
 
   it("identifies stabilizing feed when SNR <= 12 dB", () => {
-    // Flat noisy spectrum (peak = 5 dB, median = 0 dB -> SNR = 5 dB <= 12 dB)
+    // Flat noisy spectrum (peak = 5 dB, median = 1 dB -> SNR = 4 dB <= 12 dB)
     const pts = [
       { f: 1, db: 0 },
       { f: 2, db: 1 },
@@ -176,5 +176,20 @@ describe("computeSnrMetrics", () => {
     expect(snr!.isLocked).toBe(false);
     expect(snr!.snrDb).toBe(4);
     expect(snr!.label).toContain("Stabilizing Camera Feed");
+  });
+
+  it("handles non-finite values and empty sets safely", () => {
+    expect(computeSnrMetrics([])).toBeNull();
+    expect(computeSnrMetrics([{ f: 1, db: Number.NaN }, { f: 2, db: Number.POSITIVE_INFINITY }])).toBeNull();
+    const pts = [
+      { f: 1, db: 0 },
+      { f: 2, db: Number.NaN },
+      { f: 3, db: 10 },
+      { f: 4, db: 20 },
+      { f: 5, db: Number.NEGATIVE_INFINITY },
+    ];
+    const snr = computeSnrMetrics(pts);
+    expect(snr).not.toBeNull();
+    expect(snr!.snrDb).toBe(10);
   });
 });

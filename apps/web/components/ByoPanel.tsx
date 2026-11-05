@@ -41,7 +41,7 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
       const res = await fetch("/replays/run_01M68V2MKCFX6SQ14ZNWPSSWXD/clips/pre.mp4");
       if (!res.ok) throw new Error(`Sample clip unavailable (${res.status})`);
       const blob = await res.blob();
-      const sampleFile = new File([blob], "sample_hardware_hunting_4.2hz.mp4", { type: "video/mp4" });
+      const sampleFile = new File([blob], "sample_hardware_hunting_4.03hz.mp4", { type: "video/mp4" });
       setFile(sampleFile);
       const uploaded = await uploadClip(sessionId, sampleFile, new Date());
       setClip(uploaded);

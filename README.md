@@ -1,7 +1,7 @@
 # ChronoSight
 
 [![Status](https://img.shields.io/badge/Status-Production%20Live-brightgreen.svg)](https://chronosight.onrender.com)
-[![Vitest](https://img.shields.io/badge/Vitest-593%20passed%20%2842%20files%29-blue.svg)]()
+[![Vitest](https://img.shields.io/badge/Vitest-596%20passed%20%2842%20files%29-blue.svg)]()
 [![Pytest](https://img.shields.io/badge/Pytest-50%20passed-blue.svg)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict%200%20Errors-success.svg)]()
 [![Next.js](https://img.shields.io/badge/Next.js-16.4%20%2F%20React%2019-black.svg)]()
@@ -53,7 +53,7 @@ $$
 ### 2. Zero-Hardware Auto-Inspection & Presets (`ByoPanel.tsx`, `StartLive.tsx`)
 - **Frame-0 Vision Discovery:** Automatically analyzes keyframe 0 using `muse-spark-1.3-contributor` to detect IC packages, seed 6 dynamic component contours, and auto-provision SAM 3.1 tracking multiplexing without manual bounding boxes.
 - **Automated Web-Grounding:** Resolves electrical pinouts and manufacturer operating tolerances on the fly when local schematic PDFs are absent.
-- **Zero-Hardware Evaluation Preset:** Evaluators without physical test benches can click **"[LOAD SAMPLE RAW HARDWARE CLIP]"** to immediately stream the unindexed 4.2 Hz hunting clip (`replays/run_01M68V2MKCFX6SQ14ZNWPSSWXD/clips/pre.mp4`) through the live perception and spectral analysis pipeline.
+- **Zero-Hardware Evaluation Preset:** Evaluators without physical test benches can click **"[LOAD SAMPLE RAW HARDWARE CLIP]"** to immediately stream the unindexed 4.03 Hz harmonic hunting clip (`replays/run_01M68V2MKCFX6SQ14ZNWPSSWXD/clips/pre.mp4`) through the live perception and spectral analysis pipeline.
 
 ### 3. Frictionless Evaluator UX & Laboratory Cockpit (`Workbench.tsx`, `VoiceBar.tsx`)
 - **Interactive 4-Phase Stepper:** Visualizes and controls the closed-loop state transitions above `VideoStage.tsx`:
@@ -66,7 +66,7 @@ $$
 
 ### 4. Scientific Counterfactual Split-Testing (`PlaceboButton.tsx`)
 - **Negative Control Validation:** The Digital Twin (`services/twin`) incorporates a Placebo control runner that executes an identical simulation with a no-op comment patch.
-- **Mathematical Proof:** SAM 3.1 and `psd.ts` evaluate the placebo run and verify that mechanical oscillation persists at 4.2 Hz, confirming that the unit test fails as expected. The visual unit test only transitions to `PASSED` when the verified Muse Code parameter patch damping is applied.
+- **Mathematical Proof:** SAM 3.1 and `psd.ts` evaluate the placebo run and verify that mechanical oscillation persists at the 4.03 Hz harmonic limit cycle, confirming that the unit test fails as expected. The visual unit test only transitions to `PASSED` when the verified Muse Code parameter patch damping is applied.
 
 ### 5. Full 7-Model Meta AI Stack & Partner Infrastructure Matrix
 
@@ -88,9 +88,9 @@ ChronoSight includes 3 calibrated cyber-physical benchmark scenarios validated a
 
 | Scenario | Plant Mechanism | Physical Root Cause | Telemetry Signature | Visual Unit Test Criteria | Pass Threshold |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **S1: Robot-Arm Elbow Hunting** | 2-DOF Kinematic Manipulator | Optical encoder drift and derivative phase lag | 4.2 Hz hunting limit cycle, 3.94 mm RMS | Spectral power density at 4.2 Hz; centroid jitter | P(4.2 Hz) ≤ 0.05 mm²/Hz, RMS ≤ 0.15 mm (Δ ≥ 40 dB) |
-| **S2: Solar Microinverter Thermal Derating** | 350W Grid-Tie Power Stage | MOSFET thermal runaway & switching losses | Ambient temperature surge, efficiency drop | Core junction temperature under full load; MPPT efficiency | T_core ≤ 85°C, η_MPPT ≥ 98.2% |
-| **S3: CNC Stepper-Axis Lead-Screw** | High-Precision Linear Actuator | Mid-band mechanical resonance | 14.8 Hz stepping chatter, velocity ripple | Centroid trajectory jitter; velocity standard deviation | Jitter ≤ 0.08 mm, velocity ripple ≤ 1.5% |
+| **S1: Robot-Arm Elbow Joint Hunting** | 6-DOF Industrial Kinematic Manipulator | Optical encoder phase lag from ungrounded I2C latency ($2\text{ ms}$) and brownout filter reset (`CONF2.FILT = 0`), exciting derivative instability | 4.03 Hz elbow limit-cycle oscillation, 3.94 mm RMS pre-remediation | Deterministic 6-Criteria Vibration Judge (ISO 10816-3): coverage $\ge 90\%$, relative reduction $\ge 70\%$, ceiling $\le \max(3 N_0, 0.30\text{ mm})$, spectral drop $\ge 10\text{ dB}$, no new resonance $> 6\text{ dB}$, confidence $\ge 0.50$ | RMS = 0.12 mm, Spectral Drop = 41.2 dB (Verdict: **PASS**) |
+| **S2: Solar Microinverter Thermal Derating** | 350W Grid-Tied Solar Microinverter | Inadequate thermal fan ramp and missing duty-cycle derating under high irradiance causing MOSFET hotspot $\ge 82^\circ\text{C}$ | Optical status LED blinking `"3-long"` fault code, MOSFET thermal blooming, zero active cooling fan | Multimodal optical unit assertions: status LED transitions to `"steady-on"`, thermal hotspot area relative reduction $\ge 50\%$, and cooling fan tachometer verified in 0.5–4.0 Hz range (30–240 RPM) | LED = `"steady-on"`, $\Delta\text{Area} \le -50\%$, Fan RPM = 30–240 |
+| **S3: CNC Stepper-Axis Mid-Band Resonance** | CNC Carriage & Linear Guide Rail | Stepper motor mid-band parametric resonance ($250\text{--}500\text{ mm/s}$) causing rotor torque dip, chatter vibration, and lost steps | 14.8 Hz stepping chatter vibration, position error overshoot, missed steps | Trajectory & vibration assertions: carriage terminal position error $\le 0.10\text{ mm}$ and chatter vibration RMS reduction $\ge 70\%$ | $\|\Delta x_{\text{error}}\| \le 0.10\text{ mm}$, Vibration RMS ratio $\le 0.30$ |
 
 ---
 
@@ -100,7 +100,7 @@ Every subsystem is validated through automated test suites and strict typechecki
 
 | Suite | Status | Coverage |
 | :--- | :--- | :--- |
-| **Vitest** | **593 passed / 0 failed** (42 test files) | Full coverage: `run-model`, `gateway`, `web`, `media-worker`, `sandbox-launcher` |
+| **Vitest** | **596 passed / 0 failed** (42 test files) | Full coverage: `run-model`, `gateway`, `web`, `media-worker`, `sandbox-launcher` |
 | **Pytest** | **50 passed / 0 failed** (6 suites) | Digital Twin physics simulation, kinematic renderers, and visual unit test assertions |
 | **TypeScript** | **0 errors** (Strict Mode) | Full monorepo verification across all 5 tsconfig project workspaces |
 | **Datasheet Corpus** | **Byte-Deterministic Match** | Checked via `python tools/py/build_corpus.py --check` against 60-page manual |
@@ -301,7 +301,7 @@ npm ci && uv sync
 cp .env.example .env.local  # Set SESSION_SIGNING_KEY and APPROVAL_HMAC_KEY
 
 # Run verification test suites
-npm test                                         # 593 Vitest unit tests
+npm test                                         # 596 Vitest unit tests
 uv run pytest services/twin/tests -q             # 50 Pytest physics twin tests
 npm run typecheck                                # Strict typecheck (0 errors across 5 projects)
 python tools/py/build_corpus.py --check          # Verify 60-page datasheet offsets

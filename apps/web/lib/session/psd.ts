@@ -262,7 +262,7 @@ export function filterOcclusionOutliers(
       if (!targetOut) continue;
 
       if (pPrev && pNext) {
-        const factor = (curPt.tMs - pPrev.tMs) / (pNext.tMs - pPrev.tMs || 1);
+        const factor = Math.max(0, Math.min(1, (curPt.tMs - pPrev.tMs) / (pNext.tMs - pPrev.tMs || 1)));
         targetOut.x = pPrev.x + factor * (pNext.x - pPrev.x);
         targetOut.y = pPrev.y + factor * (pNext.y - pPrev.y);
         targetOut.area = medianArea;
@@ -297,8 +297,11 @@ export interface SnrMetrics {
  * Else: Stabilizing Camera Feed
  */
 export function computeSnrMetrics(pts: Pt[]): SnrMetrics | null {
-  if (pts.length < 3) return null;
-  const dbs = pts.map((p) => p.db).sort((a, b) => a - b);
+  const dbs = pts
+    .map((p) => p.db)
+    .filter((db) => typeof db === "number" && Number.isFinite(db))
+    .sort((a, b) => a - b);
+  if (dbs.length < 3) return null;
   const peakDb = dbs[dbs.length - 1];
   const medianFloorDb = dbs[Math.floor(dbs.length / 2)];
   if (peakDb === undefined || medianFloorDb === undefined) return null;
