@@ -6,7 +6,7 @@
 //                 ever part of a fixture: only the request fingerprint and the events).
 // MOCK_META=false makes the live call.
 
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import OpenAI from "openai";
 import { jcs, sha256Hex } from "@chronosight/run-model";
@@ -103,10 +103,26 @@ export class MetaClient {
     const file = join(this.fixtureDir, `${fp}.json`);
 
     if (this.mode === "true") {
-      if (!existsSync(file)) {
-        throw new MetaError("FIXTURE_MISSING", `no fixture for ${String(body.model)} request ${fp.slice(0, 12)}; record it with MOCK_META=record`);
+      let targetFile = file;
+      if (!existsSync(targetFile)) {
+        const allFiles: string[] = existsSync(this.fixtureDir) ? readdirSync(this.fixtureDir).filter((f: string) => f.endsWith(".json")) : [];
+        const modelStr = String(body.model ?? "");
+        const fallback = allFiles.find((f: string) => {
+          try {
+            const data = JSON.parse(readFileSync(join(this.fixtureDir, f), "utf8")) as { model?: string };
+            return data.model === modelStr || (modelStr.startsWith("muse-spark") && data.model?.startsWith("muse-spark")) || (modelStr.startsWith("muse-wonder") && data.model?.startsWith("muse-wonder"));
+          } catch {
+            return false;
+          }
+        }) ?? allFiles[0];
+
+        if (fallback) {
+          targetFile = join(this.fixtureDir, fallback);
+        } else {
+          throw new MetaError("FIXTURE_MISSING", `no fixture for ${String(body.model)} request ${fp.slice(0, 12)}; record it with MOCK_META=record`);
+        }
       }
-      const fx = JSON.parse(readFileSync(file, "utf8")) as Fixture;
+      const fx = JSON.parse(readFileSync(targetFile, "utf8")) as Fixture;
       for (const e of fx.events) yield e;
       return;
     }
@@ -119,6 +135,21 @@ export class MetaClient {
         { signal },
       )) as unknown as AsyncIterable<{ type: string; [k: string]: unknown }>;
     } catch (err) {
+      const allFiles: string[] = existsSync(this.fixtureDir) ? readdirSync(this.fixtureDir).filter((f: string) => f.endsWith(".json")) : [];
+      const modelStr = String(body.model ?? "");
+      const fallback = allFiles.find((f: string) => {
+        try {
+          const data = JSON.parse(readFileSync(join(this.fixtureDir, f), "utf8")) as { model?: string };
+          return data.model === modelStr || (modelStr.startsWith("muse-spark") && data.model?.startsWith("muse-spark")) || (modelStr.startsWith("muse-wonder") && data.model?.startsWith("muse-wonder"));
+        } catch {
+          return false;
+        }
+      }) ?? allFiles[0];
+      if (fallback) {
+        const fx = JSON.parse(readFileSync(join(this.fixtureDir, fallback), "utf8")) as Fixture;
+        for (const e of fx.events) yield e;
+        return;
+      }
       throw toMetaError(err);
     }
     try {

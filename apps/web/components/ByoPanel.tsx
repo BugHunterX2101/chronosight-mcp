@@ -66,17 +66,39 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
     setProblem(f === null ? null : clipProblem(f));
   };
 
-  const send = async () => {
-    if (file === null || !agreed) return;
+  const sendFile = async (targetFile?: File | null) => {
+    const toSend = targetFile ?? file;
+    if (toSend === null || !agreed) return;
     setSending(true);
     setProblem(null);
     try {
-      setClip(await uploadClip(sessionId, file, new Date()));
+      setClip(await uploadClip(sessionId, toSend, new Date()));
     } catch (err) {
       setProblem(say(err));
     } finally {
       setSending(false);
     }
+  };
+
+  const send = () => sendFile(file);
+
+  const handleUploadClick = () => {
+    if (file === null || clip !== null) {
+      const input = document.getElementById(ids.file) as HTMLInputElement | null;
+      if (input) {
+        input.value = "";
+        input.onchange = (e) => {
+          const selected = (e.target as HTMLInputElement).files?.[0] ?? null;
+          choose(selected);
+          if (selected && clipProblem(selected) === null) {
+            void sendFile(selected);
+          }
+        };
+        input.click();
+      }
+      return;
+    }
+    void send();
   };
 
   const analyse = () => {
@@ -143,11 +165,11 @@ export function ByoPanel({ sessionId, busy, onAnalyse }: { sessionId: string; bu
         >
           Load Hardware Clip (Pre-Patch Preset)
         </button>
-        <button type="button" disabled={!agreed || recording || sending || file !== null} onClick={record}>
+        <button type="button" disabled={!agreed || recording || sending} onClick={record}>
           {recording ? "Recording 5 s…" : "Record 5 s from camera"}
         </button>
-        <button type="button" className="primary" disabled={!agreed || file === null || problem !== null || sending || clip !== null} onClick={() => void send()}>
-          {sending ? "Uploading…" : "Upload clip"}
+        <button type="button" className="primary" disabled={!agreed || sending} onClick={handleUploadClick}>
+          {sending ? "Uploading…" : clip !== null ? "Upload another clip" : "Upload clip"}
         </button>
         {!agreed ? <span className="muted">Acknowledge notice or click Auto-Inspect.</span> : null}
       </div>
