@@ -27,7 +27,10 @@ const serial = <T>(job: () => Promise<T>): Promise<T> => {
 };
 
 let version: Promise<string> | undefined;
-const ffmpegVersion = (): Promise<string> => (version ??= runTool(tools.ffmpeg, ["-version"], 10_000).then((r) => r.stdout.split("\n")[0] ?? "unknown"));
+const ffmpegVersion = (): Promise<string> =>
+  (version ??= runTool(tools.ffmpeg, ["-version"], 10_000)
+    .then((r) => r.stdout.split("\n")[0] ?? "unknown")
+    .catch((err) => `unavailable (${err instanceof Error ? err.message : String(err)})`));
 
 function send(res: ServerResponse, status: number, body: unknown): void {
   const text = JSON.stringify(body);

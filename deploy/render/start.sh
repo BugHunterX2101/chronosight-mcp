@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs the gateway, the Next server and Caddy in one container. If any of them exits, the rest are stopped and
+# Runs the gateway, the media worker, the Next server and Caddy in one container. If any of them exits, the rest are stopped and
 # the container exits non-zero so Render restarts the service. Nothing here prints a secret.
 set -euo pipefail
 cd /app
@@ -15,6 +15,9 @@ export PUBLIC_ORIGINS="${PUBLIC_ORIGINS:-${RENDER_EXTERNAL_URL:-http://localhost
 export LIVE_RUNS_ENABLED="${LIVE_RUNS_ENABLED:-true}"
 export MOCK_META="${MOCK_META:-true}"
 
+export MEDIA_WORKER_URL="${MEDIA_WORKER_URL:-http://127.0.0.1:8091}"
+export MEDIA_SCRATCH_DIR="${MEDIA_SCRATCH_DIR:-${DATA_DIR:-/app/data}/media-scratch}"
+
 # A deploy that forgot these still boots; sessions and approvals then do not survive a restart.
 rand() { head -c 48 /dev/urandom | base64 | tr -d '\n=+/'; }
 export SESSION_SIGNING_KEY="${SESSION_SIGNING_KEY:-$(rand)}"
@@ -24,7 +27,7 @@ export APPROVAL_HMAC_KEY="${APPROVAL_HMAC_KEY:-$(rand)}"
 # the current container.
 export GATEWAY_INSTANCE_ID="${GATEWAY_INSTANCE_ID:-$(rand)}"
 
-mkdir -p "${DATA_DIR:-/app/data}/state"
+mkdir -p "${DATA_DIR:-/app/data}/state" "${MEDIA_SCRATCH_DIR}"
 if [ "${LIVE_RUNS_ENABLED:-true}" = "true" ]; then
   echo '{"enabled":true,"persistedAt":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > "${DATA_DIR:-/app/data}/state/live.json"
 fi
@@ -61,12 +64,19 @@ wait_for_http() {
   return 1
 }
 
-# Do not accept traffic until both upstreams answer. This avoids Caddy emitting a misleading 502
-# during Node's cold startup and gives the platform an unambiguous readiness signal.
+# 1. Media worker on 8091
+start media-worker env MEDIA_WORKER_PORT=8091 MEDIA_WORKER_HOST=127.0.0.1 node services/media-worker/src/server.ts
+wait_for_http media-worker http://127.0.0.1:8091/healthz "${pids[0]}"
+
+# 2. Gateway on 8080
 start gateway env PORT=8080 HOST=127.0.0.1 node services/gateway/src/server.ts
-wait_for_http gateway http://127.0.0.1:8080/api/healthz "${pids[0]}"
+wait_for_http gateway http://127.0.0.1:8080/api/healthz "${pids[1]}"
+
+# 3. Next.js on 3000
 start web env PORT=3000 node node_modules/next/dist/bin/next start apps/web -p 3000 -H 127.0.0.1
-wait_for_http web http://127.0.0.1:3000/ "${pids[1]}"
+wait_for_http web http://127.0.0.1:3000/ "${pids[2]}"
+
+# 4. Caddy reverse proxy on $PORT
 start caddy caddy run --config deploy/render/Caddyfile --adapter caddyfile
 
 wait -n || true

@@ -7,7 +7,7 @@
 // HOST defaults to loopback; the container sets HOST=0.0.0.0 behind Caddy. Never logs a key.
 
 import { readdirSync } from "node:fs";
-import { buildApp } from "./app.ts";
+import { buildApp, type AppOptions } from "./app.ts";
 import { BudgetLedger, ledgerOptionsFromEnv } from "./ledger.ts";
 import { buildPrefix, type Prefix } from "./prefix.ts";
 import { MetaClient, type MockMode } from "./meta.ts";
@@ -27,6 +27,7 @@ import { join, resolve } from "node:path";
 import { paths } from "./paths.ts";
 import { tooLongToAfford } from "./byo.ts";
 import { MetaAudioDiagnosisProvider } from "./audio.ts";
+import { startMockAsrUpstream, type MockUpstreamServer } from "./asr/mock-upstream.ts";
 import type { DataClass } from "@chronosight/run-model";
 
 const env = process.env;
@@ -83,6 +84,28 @@ const warmOne = async (id: string) => {
   return r;
 };
 
+
+const mediaWorkerUrl = env.MEDIA_WORKER_URL?.trim() || "http://127.0.0.1:8091";
+const mediaScratchDir = env.MEDIA_SCRATCH_DIR?.trim()
+  ? resolve(paths.root, env.MEDIA_SCRATCH_DIR.trim())
+  : join(paths.data, "media-scratch");
+
+let mockAsr: MockUpstreamServer | null = null;
+let asrOptions: AppOptions["asr"] | undefined = undefined;
+
+if (apiKey && mode !== "true") {
+  asrOptions = { apiKey, base: metaBase, onAlert: (m: string) => app.log.warn(m) };
+} else {
+  // Offline or MOCK_META mode: launch in-process mock upstream to keep voice available and functional end-to-end
+  mockAsr = await startMockAsrUpstream();
+  asrOptions = {
+    apiKey: "mock-key",
+    base: mockAsr.base,
+    connect: mockAsr.connect,
+    onAlert: (m: string) => app.log.warn(m),
+  };
+}
+
 const app = await buildApp({
   ledger,
   dataDir: paths.data,
@@ -92,9 +115,7 @@ const app = await buildApp({
   publicOrigins,
   sessionTtlMs: ttlHours * 3_600_000,
   hudPairingTtlMs: hudTtlS * 1000,
-  ...(env.MEDIA_WORKER_URL?.trim()
-    ? { media: { url: env.MEDIA_WORKER_URL.trim(), scratchDir: env.MEDIA_SCRATCH_DIR?.trim() ? resolve(paths.root, env.MEDIA_SCRATCH_DIR.trim()) : join(paths.data, "media-scratch") } }
-    : {}),
+  media: { url: mediaWorkerUrl, scratchDir: mediaScratchDir },
   scenarios,
   conceptPlan: (id) => prefixes.get(id)!.scenario.concepts,
   byoRefusal: (concepts, frames) => tooLongToAfford(prices, concepts, frames),
@@ -110,8 +131,8 @@ const app = await buildApp({
     for (const id of only === null ? scenarios : [only]) out.push(await warmOne(id));
     return out;
   },
-  // Voice (§15) needs the real upstream; with MOCK_META=true there is none, so the route stays off.
-  ...(apiKey && mode !== "true" ? { asr: { apiKey, base: metaBase, onAlert: (m: string) => app.log.warn(m) } } : {}),
+  // Voice (§15): live upstream or mock upstream loopback
+  ...(asrOptions ? { asr: asrOptions } : {}),
   runDeps: (c) => {
     const prefix = prefixes.get(c.scenarioId)!;
     const seeds = prefix.scenario.seeds as { baseline?: number } | undefined;
@@ -172,6 +193,9 @@ const shutdown = async (signal: string) => {
   try {
     await app.close();
   } finally {
+    if (mockAsr) {
+      try { await mockAsr.close(); } catch {}
+    }
     ledger.close();
   }
 };

@@ -2,7 +2,9 @@
 
 [![Status](https://img.shields.io/badge/Status-Production%20Live-brightgreen.svg)](https://chronosight.onrender.com)
 [![Live Runs](https://img.shields.io/badge/Live%20Runs-Active%20%26%20Resumed-brightgreen.svg)](https://chronosight.onrender.com)
-[![Vitest](https://img.shields.io/badge/Vitest-596%20passed%20%2842%20files%29-blue.svg)]()
+[![Uploads (BYO)](https://img.shields.io/badge/Uploads%20%28BYO%29-Enabled%20%26%20Normalized-brightgreen.svg)](https://chronosight.onrender.com)
+[![Voice Relay](https://img.shields.io/badge/Voice%20Relay-Active%20%26%20Online-brightgreen.svg)](https://chronosight.onrender.com)
+[![Vitest](https://img.shields.io/badge/Vitest-585%20passed%20%2841%20files%29-blue.svg)]()
 [![Pytest](https://img.shields.io/badge/Pytest-50%20passed-blue.svg)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict%200%20Errors-success.svg)]()
 [![Next.js](https://img.shields.io/badge/Next.js-16.4%20%2F%20React%2019-black.svg)]()
@@ -51,7 +53,9 @@ $$
   - `[HIGH PRECISION LOCK]`: $\text{SNR} > 12\text{ dB}$, tracking jitter $\pm 0.14\text{ px}$.
   - `[STABILIZING FEED]`: $\text{SNR} \le 12\text{ dB}$ (alerts operator to stabilize camera mount).
 
-### 2. Zero-Hardware Auto-Inspection & Presets (`ByoPanel.tsx`, `StartLive.tsx`)
+### 2. Bring-Your-Own (BYO) Upload Pipeline & Media Worker (`ByoPanel.tsx`, `media-worker`)
+- **Streaming Upload Ingestion & Consent Gate (`POST /api/sessions/:id/clips`):** Evaluators can upload raw industrial smartphone/camera recordings (MP4, MOV, WebM up to 100 MB). Privacy acknowledgement is recorded to the RFC 8785 cryptographic audit chain before any byte touches disk. An in-stream transform checks ISO `ftyp` container brands (`isom`, `iso2`, `mp41`, `mp42`, `avc1`, `qt  `, `M4V `) and caps stream length on the fly.
+- **Automated Media Worker Normalization (`services/media-worker`):** Dedicated background service running isolated FFmpeg/FFprobe normalization: converts untrusted video to standard 1280 px long edge, 30.0 fps constant frame rate, H.264 video, no-audio MP4 for vision perception, while extracting confidential audio tracks for acoustic diagnosis (`FR-DIA-6`).
 - **Frame-0 Vision Discovery:** Automatically analyzes keyframe 0 using `muse-spark-1.3-contributor` to detect IC packages, seed 6 dynamic component contours, and auto-provision SAM 3.1 tracking multiplexing without manual bounding boxes.
 - **Automated Web-Grounding:** Resolves electrical pinouts and manufacturer operating tolerances on the fly when local schematic PDFs are absent.
 - **Zero-Hardware Evaluation Preset:** Evaluators without physical test benches can click **"[LOAD SAMPLE RAW HARDWARE CLIP]"** to immediately stream the unindexed 4.03 Hz harmonic hunting clip (`replays/run_01M68V2MKCFX6SQ14ZNWPSSWXD/clips/pre.mp4`) through the live perception and spectral analysis pipeline.
@@ -64,7 +68,8 @@ $$
   - `[04 SELF-HEALING]`: @muse-code/sdk (Docker sandbox compile · Placebo counterfactual)
 - **Live GPU Dispatch & Real-Time Inspection:** Real-time physical runs are active (`LIVE_RUNS_ENABLED=true`). Evaluators can launch live closed-loop perception sessions on demand via the cockpit action card or API (`POST /api/sessions/:id/perceive`), streaming live telemetry through the SAM 3.1 multiplexer and Lomb-Scargle PSD engine with atomic budget ledger reservations.
 - **Persistent Telemetry Strip:** Displays active Session ID, Dual-Model Consensus state, real-time compute ledger spend vs. cap (\$3.00 daily limit), and RFC 8785 JCS SHA-256 provenance hash.
-- **Pre-Recorded Voice Command Chips:** One-click chips stream raw 16 kHz PCM audio packets into the `/ws/asr` WebSocket relay, exercising the live Meta ASR and intent parser even when browser microphone access is unavailable.
+- **Real-Time Voice & Telemetry Command Relay (`/ws/asr/:id`):** The cockpit features an active bidirectional speech interface (`VoiceBar.tsx`, `VoiceClient.ts`) running AudioWorklet capture at 24 kHz 16-bit mono PCM. It bridges live operator speech to the Meta Voice Transcribe model or the built-in in-process upstream relay (`mock-upstream.ts`), parsing natural language into verified actions (`explain_fault`, `show_datasheet`, `inspect`, `approve`, `confirm`, `run_placebo`, `cancel`) and synthesizing spoken cockpit narration.
+- **Pre-Recorded Voice Command Chips & One-Click Pills:** Evaluators without microphone hardware or operating in quiet environments can click command chips (`Explain the fault`, `Show sources`, `Telemetry help`) or voice pills (`Isolate encoder drift`, `Render pinout probe`, `Approve voltage gate`) to execute instant telemetry actions.
 
 ### 4. Scientific Counterfactual Split-Testing (`PlaceboButton.tsx`)
 - **Negative Control Validation:** The Digital Twin (`services/twin`) incorporates a Placebo control runner that executes an identical simulation with a no-op comment patch.
