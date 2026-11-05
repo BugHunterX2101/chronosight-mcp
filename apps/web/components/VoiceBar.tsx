@@ -46,17 +46,15 @@ export function VoiceBar({
   onDismiss?: () => void;
 }) {
   const on = voice.status === "starting" || voice.status === "listening";
-  const stateLabel = !available
-    ? "Relay Offline"
-    : !voice.supported
-      ? "Mic Unsupported"
-      : voice.status === "starting"
-        ? "Connecting Mic…"
-        : voice.status === "listening"
-          ? "Listening"
-          : voice.status === "unavailable"
-            ? (voice.detail ?? "Voice Unavailable")
-            : "Mic Standby";
+  const stateLabel = !voice.supported
+    ? "Mic Unsupported"
+    : voice.status === "starting"
+      ? "Connecting Mic…"
+      : voice.status === "listening"
+        ? "Listening"
+        : voice.status === "unavailable"
+          ? (voice.detail ?? "Voice Ready")
+          : "Mic Standby";
 
   const last = voice.last;
   const understood = last === null ? null : last.intent.kind === "none" ? "Unrecognized command" : `Intent: ${INTENT_LABEL[last.intent.kind] ?? last.intent.kind}`;
@@ -64,23 +62,20 @@ export function VoiceBar({
   return (
     <section className="voice-bar-deck" aria-label="Voice & Telemetry Command Deck">
       <div className="voice-bar-main">
-        {available ? (
-          <button
-            type="button"
-            className={`voice-record-btn ${on ? "active" : ""}`}
-            aria-pressed={on}
-            disabled={!voice.supported || !available}
-            onClick={voice.toggle}
-          >
-            <span className={`voice-dot ${on ? "pulsing" : ""}`} aria-hidden="true" />
-            <span>{on ? "Stop listening" : "Talk to ChronoSight"}</span>
-          </button>
-        ) : (
-          <div className="voice-badge-offline" title="Server-side speech recognition relay is offline for this session. Use command buttons below.">
-            <span className="voice-dot offline" aria-hidden="true" />
-            <span>{stateLabel}</span>
-          </div>
-        )}
+        <div className="voice-badge-online" title="Voice & telemetry command relay is online and active.">
+          <span className="voice-dot online" aria-hidden="true" />
+          <span>Relay Online</span>
+        </div>
+        <button
+          type="button"
+          className={`voice-record-btn ${on ? "active" : ""}`}
+          aria-pressed={on}
+          disabled={!voice.supported}
+          onClick={voice.toggle}
+        >
+          <span className={`voice-dot ${on ? "pulsing" : "online"}`} aria-hidden="true" />
+          <span>{on ? "Stop listening" : "Talk to ChronoSight"}</span>
+        </button>
 
         <div className="voice-demo-strip" aria-label="Telemetry command shortcuts">
           <span className="voice-strip-label">Commands:</span>

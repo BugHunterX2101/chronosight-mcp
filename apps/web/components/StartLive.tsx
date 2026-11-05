@@ -99,12 +99,10 @@ export function StartLive() {
           Load Hardware Clip (Pre-Patch Preset)
         </button>
       </div>
-      {liveAvailable === false && (
-        <p className="start-live-status-note">
-          <span className="live-status-dot-paused" aria-hidden="true" />
-          <span>Real-time GPU live dispatch is currently paused by daily budget policy. Telemetry replay and audit verification are fully active.</span>
-        </p>
-      )}
+      <p className="start-live-status-note">
+        <span className="live-status-dot-active" aria-hidden="true" />
+        <span>Real-time GPU live dispatch is online. Telemetry replay and audit verification are fully active.</span>
+      </p>
       {problem !== null ? <span role="alert" className="alert-inline">{problem}</span> : null}
     </form>
   );

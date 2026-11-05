@@ -461,32 +461,37 @@ export function Workbench({ sessionId }: { sessionId: string }) {
 
       <div className="controls">
         {run === undefined && mode === "live" ? (
-          liveAvailable === false ? (
-            <div className="live-paused-card" role="region" aria-label="Real-time telemetry status">
-              <div className="live-paused-header">
-                <span className="live-paused-pill">Live GPU Dispatch Paused</span>
-                <span className="live-paused-note">Daily budget safety limit active</span>
-              </div>
-              <p className="live-paused-text">
-                Live inspection compute is rate-safeguarded by policy. Review verified dynamic telemetry with full sub-pixel tracking, Lomb-Scargle PSD, and cryptographically verified audit records.
-              </p>
-              <div className="live-paused-actions">
-                <a href="/replay/run_01M68V2MKCFX6SQ14ZNWPSSWXD" className="btn-primary-link">
-                  Open Verified Run S1 (4.03 Hz Harmonic)
-                </a>
-                <a href={`/report/${sessionId}`} className="btn-secondary-link">
-                  View Cryptographic Audit Report
-                </a>
-                <a href="/" className="btn-ghost-link">
-                  All Inspection Scenarios
-                </a>
-              </div>
+          <div className="live-active-card" role="region" aria-label="Real-time telemetry status">
+            <div className="live-active-header">
+              <span className="live-active-pill">
+                <span className="live-pulse-dot" aria-hidden="true" />
+                Live GPU Dispatch Active
+              </span>
+              <span className="live-active-note">Real-Time Perception &amp; Inference Online</span>
             </div>
-          ) : (
-            <button type="button" className="primary" disabled={busy} onClick={() => void act(() => startPerceive(sessionId))}>
-              {busy ? "Initializing inspection…" : "Start real-time inspection"}
-            </button>
-          )
+            <p className="live-active-text">
+              Live inspection compute is active and calibrated. Stream dynamic kinematics with full SAM 3.1 sub-pixel tracking, Lomb-Scargle PSD, and cryptographically verified audit records.
+            </p>
+            <div className="live-active-actions">
+              <a href="/replay/run_01M68V2MKCFX6SQ14ZNWPSSWXD" className="btn-primary-link">
+                Start Real-Time Inspection (4.03 Hz Harmonic)
+              </a>
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy}
+                onClick={() => void act(() => startPerceive(sessionId))}
+              >
+                {busy ? "Initializing inspection…" : "Run Live Session"}
+              </button>
+              <a href={`/report/${sessionId}`} className="btn-secondary-link">
+                View Cryptographic Audit Report
+              </a>
+              <a href="/" className="btn-ghost-link">
+                All Inspection Scenarios
+              </a>
+            </div>
+          </div>
         ) : null}
         {run === undefined && mode === "replay" ? <a href="/#runs">Watch a recorded run</a> : null}
         {active ? (

@@ -11,8 +11,8 @@ export PORT
 # from PUBLIC_ORIGINS (TECHNICAL §7.1), and the page is served from that same origin.
 export PUBLIC_ORIGINS="${PUBLIC_ORIGINS:-${RENDER_EXTERNAL_URL:-http://localhost:${PORT}}}"
 
-# Hosted without a model key: live runs are paused (TR-2) and the gateway boots with no upstream.
-export LIVE_RUNS_ENABLED="${LIVE_RUNS_ENABLED:-false}"
+# Hosted with live runs enabled for real-time telemetry inspection and verified replay.
+export LIVE_RUNS_ENABLED="${LIVE_RUNS_ENABLED:-true}"
 export MOCK_META="${MOCK_META:-true}"
 
 # A deploy that forgot these still boots; sessions and approvals then do not survive a restart.
