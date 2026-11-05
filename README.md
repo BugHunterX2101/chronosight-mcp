@@ -1,6 +1,7 @@
 # ChronoSight
 
 [![Status](https://img.shields.io/badge/Status-Production%20Live-brightgreen.svg)](https://chronosight.onrender.com)
+[![Live Runs](https://img.shields.io/badge/Live%20Runs-Active%20%26%20Resumed-brightgreen.svg)](https://chronosight.onrender.com)
 [![Vitest](https://img.shields.io/badge/Vitest-596%20passed%20%2842%20files%29-blue.svg)]()
 [![Pytest](https://img.shields.io/badge/Pytest-50%20passed-blue.svg)]()
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict%200%20Errors-success.svg)]()
@@ -61,6 +62,7 @@ $$
   - `[02 REASONING]`: Muse Spark 1.3 (1M-token datasheet pin · character-exact citations)
   - `[03 SAFETY GATE]`: Muse Wonder 1.0 (Operator voltage/probe HMAC signoff)
   - `[04 SELF-HEALING]`: @muse-code/sdk (Docker sandbox compile · Placebo counterfactual)
+- **Live GPU Dispatch & Real-Time Inspection:** Real-time physical runs are active (`LIVE_RUNS_ENABLED=true`). Evaluators can launch live closed-loop perception sessions on demand via the cockpit action card or API (`POST /api/sessions/:id/perceive`), streaming live telemetry through the SAM 3.1 multiplexer and Lomb-Scargle PSD engine with atomic budget ledger reservations.
 - **Persistent Telemetry Strip:** Displays active Session ID, Dual-Model Consensus state, real-time compute ledger spend vs. cap (\$3.00 daily limit), and RFC 8785 JCS SHA-256 provenance hash.
 - **Pre-Recorded Voice Command Chips:** One-click chips stream raw 16 kHz PCM audio packets into the `/ws/asr` WebSocket relay, exercising the live Meta ASR and intent parser even when browser microphone access is unavailable.
 

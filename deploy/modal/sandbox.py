@@ -64,3 +64,4 @@ def evaluate_patch(scenario_id: str, patch_code: str, params: dict[str, Any]) ->
         "exportedSymbols": [k for k in local_env.keys() if not k.startswith("_")],
         "params": params,
     }
+

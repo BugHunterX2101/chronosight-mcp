@@ -67,3 +67,4 @@ TWIN_BASE_URL=https://<workspace>--chronosight-twin-fastapi-app.modal.run
 ```
 
 The gateway orchestrator will immediately route all twin physics simulation, rendering, and visual unit test evaluations through Modal's high-performance cloud infrastructure.
+

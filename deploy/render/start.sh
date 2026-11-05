@@ -24,7 +24,10 @@ export APPROVAL_HMAC_KEY="${APPROVAL_HMAC_KEY:-$(rand)}"
 # the current container.
 export GATEWAY_INSTANCE_ID="${GATEWAY_INSTANCE_ID:-$(rand)}"
 
-mkdir -p "${DATA_DIR:-/app/data}"
+mkdir -p "${DATA_DIR:-/app/data}/state"
+if [ "${LIVE_RUNS_ENABLED:-true}" = "true" ]; then
+  echo '{"enabled":true,"persistedAt":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' > "${DATA_DIR:-/app/data}/state/live.json"
+fi
 
 pids=()
 start() {
